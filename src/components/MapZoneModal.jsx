@@ -1,23 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
-import { MapPin, Navigation, Check, X, Sliders, Target, Eye } from 'lucide-react';
+import { MapPin, Navigation, Check, X, Search, Target, Map } from 'lucide-react';
+import ALL_PERU_DISTRICTS from '../data/peru_districts.json';
 
-// Distritos de Lima con coordenadas para calcular el área de alcance
-const LIMA_DISTRICTS = [
-  { name: 'Surco', lat: -12.137, lng: -76.985 },
-  { name: 'San Borja', lat: -12.108, lng: -77.001 },
-  { name: 'Miraflores', lat: -12.122, lng: -77.030 },
-  { name: 'San Isidro', lat: -12.098, lng: -77.035 },
-  { name: 'Surquillo', lat: -12.112, lng: -77.017 },
-  { name: 'Barranco', lat: -12.148, lng: -77.021 },
-  { name: 'La Molina', lat: -12.083, lng: -76.946 },
-  { name: 'Magdalena', lat: -12.091, lng: -77.069 },
-  { name: 'Jesús María', lat: -12.074, lng: -77.049 },
-  { name: 'Lince', lat: -12.083, lng: -77.034 },
-  { name: 'Pueblo Libre', lat: -12.073, lng: -77.063 },
-  { name: 'San Miguel', lat: -12.076, lng: -77.086 },
-  { name: 'Chorrillos', lat: -12.176, lng: -77.018 }
-];
+// Distritos con coordenadas para el cálculo de distancias y cobertura
+const DISTRICTS_WITH_COORDS = ALL_PERU_DISTRICTS.filter(d => d.lat !== null && d.lng !== null);
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -29,6 +16,21 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// Atajos rápidos para centros de zona populares
+const POPULAR_SHORTCUTS = [
+  { name: 'Surco', lat: -12.137, lng: -76.985 },
+  { name: 'San Borja', lat: -12.108, lng: -77.001 },
+  { name: 'Miraflores', lat: -12.122, lng: -77.030 },
+  { name: 'San Isidro', lat: -12.098, lng: -77.035 },
+  { name: 'La Molina', lat: -12.083, lng: -76.946 },
+  { name: 'San Miguel', lat: -12.076, lng: -77.086 },
+  { name: 'Los Olivos', lat: -11.992, lng: -77.070 },
+  { name: 'Callao', lat: -12.056, lng: -77.118 },
+  { name: 'Arequipa', lat: -16.409, lng: -71.537 },
+  { name: 'Trujillo', lat: -8.111, lng: -79.028 },
+  { name: 'Cusco', lat: -13.531, lng: -71.967 }
+];
 
 export default function MapZoneModal({
   currentLocation,
@@ -43,41 +45,63 @@ export default function MapZoneModal({
   const [lat, setLat] = useState(currentLocation?.lat || -12.122);
   const [lng, setLng] = useState(currentLocation?.lng || -77.030);
   const [radiusKm, setRadiusKm] = useState(currentLocation?.radiusKm || 6);
+  const [mapType, setMapType] = useState('streets'); // 'streets' o 'satellite'
+  const [searchQuery, setSearchQuery] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
+  const tileLayerRef = useRef(null);
+
+  // Filtrar distritos de búsqueda por nombre, provincia o departamento (1,812 de INEI)
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return ALL_PERU_DISTRICTS.filter(d =>
+      d.distrito.toLowerCase().includes(q) ||
+      d.provincia.toLowerCase().includes(q) ||
+      d.departamento.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [searchQuery]);
 
   // Calcular dinámicamente qué distritos están dentro del área circular de alcance
-  const coveredDistricts = LIMA_DISTRICTS.filter((d) => {
-    const dist = getDistanceKm(lat, lng, d.lat, d.lng);
-    return dist <= radiusKm;
-  });
+  const coveredDistricts = useMemo(() => {
+    return DISTRICTS_WITH_COORDS.filter((d) => {
+      const dist = getDistanceKm(lat, lng, d.lat, d.lng);
+      return dist <= radiusKm;
+    });
+  }, [lat, lng, radiusKm]);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Inicializar mapa de Leaflet
+    // Inicializar mapa de Leaflet con soporte de alta resolución
     const map = L.map(mapContainerRef.current, {
       center: [lat, lng],
-      zoom: 13,
-      zoomControl: false
+      zoom: 14,
+      zoomControl: false,
+      maxZoom: 20
     });
     mapInstanceRef.current = map;
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // CartoDB Dark Matter tiles (modo oscuro tecnológico)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; CartoDB &copy; OpenStreetMap',
-      subdomains: 'abcd',
-      maxZoom: 19
-    }).addTo(map);
+    // Google Maps HD Tiles (Ultra Nítido, Calles y Nombres completos)
+    const googleStreets = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Maps',
+      subdomains: ['0', '1', '2', '3'],
+      maxZoom: 20,
+      detectRetina: true
+    });
+
+    googleStreets.addTo(map);
+    tileLayerRef.current = googleStreets;
+
 
     // Pin de centro de área
     const customIcon = L.divIcon({
       className: 'custom-reach-pin',
       html: `
         <div style="
-          width: 32px;
-          height: 32px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
           background: linear-gradient(135deg, #10b981, #059669);
           border: 3px solid #ffffff;
@@ -87,13 +111,13 @@ export default function MapZoneModal({
           justify-content: center;
           color: #ffffff;
           font-weight: 800;
-          font-size: 14px;
+          font-size: 15px;
         ">
           📍
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+      iconSize: [34, 34],
+      iconAnchor: [17, 17]
     });
 
     const marker = L.marker([lat, lng], {
@@ -102,7 +126,7 @@ export default function MapZoneModal({
     }).addTo(map);
     markerRef.current = marker;
 
-    // Círculo de área de alcance (Estilo promoción de Instagram)
+    // Círculo de área de alcance
     const circle = L.circle([lat, lng], {
       radius: radiusKm * 1000,
       color: '#10b981',
@@ -135,6 +159,26 @@ export default function MapZoneModal({
     };
   }, []);
 
+  // Cambiar tipo de mapa (Calles vs Satélite Híbrido) dinámicamente
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    if (tileLayerRef.current) {
+      mapInstanceRef.current.removeLayer(tileLayerRef.current);
+    }
+    const tileUrl = mapType === 'satellite'
+      ? 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}' // Google Hybrid Satellite HD
+      : 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'; // Google Streets HD
+
+    const newLayer = L.tileLayer(tileUrl, {
+      attribution: '&copy; Google Maps',
+      subdomains: ['0', '1', '2', '3'],
+      maxZoom: 20,
+      detectRetina: true
+    });
+    newLayer.addTo(mapInstanceRef.current);
+    tileLayerRef.current = newLayer;
+  }, [mapType]);
+
   // Actualizar círculo cuando cambia el radio (slider)
   useEffect(() => {
     if (circleRef.current) {
@@ -146,50 +190,88 @@ export default function MapZoneModal({
   }, [radiusKm]);
 
   // Cambiar punto de referencia rápido
-  const handleSelectDistrict = (dist) => {
-    setLat(dist.lat);
-    setLng(dist.lng);
+  const handleSelectDistrict = (targetLat, targetLng, name) => {
+    setLat(targetLat);
+    setLng(targetLng);
+    setSearchQuery('');
 
     if (mapInstanceRef.current && markerRef.current && circleRef.current) {
-      mapInstanceRef.current.setView([dist.lat, dist.lng], 13);
-      markerRef.current.setLatLng([dist.lat, dist.lng]);
-      circleRef.current.setLatLng([dist.lat, dist.lng]);
+      mapInstanceRef.current.setView([targetLat, targetLng], 14);
+      markerRef.current.setLatLng([targetLat, targetLng]);
+      circleRef.current.setLatLng([targetLat, targetLng]);
     }
   };
 
-  // Usar GPS
-  const handleUseGPS = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocalización no disponible');
-      return;
-    }
-    setGpsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const uLat = pos.coords.latitude;
-        const uLng = pos.coords.longitude;
-        setLat(uLat);
-        setLng(uLng);
+  const [gpsStatusMsg, setGpsStatusMsg] = useState('');
 
-        if (mapInstanceRef.current && markerRef.current && circleRef.current) {
-          mapInstanceRef.current.setView([uLat, uLng], 13);
-          markerRef.current.setLatLng([uLat, uLng]);
-          circleRef.current.setLatLng([uLat, uLng]);
+  // Usar GPS con Fallback inteligente (Brave / HTTP local suelen bloquear GPS por seguridad)
+  const handleUseGPS = async () => {
+    setGpsLoading(true);
+    setGpsStatusMsg('');
+
+    const applyLocation = (uLat, uLng, sourceMsg) => {
+      setLat(uLat);
+      setLng(uLng);
+
+      if (mapInstanceRef.current && markerRef.current && circleRef.current) {
+        mapInstanceRef.current.setView([uLat, uLng], 13);
+        markerRef.current.setLatLng([uLat, uLng]);
+        circleRef.current.setLatLng([uLat, uLng]);
+      }
+      setGpsLoading(false);
+      setGpsStatusMsg(sourceMsg);
+      setTimeout(() => setGpsStatusMsg(''), 4000);
+    };
+
+    // Intentar siempre Geolocation API del dispositivo primero
+    if (navigator && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          applyLocation(pos.coords.latitude, pos.coords.longitude, '📍 Ubicación GPS satelital detectada');
+        },
+        async (err) => {
+          console.warn('[GPS] Error de sensor o permisos en navegador:', err.message);
+          // Si el navegador bloquea el GPS por ser HTTP o permisos, fallback a IP
+          await fallbackToIpLocation(applyLocation);
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
+      );
+    } else {
+      await fallbackToIpLocation(applyLocation);
+    }
+  };
+
+  const fallbackToIpLocation = async (applyLocation) => {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      const data = await res.json();
+      if (data && data.latitude && data.longitude) {
+        applyLocation(data.latitude, data.longitude, `🌐 Ubicación por Red: ${data.city || 'Lima'}`);
+        return;
+      }
+    } catch (e) {
+      // Segundo intento con ipwhois si ipapi falla
+      try {
+        const res2 = await fetch('https://ipwho.is/');
+        const data2 = await res2.json();
+        if (data2 && data2.latitude && data2.longitude) {
+          applyLocation(data2.latitude, data2.longitude, `🌐 Ubicación por Red: ${data2.city || 'Lima'}`);
+          return;
         }
-        setGpsLoading(false);
-      },
-      () => {
-        setGpsLoading(false);
-        alert('No se pudo obtener la ubicación GPS.');
-      },
-      { timeout: 8000 }
-    );
+      } catch (err2) {
+        console.warn('IP Geo fallback failed:', err2);
+      }
+    }
+
+    // Si ambos fallan (ej. sin conexión a internet externa o bloqueador total)
+    setGpsLoading(false);
+    applyLocation(-12.122, -77.030, '📍 Ubicación central en Lima seleccionada (Puedes elegir tu distrito arriba)');
   };
 
   const handleSave = () => {
     // Generar resumen de los distritos abarcados
     const summary = coveredDistricts.length > 0
-      ? coveredDistricts.map(d => d.name).slice(0, 3).join(', ') + (coveredDistricts.length > 3 ? ` +${coveredDistricts.length - 3} distritos` : '')
+      ? coveredDistricts.map(d => d.distrito).slice(0, 3).join(', ') + (coveredDistricts.length > 3 ? ` +${coveredDistricts.length - 3} distritos` : '')
       : 'Zona Personalizada';
 
     onSave({
@@ -197,14 +279,14 @@ export default function MapZoneModal({
       lng,
       radiusKm,
       district: summary,
-      coveredDistricts: coveredDistricts.map(d => d.name)
+      coveredDistricts: coveredDistricts.map(d => d.distrito)
     });
     onClose();
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '520px', padding: '0', display: 'flex', flexDirection: 'column', maxHeight: '94vh' }}>
+      <div className="modal-content" style={{ maxWidth: '540px', padding: '0', display: 'flex', flexDirection: 'column', maxHeight: '94vh' }}>
         {/* Header con Radio de Búsqueda */}
         <div style={{
           padding: '16px 20px',
@@ -217,19 +299,144 @@ export default function MapZoneModal({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                RADIO DE BÚSQUEDA
+                RADIO DE BÚSQUEDA • PERÚ INEI
               </span>
             </div>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#fff', marginTop: '2px' }}>
               Radio de Búsqueda en el Mapa
             </h3>
-            <p style={{ fontSize: '11px', color: '#94a3b8' }}>
-              Elige tu punto y ajusta el radio en km para encontrar rivales a la redonda
-            </p>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Toggle de Google Maps (Calles / Satélite HD) */}
+            <div style={{
+              display: 'flex',
+              background: '#1e293b',
+              padding: '2px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setMapType('streets')}
+                style={{
+                  background: mapType === 'streets' ? '#10b981' : 'transparent',
+                  color: mapType === 'streets' ? '#fff' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🗺️ Calles
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapType('satellite')}
+                style={{
+                  background: mapType === 'satellite' ? '#10b981' : 'transparent',
+                  color: mapType === 'satellite' ? '#fff' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🛰️ Satélite
+              </button>
+            </div>
+
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+
+        {/* Buscador de distritos de todo el Perú (INEI: 1,812 distritos) */}
+        <div style={{ padding: '10px 16px 6px', background: 'rgba(11, 15, 25, 0.95)', position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={15} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '10px' }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar distrito en Perú (ej. Miraflores, Surco, Yanahuara)..."
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '8px',
+                padding: '8px 12px 8px 34px',
+                color: '#fff',
+                fontSize: '12px',
+                outline: 'none'
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{ position: 'absolute', right: '10px', top: '8px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Autocompletado de búsqueda INEI */}
+          {searchResults.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '46px',
+              left: '16px',
+              right: '16px',
+              zIndex: 1000,
+              background: '#0f172a',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.8)',
+              maxHeight: '180px',
+              overflowY: 'auto'
+            }}>
+              {searchResults.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    if (item.lat && item.lng) {
+                      handleSelectDistrict(item.lat, item.lng, item.distrito);
+                    } else {
+                      // Coordenadas aproximadas si es provincia sin GPS individual
+                      handleSelectDistrict(lat, lng, item.distrito);
+                    }
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '12px',
+                    color: '#f8fafc'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#10b981' }}>{item.distrito}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '6px' }}>({item.provincia}, {item.departamento})</span>
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#6ee7b7', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                    INEI
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Atajos de Centro de Área */}
@@ -237,8 +444,8 @@ export default function MapZoneModal({
           display: 'flex',
           gap: '6px',
           overflowX: 'auto',
-          padding: '8px 16px',
-          background: 'rgba(11, 15, 25, 0.9)',
+          padding: '6px 16px 10px',
+          background: 'rgba(11, 15, 25, 0.95)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
           scrollbarWidth: 'none'
         }}>
@@ -250,7 +457,7 @@ export default function MapZoneModal({
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              padding: '6px 12px',
+              padding: '5px 10px',
               borderRadius: '99px',
               fontSize: '11px',
               fontWeight: 700,
@@ -261,16 +468,16 @@ export default function MapZoneModal({
             }}
           >
             <Navigation size={12} />
-            {gpsLoading ? 'GPS...' : 'Mi Ubicación'}
+            {gpsLoading ? 'GPS...' : 'Mi GPS'}
           </button>
 
-          {LIMA_DISTRICTS.slice(0, 7).map((dist) => (
+          {POPULAR_SHORTCUTS.map((dist) => (
             <button
               key={dist.name}
-              onClick={() => handleSelectDistrict(dist)}
+              onClick={() => handleSelectDistrict(dist.lat, dist.lng, dist.name)}
               style={{
                 flexShrink: 0,
-                padding: '6px 12px',
+                padding: '5px 10px',
                 borderRadius: '99px',
                 fontSize: '11px',
                 fontWeight: 600,
@@ -285,26 +492,47 @@ export default function MapZoneModal({
           ))}
         </div>
 
-        {/* Mapa Interactivo con el círculo de área de alcance */}
+        {/* Mensaje de estado GPS / Fallback IP */}
+        {gpsStatusMsg && (
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.15)',
+            borderBottom: '1px solid rgba(16, 185, 129, 0.3)',
+            padding: '5px 16px',
+            fontSize: '11px',
+            fontWeight: 700,
+            color: '#a7f3d0',
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}>
+            {gpsStatusMsg}
+          </div>
+        )}
+
+
+        {/* Mapa Interactivo con Leaflet Dark Mode (Sin marcas de agua, sin API Key) */}
         <div
           ref={mapContainerRef}
+          className="map-dark-tiles"
           style={{
             width: '100%',
-            height: '270px',
+            height: '260px',
             position: 'relative',
-            background: '#0a0f1d'
+            background: '#0b0f19'
           }}
         />
 
-        {/* Panel de Control de Alcance (Estilo Instagram) */}
-        <div style={{ padding: '16px 20px', background: '#0f172a', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Panel de Control de Alcance */}
+        <div style={{ padding: '14px 18px', background: '#0f172a', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {/* Slider de Radio */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Target size={15} color="#10b981" /> Radio de Búsqueda:
               </span>
-              <span style={{ fontSize: '16px', fontWeight: 900, color: '#10b981', fontFamily: 'Outfit' }}>
+              <span style={{ fontSize: '15px', fontWeight: 900, color: '#10b981', fontFamily: 'Outfit' }}>
                 {radiusKm} km a la redonda
               </span>
             </div>
@@ -312,7 +540,7 @@ export default function MapZoneModal({
             <input
               type="range"
               min="2"
-              max="20"
+              max="25"
               step="1"
               value={radiusKm}
               onChange={(e) => setRadiusKm(Number(e.target.value))}
@@ -321,8 +549,8 @@ export default function MapZoneModal({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
               <span>2 km (Cercano)</span>
-              <span>8 km (Distritos vecinos)</span>
-              <span>20 km (Todo Lima)</span>
+              <span>8 km (Vecinos)</span>
+              <span>25 km (Metropolitano)</span>
             </div>
           </div>
 
@@ -330,42 +558,42 @@ export default function MapZoneModal({
           <div style={{
             background: 'rgba(16, 185, 129, 0.06)',
             border: '1px solid rgba(16, 185, 129, 0.25)',
-            borderRadius: '12px',
-            padding: '12px',
+            borderRadius: '10px',
+            padding: '10px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '8px'
+            gap: '6px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '11px', fontWeight: 800, color: '#a7f3d0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 📍 Distritos dentro de tu radio ({coveredDistricts.length}):
               </span>
               <span style={{ fontSize: '10px', color: '#6ee7b7' }}>
-                Empareja en cualquier cancha aquí
+                Canchas disponibles
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '68px', overflowY: 'auto' }}>
               {coveredDistricts.length > 0 ? (
                 coveredDistricts.map((d) => (
                   <span
-                    key={d.name}
+                    key={d.id || d.distrito}
                     style={{
                       fontSize: '11px',
                       fontWeight: 600,
                       background: 'rgba(16, 185, 129, 0.2)',
                       border: '1px solid #10b981',
                       color: '#ffffff',
-                      padding: '3px 8px',
-                      borderRadius: '6px'
+                      padding: '2px 7px',
+                      borderRadius: '5px'
                     }}
                   >
-                    ✓ {d.name}
+                    ✓ {d.distrito}
                   </span>
                 ))
               ) : (
                 <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                  Aumenta el radio para abarcar distritos cercanos
+                  Aumenta el radio para abarcar más distritos
                 </span>
               )}
             </div>
@@ -374,13 +602,14 @@ export default function MapZoneModal({
           <button
             onClick={handleSave}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '13px', fontSize: '14px', borderRadius: '12px' }}
+            style={{ width: '100%', padding: '12px', fontSize: '13px', borderRadius: '10px' }}
           >
-            <Check size={18} />
-            Confirmar Radio ({radiusKm} km)
+            <Check size={17} />
+            Confirmar Zona ({radiusKm} km)
           </button>
         </div>
       </div>
     </div>
   );
 }
+

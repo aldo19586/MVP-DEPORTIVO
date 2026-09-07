@@ -16,6 +16,8 @@ import LeaderboardModal from './components/LeaderboardModal.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import LobbyRoomModal from './components/LobbyRoomModal.jsx';
 import JoinLobbyModal from './components/JoinLobbyModal.jsx';
+import UserProfileModal from './components/UserProfileModal.jsx';
+import MatchAcceptModal from './components/MatchAcceptModal.jsx';
 import { Zap, Wifi, LogOut, ShieldCheck, Trophy, Sparkles, User } from 'lucide-react';
 
 export default function App() {
@@ -67,11 +69,49 @@ export default function App() {
   const [mode, setMode] = useState('solo');
 
   // Estados de Partida Activa y Sala de Convocatoria (Lobby)
-  const [activeMatch, setActiveMatch] = useState(null);
+  const [activeMatch, setActiveMatch] = useState(() => {
+    try {
+      const saved = localStorage.getItem('matchsport_active_match');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [activeLobby, setActiveLobby] = useState(null);
+  const [pendingMatch, setPendingMatch] = useState(null);
   const [showJoinLobbyModal, setShowJoinLobbyModal] = useState(false);
-  const [currentView, setCurrentView] = useState('sport_select'); // 'sport_select' | 'radar' | 'lobby' | 'chat'
+  const [currentView, setCurrentView] = useState(() => {
+    try {
+      const saved = localStorage.getItem('matchsport_active_match');
+      return saved ? 'chat' : 'sport_select';
+    } catch (e) {
+      return 'sport_select';
+    }
+  }); // 'sport_select' | 'radar' | 'lobby' | 'chat'
   const [squadMembers, setSquadMembers] = useState([]);
+
+  // Sincronizar persistencia offline de Partido Activo
+  useEffect(() => {
+    if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+      localStorage.setItem('matchsport_active_match', JSON.stringify(activeMatch));
+    } else {
+      localStorage.removeItem('matchsport_active_match');
+    }
+  }, [activeMatch]);
+
+  // Manejo de Desbloqueo de Pantalla Móvil (Visibility State)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        socket.emit('registerUser', { userId: user.id, user });
+        if (activeMatch?.id) {
+          socket.emit('joinMatchRoom', { matchId: activeMatch.id });
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user, activeMatch?.id]);
 
   // Ubicación y Perímetro de Búsqueda (Mapa interactivo)
   const [location, setLocation] = useState(() => {
@@ -87,6 +127,7 @@ export default function App() {
   // Modales
   const [showMapModal, setShowMapModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(!user);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [showMatchFoundModal, setShowMatchFoundModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -94,6 +135,7 @@ export default function App() {
   const [showMyFutCard, setShowMyFutCard] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [ratingUpdateInfo, setRatingUpdateInfo] = useState(null);
+
 
   // Usuarios en línea en tiempo real y Notificación de Like
   const [onlineCount, setOnlineCount] = useState(1);
@@ -137,13 +179,27 @@ export default function App() {
     }
   }, [user?.id, selectedSportId, selectedFormatId]);
 
-  // Configuración de Socket.IO
+  // 1. Registro reactivo de usuario en Socket.IO (al conectar o cambiar de cuenta)
   useEffect(() => {
-    if (!user) return;
+    const register = () => {
+      if (user?.id) {
+        socket.emit('registerUser', { userId: user.id, user });
+      }
+    };
 
-    socket.emit('registerUser', { userId: user.id });
+    if (socket.connected) {
+      register();
+    }
+    socket.on('connect', register);
 
-    // Escuchar conteo y usuarios en línea en tiempo real
+    return () => {
+      socket.off('connect', register);
+    };
+  }, [user?.id, user?.name, user?.district]);
+
+  // 2. Escucha global de eventos Socket.IO en tiempo real (siempre activa)
+  useEffect(() => {
+    // Escuchar conteo y lista de usuarios en línea en tiempo real
     socket.on('onlineUsersUpdate', ({ count, users }) => {
       if (typeof count === 'number') setOnlineCount(count);
       if (users) setOnlineUsers(users);
@@ -165,8 +221,33 @@ export default function App() {
       setSearchChallenge(null);
     });
 
-    // ¡MATCH ENCONTRADO!
+    // Fase de Confirmación de Asistencia estilo Dota 2
+    socket.on('matchPromptAcceptance', (payload) => {
+      setPendingMatch(payload);
+      setIsSearching(false);
+      soundFX.playMatchFound();
+    });
+
+    socket.on('pendingMatchUpdated', ({ pendingMatchId, acceptedUserIds }) => {
+      setPendingMatch((prev) => {
+        if (!prev || prev.pendingMatchId !== pendingMatchId) return prev;
+        return {
+          ...prev,
+          acceptedUserIds
+        };
+      });
+      soundFX.playMessage();
+    });
+
+    socket.on('matchAcceptanceFailed', ({ message, reason }) => {
+      setPendingMatch(null);
+      soundFX.playCancel ? soundFX.playCancel() : soundFX.playMessage();
+      alert(message || (reason === 'timeout' ? '⚠️ Tiempo agotado: Un jugador no confirmó.' : '⚠️ Partida rechazada por un jugador.'));
+    });
+
+    // ¡MATCH ENCONTRADO Y CONFIRMADO POR TODOS!
     socket.on('matchFound', ({ match }) => {
+      setPendingMatch(null); // Cerrar modal de confirmación
       setIsSearching(false);
       setSearchChallenge(null);
       setActiveLobby(null); // Limpiar sala de convocatoria
@@ -178,7 +259,7 @@ export default function App() {
       setShowMatchFoundModal(true);
       soundFX.playMatchFound();
 
-      showBackgroundNotification('🏆 ¡DESAFÍO ENCONTRADO!', {
+      showBackgroundNotification('🏆 ¡DESAFÍO CONFIRMADO!', {
         body: `Tu rival está listo en ${match.sportId} (${match.formatId}). Toca para abrir la sala de coordinación.`
       });
     });
@@ -217,6 +298,27 @@ export default function App() {
         } else {
           setActiveLobby((prev) => (prev?.code === lobby.code ? null : prev));
           setCurrentView((prev) => (prev === 'lobby' ? 'sport_select' : prev));
+        }
+      }
+    });
+
+    socket.on('session_replaced', ({ message }) => {
+      alert(`⚠️ SESIÓN TRANSFERIDA:\n${message || 'Has iniciado sesión en otro dispositivo o pestaña.'}`);
+    });
+
+    socket.on('lobbyRestored', ({ lobby }) => {
+      if (lobby) {
+        setActiveLobby(lobby);
+        setCurrentView('lobby');
+      }
+    });
+
+    socket.on('activeMatch', ({ match, autoReconnected }) => {
+      if (match) {
+        setActiveMatch(match);
+        setCurrentView('chat');
+        if (autoReconnected) {
+          console.log('[MATCH] Reconectado automáticamente a tu partida en curso:', match.id);
         }
       }
     });
@@ -328,6 +430,31 @@ export default function App() {
       setShowReportModal(true);
     });
 
+    // Jugador abandona en un partido de equipo
+    socket.on('matchPlayerLeft', ({ match, message, leftUserName }) => {
+      if (match) {
+        setActiveMatch(match);
+      }
+      soundFX.playMessage();
+      showBackgroundNotification('⚠️ JUGADOR SALIÓ DE LA SALA', {
+        body: message || `${leftUserName || 'Un jugador'} ha salido de la sala.`
+      });
+    });
+
+    // Partido cancelado o convertido a sala de convocatoria
+    socket.on('matchCancelled', ({ convertedToLobby, message }) => {
+      try {
+        localStorage.removeItem('matchsport_active_match');
+      } catch (e) {}
+      setActiveMatch(null);
+      if (convertedToLobby) {
+        setCurrentView('lobby');
+      } else {
+        setCurrentView('sport_select');
+        alert(`ℹ️ ${message || 'El partido ha sido cancelado.'}`);
+      }
+    });
+
     return () => {
       socket.off('onlineUsersUpdate');
       socket.off('playerReceivedLike');
@@ -344,6 +471,11 @@ export default function App() {
       socket.off('futStatsUpdated');
       socket.off('matchDisputed');
       socket.off('matchFinished');
+      socket.off('matchPromptAcceptance');
+      socket.off('pendingMatchUpdated');
+      socket.off('matchAcceptanceFailed');
+      socket.off('matchPlayerLeft');
+      socket.off('matchCancelled');
     };
   }, [user]);
 
@@ -394,15 +526,52 @@ export default function App() {
       socket.emit('leaveLobby', { code: activeLobby.code, userId: user.id });
       setActiveLobby(null);
     }
-    if (isSearching) {
+    if (isSearching && user) {
       socket.emit('cancelQueue', { userId: user.id });
     }
+    socket.emit('unregisterUser');
     localStorage.removeItem('matchsport_user');
     setUser(null);
     setCurrentProfile(null);
     setIsSearching(false);
     setActiveMatch(null);
     setShowAuthModal(true);
+  };
+
+  const handleLeaveMatch = () => {
+    if (activeMatch && user) {
+      socket.emit('leaveMatch', { matchId: activeMatch.id, userId: user.id });
+      try {
+        localStorage.removeItem('matchsport_active_match');
+      } catch (e) {}
+      setActiveMatch(null);
+      setCurrentView('sport_select');
+    }
+  };
+
+  const handleConvertToLobby = () => {
+    if (activeMatch && user) {
+      socket.emit('convertMatchToLobby', { matchId: activeMatch.id, userId: user.id });
+    }
+  };
+
+  const handleAcceptPendingMatch = () => {
+    if (pendingMatch && user) {
+      socket.emit('acceptPendingMatch', {
+        pendingMatchId: pendingMatch.pendingMatchId,
+        userId: user.id
+      });
+    }
+  };
+
+  const handleDeclinePendingMatch = () => {
+    if (pendingMatch && user) {
+      socket.emit('declinePendingMatch', {
+        pendingMatchId: pendingMatch.pendingMatchId,
+        userId: user.id
+      });
+      setPendingMatch(null);
+    }
   };
 
   const handleSaveLocation = (newLoc) => {
@@ -642,145 +811,109 @@ export default function App() {
         onOpenChat={() => setCurrentView('chat')}
       />
 
-      {/* Header Principal */}
+      {/* Header Principal Minimalista */}
       <header className="app-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div className="brand-logo" onClick={() => setCurrentView('radar')} style={{ cursor: 'pointer' }}>
-            <div className="brand-icon">⚡</div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="brand-title">MATCHSPORT</span>
-                <span className="brand-tag">DESAFÍO</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                <Wifi size={11} color="#10b981" />
-                <span style={{ fontSize: '10px', color: '#94a3b8' }}>Servidor Local Activo</span>
-              </div>
+        <div className="brand-logo" onClick={() => setCurrentView('sport_select')} style={{ cursor: 'pointer' }}>
+          <div className="brand-icon">⚡</div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="brand-title">MATCHSPORT</span>
+              <span className="brand-tag">DESAFÍO</span>
             </div>
           </div>
+        </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Contador de Jugadores Activos en Tiempo Real */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '5px',
             background: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            padding: '3px 8px',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            padding: '4px 8px',
             borderRadius: '12px'
           }}>
             <span style={{
-              width: '7px',
-              height: '7px',
+              width: '6px',
+              height: '6px',
               borderRadius: '50%',
               background: '#10b981',
-              boxShadow: '0 0 8px #10b981',
+              boxShadow: '0 0 6px #10b981',
               animation: 'pulse 1.5s infinite'
             }} />
             <span style={{ fontSize: '11px', fontWeight: 800, color: '#34d399' }}>
-              {onlineCount} {onlineCount === 1 ? 'jugador activo' : 'jugadores activos'}
+              {onlineCount} {onlineCount === 1 ? 'activo' : 'activos'}
             </span>
           </div>
+
+          {/* Botón Acceso Rápido al Chat de Partido Activo */}
+          {activeMatch && currentView !== 'chat' && (
+            <button
+              onClick={() => setCurrentView('chat')}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                padding: '5px 9px',
+                fontSize: '11px',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
+                boxShadow: '0 0 12px rgba(16, 185, 129, 0.45)',
+                animation: 'pulse 2s infinite'
+              }}
+              title="Volver a la sala de chat del partido activo"
+            >
+              <span>💬 Volver al Chat</span>
+            </button>
+          )}
+
+          {/* Botón de Perfil del Usuario / Admin */}
+          {user ? (
+            <div
+              onClick={() => setShowProfileModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: user.role === 'admin' ? '1.5px solid #ef4444' : '1.5px solid #10b981',
+                borderRadius: '99px',
+                padding: '2px 8px 2px 2px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <img
+                src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                alt={user.name}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  objectFit: 'cover'
+                }}
+              />
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff', maxWidth: '75px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.name ? user.name.split(' ')[0] : 'Perfil'}
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="btn btn-primary"
+              style={{ fontSize: '11px', padding: '6px 12px', borderRadius: '8px' }}
+            >
+              Acceder
+            </button>
+          )}
         </div>
-
-        {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Botón de Rankings por Modo */}
-            <button
-              onClick={() => setShowLeaderboard(true)}
-              title="Ver Rankings por Modo de Juego (1v1, 2v2, 3v3)"
-              style={{
-                background: 'rgba(245, 158, 11, 0.15)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                color: '#f59e0b',
-                borderRadius: '8px',
-                padding: '6px 10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '11px',
-                fontWeight: 800
-              }}
-            >
-              <Trophy size={13} />
-              <span>Rankings</span>
-            </button>
-
-            {/* Botón de Carta FUT */}
-            <button
-              onClick={() => setShowMyFutCard(true)}
-              title="Ver Mi Carta FUT"
-              style={{
-                background: 'rgba(168, 85, 247, 0.15)',
-                border: '1px solid rgba(168, 85, 247, 0.3)',
-                color: '#c084fc',
-                borderRadius: '8px',
-                padding: '6px 10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '11px',
-                fontWeight: 800
-              }}
-            >
-              <span>🎴</span>
-              <span className="hide-mobile">Carta FUT</span>
-            </button>
-
-            {/* Botón Admin */}
-            <button
-              onClick={() => setShowAdminDashboard(true)}
-              title="Panel de Control del Dueño / Administrador"
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#f87171',
-                borderRadius: '8px',
-                padding: '6px 8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <ShieldCheck size={14} />
-            </button>
-
-            {/* Avatar del usuario */}
-            <img
-              src={user.avatar}
-              alt={user.name}
-              onClick={() => setShowMyFutCard(true)}
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                border: '2px solid #10b981',
-                objectFit: 'cover',
-                cursor: 'pointer'
-              }}
-            />
-
-            <button
-              onClick={handleLogout}
-              title="Cerrar sesión"
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#94a3b8',
-                borderRadius: '8px',
-                padding: '6px 8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <LogOut size={13} />
-            </button>
-          </div>
-        )}
       </header>
+
 
       {/* Persistent Queue Bar si está buscando y está en otra pantalla */}
       {isSearching && currentView !== 'radar' && (
@@ -858,6 +991,7 @@ export default function App() {
             onStartMatch={handleStartLobbyMatch}
             onStartRadarSearch={handleStartLobbyRadarSearch}
             onStartMatchWithBots={handleStartLobbyMatchWithBots}
+            onMinimize={() => setCurrentView('sport_select')}
             onLeaveLobby={handleLeaveLobby}
           />
         </main>
@@ -872,11 +1006,157 @@ export default function App() {
           onSendMessage={handleSendMessage}
           onOpenReportModal={() => setShowReportModal(true)}
           onStartTimer={handleStartTimer}
-          onLeaveRoom={() => setCurrentView('sport_select')}
+          onMinimize={() => setCurrentView('sport_select')}
+          onLeaveMatch={handleLeaveMatch}
+          onConvertToLobby={handleConvertToLobby}
         />
       )}
 
-      {/* MODAL 0: Perímetro y Radio de Búsqueda (Leaflet) */}
+      {/* BARRA FLOTANTE MINI-PLAYER DE SALA DE CONVOCATORIA (LOBBY) */}
+      {activeLobby && currentView !== 'lobby' && (
+        <div style={{
+          position: 'fixed',
+          bottom: '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          width: '92%',
+          maxWidth: '440px'
+        }}>
+          <div
+            onClick={() => setCurrentView('lobby')}
+            style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.96) 100%)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(16, 185, 129, 0.5)',
+              borderRadius: '18px',
+              padding: '10px 14px',
+              boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(16, 185, 129, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              color: '#fff'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: '#10b981',
+                boxShadow: '0 0 8px #10b981',
+                animation: 'pulse 1.5s infinite'
+              }} />
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 900, color: '#fff' }}>
+                    👥 Sala #{activeLobby.code}
+                  </span>
+                  <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                    {(activeLobby.teamA?.length || 0) + (activeLobby.teamB?.length || 0)}/{activeLobby.totalSlots}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {activeLobby.sportId?.toUpperCase()} {activeLobby.formatId} • Toca para volver a la sala
+                </span>
+              </div>
+            </div>
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid #10b981',
+              color: '#34d399',
+              padding: '5px 10px',
+              borderRadius: '10px',
+              fontSize: '11px',
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <span>Abrir</span>
+              <span>➔</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BARRA FLOTANTE MINI-PLAYER DE PARTIDO ACTIVO (COORDINACIÓN O EN CANCHA) */}
+      {activeMatch && currentView !== 'chat' && activeMatch.status !== 'finished' && (
+        <div style={{
+          position: 'fixed',
+          bottom: activeLobby ? '78px' : '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9998,
+          width: '92%',
+          maxWidth: '440px'
+        }}>
+          <div
+            onClick={() => setCurrentView('chat')}
+            style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(6, 78, 59, 0.98) 100%)',
+              backdropFilter: 'blur(16px)',
+              border: '1.5px solid #10b981',
+              borderRadius: '18px',
+              padding: '10px 14px',
+              boxShadow: '0 12px 35px rgba(0, 0, 0, 0.7), 0 0 25px rgba(16, 185, 129, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              color: '#fff'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: '#10b981',
+                boxShadow: '0 0 10px #10b981',
+                animation: 'pulse 1.2s infinite'
+              }} />
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 900, color: '#fff', display: 'block' }}>
+                  ⚽ Partido Activo ({activeMatch.sportId?.toUpperCase()} {activeMatch.formatId})
+                </span>
+                <span style={{ fontSize: '11px', color: '#6ee7b7' }}>
+                  {activeMatch?.matchTimer?.active ? '⏱️ Tiempo en cancha activo' : '💬 En sala de coordinación'} • Toca para volver
+                </span>
+              </div>
+            </div>
+            <div style={{
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              color: '#fff',
+              padding: '6px 12px',
+              borderRadius: '10px',
+              fontSize: '11px',
+              fontWeight: 800,
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
+            }}>
+              <span>Chat ➔</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 0: Perfil y Reportes del Jugador / Panel Admin */}
+      {showProfileModal && (
+        <UserProfileModal
+          user={user}
+          currentProfile={currentProfile}
+          location={location}
+          onOpenMapZone={() => setShowMapModal(true)}
+          onOpenQuestionnaire={() => setShowQuestionnaire(true)}
+          onOpenLeaderboard={() => setShowLeaderboard(true)}
+          onOpenAdminDashboard={() => setShowAdminDashboard(true)}
+          onLogout={handleLogout}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
+
+      {/* MODAL 0.5: Perímetro y Radio de Búsqueda (Leaflet) */}
       {showMapModal && (
         <MapZoneModal
           currentLocation={location}
@@ -897,6 +1177,16 @@ export default function App() {
           formatName={currentFormat?.name}
           onSave={handleSaveQuestionnaire}
           onClose={() => setShowQuestionnaire(false)}
+        />
+      )}
+
+      {/* MODAL 2.5: Confirmación de Asistencia (Estilo Dota 2) */}
+      {pendingMatch && (
+        <MatchAcceptModal
+          pendingMatch={pendingMatch}
+          currentUserId={user?.id}
+          onAccept={handleAcceptPendingMatch}
+          onDecline={handleDeclinePendingMatch}
         />
       )}
 

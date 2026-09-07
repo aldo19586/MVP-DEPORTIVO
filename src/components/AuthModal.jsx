@@ -3,6 +3,8 @@ import { Mail, Lock, Eye, EyeOff, User, MapPin, Sparkles, CheckCircle2, Target, 
 import MapZoneModal from './MapZoneModal.jsx';
 import PlayerCardFUT from './PlayerCardFUT.jsx';
 
+import ALL_PERU_DISTRICTS from '../data/peru_districts.json';
+
 const AVATARS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
@@ -11,14 +13,8 @@ const AVATARS = [
   'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80'
 ];
 
-const DISTRICTS = [
-  'Surco, Lima',
-  'San Borja, Lima',
-  'Miraflores, Lima',
-  'San Isidro, Lima',
-  'La Molina, Lima',
-  'Barranco / Magdalena'
-];
+const DEFAULT_DISTRICT = 'Surco, Lima';
+
 
 const AVAILABLE_SPORTS = [
   { id: 'futbol', name: 'Fútbol / Fulbito', icon: '⚽' },
@@ -187,7 +183,7 @@ export default function AuthModal({ onLogin }) {
   const [position, setPosition] = useState('DEL');
 
   // Radio y ubicación
-  const [district, setDistrict] = useState(DISTRICTS[0]);
+  const [district, setDistrict] = useState(DEFAULT_DISTRICT);
   const [radiusKm, setRadiusKm] = useState(6);
   const [lat, setLat] = useState(-12.137);
   const [lng, setLng] = useState(-76.985);

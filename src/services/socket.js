@@ -1,10 +1,5 @@
 import { io } from 'socket.io-client';
-
-const getSocketUrl = () => {
-  if (typeof window === 'undefined') return 'http://localhost:3001';
-  // Conectar al puerto 3001 en el mismo host que cargó la web (ej. 192.168.x.x o localhost)
-  return `http://${window.location.hostname}:3001`;
-};
+import { getSocketUrl } from './apiConfig.js';
 
 export const socket = io(getSocketUrl(), {
   autoConnect: true,

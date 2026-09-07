@@ -15,7 +15,9 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingInterval: 2500,
+  pingTimeout: 5000
 });
 
 app.use(cors());
@@ -26,6 +28,8 @@ matchmakingEngine.start();
 
 // Mapeo de usuario a socketId
 const userSocketMap = new Map();
+
+import peruDistricts from './peru_districts.json' with { type: 'json' };
 
 // Helper para obtener la IP local LAN
 function getLocalIp() {
@@ -42,9 +46,24 @@ function getLocalIp() {
 
 // ---------------- REST API ----------------
 
+app.get('/api/districts', (req, res) => {
+  const { query } = req.query;
+  if (!query) {
+    return res.json({ districts: peruDistricts.slice(0, 50) });
+  }
+  const q = query.toLowerCase().trim();
+  const filtered = peruDistricts.filter(d =>
+    d.distrito.toLowerCase().includes(q) ||
+    d.provincia.toLowerCase().includes(q) ||
+    d.departamento.toLowerCase().includes(q)
+  ).slice(0, 30);
+  res.json({ districts: filtered });
+});
+
 app.get('/api/sports', (req, res) => {
   res.json({ sports: db.getSports() });
 });
+
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
@@ -104,6 +123,18 @@ app.get('/api/match/:matchId', (req, res) => {
   res.json({ match });
 });
 
+// Historial de Partidas del Usuario (Estilo MOBA / Dota 2)
+app.get('/api/user/:userId/matches', (req, res) => {
+  const history = db.getUserMatchHistory(req.params.userId);
+  res.json({ matches: history });
+});
+
+// Todas las partidas para el Dueño / Admin (En vivo e Historial)
+app.get('/api/admin/matches', (req, res) => {
+  const all = db.getAllMatches();
+  res.json({ matches: all });
+});
+
 // Leaderboard por Deporte y Modo de Juego (1v1, 2v2, 3v3)
 app.get('/api/leaderboard/:sportId/:formatId', (req, res) => {
   const { sportId, formatId } = req.params;
@@ -157,6 +188,9 @@ function broadcastOnlineUsers() {
   });
 }
 
+matchmakingEngine.connectedUsers = connectedUsers;
+matchmakingEngine.broadcastOnlineUsers = broadcastOnlineUsers;
+
 // Endpoint de actividad en tiempo real para el panel de Admin
 app.get('/api/admin/live-activity', (req, res) => {
   const liveMatches = Array.from(db.matches.values()).filter(
@@ -204,25 +238,34 @@ app.post('/api/lobby/leave', (req, res) => {
 // ---------------- SOCKET.IO REALTIME ----------------
 
 io.on('connection', (socket) => {
-  // Enviar conteo inicial al conectar
+  // Enviar lista actual de usuarios autenticados conectados
   socket.emit('onlineUsersUpdate', {
-    count: Math.max(1, connectedUsers.size),
+    count: connectedUsers.size,
     users: Array.from(connectedUsers.values())
   });
 
-  socket.on('registerUser', ({ userId }) => {
+  socket.on('registerUser', ({ userId, user: clientUser }) => {
     if (!userId) return;
+
+    // 1. Exclusividad de sesión: Si ya existía una sesión en otro dispositivo/pestaña, notificar al socket viejo
+    const oldSocketId = userSocketMap.get(userId);
+    if (oldSocketId && oldSocketId !== socket.id) {
+      io.to(oldSocketId).emit('session_replaced', {
+        message: 'Has iniciado sesión en otro dispositivo. La sesión actual se ha transferido automáticamente.'
+      });
+    }
+
     userSocketMap.set(userId, socket.id);
     socket.userId = userId;
 
-    const u = db.getUser(userId);
+    const u = clientUser || db.getUser(userId);
     connectedUsers.set(userId, {
       userId,
       socketId: socket.id,
       name: u ? u.name : 'Jugador',
-      avatar: u ? u.avatar : '',
-      district: u ? u.district : 'Lima',
-      role: u ? u.role : 'player',
+      avatar: u ? (u.avatar || '') : '',
+      district: u ? (u.district || 'Lima') : 'Lima',
+      role: u ? (u.role || 'player') : 'player',
       status: 'idle',
       details: 'En Radar principal',
       sportId: 'futbol',
@@ -230,7 +273,7 @@ io.on('connection', (socket) => {
     });
     broadcastOnlineUsers();
 
-    // Verificar si el usuario ya tenía una búsqueda activa
+    // 2. Verificar si el usuario ya tenía una búsqueda activa en el radar
     const activeChallenge = db.getChallengeByUserId(userId);
     if (activeChallenge) {
       activeChallenge.socketId = socket.id;
@@ -246,7 +289,21 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
-    // Verificar si tiene un match activo
+    // 3. Verificar si el usuario está en una sala de convocatoria (Lobby)
+    const activeLobby = db.findLobbyByUserId(userId);
+    if (activeLobby) {
+      socket.join(`lobby_${activeLobby.code}`);
+      socket.lobbyCode = activeLobby.code;
+      const entry = connectedUsers.get(userId);
+      if (entry) {
+        entry.status = 'in_chat';
+        entry.details = `En sala de convocatoria #${activeLobby.code}`;
+      }
+      socket.emit('lobbyRestored', { lobby: activeLobby });
+      broadcastOnlineUsers();
+    }
+
+    // 4. Verificar si tiene un match activo (en cancha o coordinación)
     const activeMatch = db.getMatchForUser(userId);
     if (activeMatch) {
       socket.join(activeMatch.id);
@@ -255,7 +312,32 @@ io.on('connection', (socket) => {
         entry.status = activeMatch.status === 'in_progress' ? 'in_game' : 'in_chat';
         entry.details = activeMatch.status === 'in_progress' ? 'En cancha jugando' : 'Coordinando en sala privada';
       }
-      socket.emit('activeMatch', { match: activeMatch });
+      socket.emit('activeMatch', { match: activeMatch, autoReconnected: true });
+      broadcastOnlineUsers();
+    }
+
+    // 5. Verificar si tiene una fase de confirmación pendiente (Aceptación estilo Dota 2)
+    const pending = matchmakingEngine.getPendingMatchForUser(userId);
+    if (pending) {
+      const remainingSec = Math.max(1, Math.floor((pending.createdAt + 20000 - Date.now()) / 1000));
+      socket.emit('matchPromptAcceptance', {
+        pendingMatchId: pending.pendingMatchId,
+        sportId: pending.sportId,
+        formatId: pending.formatId,
+        totalPlayers: pending.totalPlayers,
+        teamA: pending.teamA.map((p) => ({ id: p.userId || p.id, name: p.name, avatar: p.avatar, position: p.position })),
+        teamB: pending.teamB.map((p) => ({ id: p.userId || p.id, name: p.name, avatar: p.avatar, position: p.position })),
+        acceptedUserIds: Array.from(pending.acceptedUserIds),
+        expiresInSeconds: remainingSec
+      });
+    }
+  });
+
+  socket.on('unregisterUser', () => {
+    if (socket.userId) {
+      userSocketMap.delete(socket.userId);
+      connectedUsers.delete(socket.userId);
+      socket.userId = null;
       broadcastOnlineUsers();
     }
   });
@@ -263,6 +345,14 @@ io.on('connection', (socket) => {
   // Iniciar búsqueda de Desafío (cola de matchmaking con radio geoespacial)
   socket.on('startQueue', ({ userId, sportId, formatId, mode = 'solo', lat, lng, radiusKm, district }) => {
     if (!userId || !sportId || !formatId) return;
+
+    // Desalojar al usuario de cualquier sala previa antes de entrar a la cola del radar
+    const cleaned = db.cleanUserFromAllLobbies(userId);
+    for (const c of cleaned) {
+      if (c.updatedLobby) {
+        io.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
+      }
+    }
 
     const challengeId = 'chal_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const challenge = {
@@ -319,6 +409,16 @@ io.on('connection', (socket) => {
   // ==========================================
   socket.on('createLobby', ({ hostUser, sportId, formatId }) => {
     if (!hostUser) return;
+
+    // Desalojar de cualquier cola de radar o salas previas
+    db.removeChallengeByUserId(hostUser.id);
+    const cleaned = db.cleanUserFromAllLobbies(hostUser.id);
+    for (const c of cleaned) {
+      if (c.updatedLobby) {
+        io.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
+      }
+    }
+
     const res = db.createLobby({ hostUser, sportId, formatId });
     if (res.error) {
       socket.emit('lobbyError', { message: res.error });
@@ -342,6 +442,16 @@ io.on('connection', (socket) => {
 
   socket.on('joinLobby', ({ code, user, targetTeam }) => {
     if (!code || !user) return;
+
+    // Desalojar de cualquier cola de radar o salas previas
+    db.removeChallengeByUserId(user.id);
+    const cleaned = db.cleanUserFromAllLobbies(user.id);
+    for (const c of cleaned) {
+      if (c.code !== code && c.updatedLobby) {
+        io.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
+      }
+    }
+
     const res = db.joinLobby(code, user, targetTeam);
     if (res.error) {
       socket.emit('lobbyError', { message: res.error });
@@ -566,8 +676,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('forceDemoMatch', ({ userId, sportId, formatId }) => {
-    const match = matchmakingEngine.forceDemoMatch(userId, sportId, formatId, socket.id);
-    socket.join(match.id);
+    matchmakingEngine.forceDemoMatch(userId, sportId, formatId, socket.id);
+  });
+
+  // Confirmar Asistencia en Fase de Aceptación (Estilo Dota 2)
+  socket.on('acceptPendingMatch', ({ pendingMatchId, userId }) => {
+    if (!pendingMatchId || !userId) return;
+    matchmakingEngine.handlePlayerAccept(pendingMatchId, userId);
+  });
+
+  // Rechazar Partida en Fase de Aceptación
+  socket.on('declinePendingMatch', ({ pendingMatchId, userId }) => {
+    if (!pendingMatchId || !userId) return;
+    matchmakingEngine.cancelPendingMatch(pendingMatchId, 'declined', userId);
   });
 
   socket.on('startLobbyRadarSearch', ({ code }) => {
@@ -592,6 +713,111 @@ io.on('connection', (socket) => {
     if (match) {
       socket.emit('matchData', { match });
     }
+  });
+
+  socket.on('leaveMatch', ({ matchId, userId }) => {
+    if (!matchId) return;
+    const match = db.getMatch(matchId);
+    if (!match) return;
+
+    const userObj = db.getUser(userId) || [...match.teamA, ...match.teamB].find(p => (p.userId || p.id) === userId);
+    const leavingName = userObj?.name || 'Un jugador';
+
+    const allPlayers = [...match.teamA, ...match.teamB];
+    const remainingHumans = allPlayers.filter(p => (p.userId || p.id) !== userId && !p.isDemo && !String(p.userId || p.id).startsWith('demo_user_'));
+
+    // Si es 1v1, o si no quedan otros jugadores humanos reales en la sala: se cancela por completo
+    if (match.is1v1 || remainingHumans.length === 0) {
+      db.cancelMatch(matchId, userId);
+      console.log(`[MATCH] Partido ${matchId} cancelado por ${leavingName} (${userId})`);
+      io.to(matchId).emit('matchCancelled', {
+        matchId,
+        cancelledByUserId: userId,
+        cancelledByUserName: leavingName,
+        message: `⚠️ ${leavingName} ha abandonado el partido.`
+      });
+      for (const p of allPlayers) {
+        const pId = p.userId || p.id;
+        const entry = connectedUsers.get(pId);
+        if (entry) {
+          entry.status = 'idle';
+          entry.details = 'En Radar principal';
+        }
+      }
+      broadcastOnlineUsers();
+      return;
+    }
+
+    // Si es un partido de equipos (>1v1): remover al jugador y avisar a todos
+    const removeRes = db.removePlayerFromMatch(matchId, userId);
+    if (removeRes) {
+      const { match: updatedMatch, removedPlayer } = removeRes;
+      console.log(`[MATCH] Jugador ${removedPlayer?.name || userId} salió de la sala de equipo ${matchId}`);
+
+      // Notificar con mensaje de sistema en el chat
+      const sysMsg = db.addChatMessage(matchId, {
+        senderId: 'system',
+        senderName: 'MatchSport ⚠️',
+        text: `⚠️ ${removedPlayer?.name || leavingName} ha abandonado el partido. La alineación está incompleta.`
+      });
+
+      if (sysMsg) {
+        io.to(matchId).emit('newChatMessage', { matchId, message: sysMsg });
+      }
+
+      // Notificar evento de jugador retirado
+      io.to(matchId).emit('matchPlayerLeft', {
+        matchId,
+        leftUserId: userId,
+        leftUserName: removedPlayer?.name || leavingName,
+        match: updatedMatch,
+        message: `⚠️ ${removedPlayer?.name || leavingName} abandonó la sala. Faltan jugadores para iniciar.`
+      });
+
+      const leavingEntry = connectedUsers.get(userId);
+      if (leavingEntry) {
+        leavingEntry.status = 'idle';
+        leavingEntry.details = 'En Radar principal';
+      }
+      broadcastOnlineUsers();
+    }
+  });
+
+  // Convertir Partido Incompleto a Sala de Convocatoria (Lobby) para Invitar Amigos por Link o Reclutar
+  socket.on('convertMatchToLobby', ({ matchId, userId }) => {
+    if (!matchId) return;
+    const res = db.convertMatchToLobby(matchId, userId);
+    if (res.error) {
+      socket.emit('lobbyError', { message: res.error });
+      return;
+    }
+
+    const { lobby } = res;
+    socket.join(`lobby_${lobby.code}`);
+    socket.lobbyCode = lobby.code;
+
+    // Conectar a todos los compañeros de squad que quedaron
+    for (const p of lobby.teamA) {
+      const pId = p.userId || p.id;
+      const entry = connectedUsers.get(pId);
+      if (entry && entry.socketId) {
+        const pSocket = io.sockets.sockets.get(entry.socketId);
+        if (pSocket) {
+          pSocket.join(`lobby_${lobby.code}`);
+          pSocket.lobbyCode = lobby.code;
+        }
+        io.to(entry.socketId).emit('lobbyCreated', { lobby });
+      }
+    }
+
+    io.to(matchId).emit('matchCancelled', {
+      matchId,
+      convertedToLobby: true,
+      lobbyCode: lobby.code,
+      message: 'La sala ha pasado a Convocatoria para invitar amigos y completar la plantilla.'
+    });
+
+    console.log(`[LOBBY] Partido ${matchId} convertido a Sala de Convocatoria #${lobby.code} por ${lobby.hostName}`);
   });
 
   socket.on('sendChatMessage', ({ matchId, senderId, senderName, text }) => {
@@ -995,8 +1221,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // Limpiar entrada temporal de guest
+    connectedUsers.delete(socket.id);
+
     if (socket.userId) {
-      // Si el usuario estaba en alguna sala de convocatoria, abandonarla automáticamente para que no quede atrapado
+      // Solo eliminar si este socket era el activo actualmente
+      if (userSocketMap.get(socket.userId) === socket.id) {
+        userSocketMap.delete(socket.userId);
+        connectedUsers.delete(socket.userId);
+      }
+
+      // Si el usuario estaba en alguna sala de convocatoria, abandonarla automáticamente
       const activeLobby = db.getUserActiveLobby(socket.userId);
       if (activeLobby) {
         console.log(`[LOBBY] Jugador ${socket.userId} desconectado. Abandonando sala #${activeLobby.code}...`);
@@ -1005,11 +1240,9 @@ io.on('connection', (socket) => {
           io.to(`lobby_${activeLobby.code}`).emit('lobbyUpdated', { lobby: updatedLobby });
         }
       }
-
-      userSocketMap.delete(socket.userId);
-      connectedUsers.delete(socket.userId);
-      broadcastOnlineUsers();
     }
+
+    broadcastOnlineUsers();
   });
 });
 

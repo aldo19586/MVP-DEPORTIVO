@@ -15,6 +15,7 @@ export default function LobbyRoomModal({
   onStartMatch,
   onStartRadarSearch,
   onStartMatchWithBots,
+  onMinimize,
   onLeaveLobby
 }) {
   const [copied, setCopied] = useState(false);
@@ -49,9 +50,9 @@ export default function LobbyRoomModal({
   const readyCount = [...lobby.teamA, ...lobby.teamB].filter((p) => p.isReady).length;
 
   // Generar enlace compartible con IP LAN (para celulares en la misma red)
-  const lanHost = window.location.hostname === 'localhost' ? '192.168.1.108' : window.location.hostname;
+  const lanHost = window.location.hostname === 'localhost' ? (window.location.hostname) : window.location.hostname;
   const port = window.location.port ? `:${window.location.port}` : '';
-  const shareUrl = `${window.location.protocol}//${lanHost}${port}/?lobby=${lobby.code}`;
+  const shareUrl = `${window.location.protocol}//${window.location.host}/?lobby=${lobby.code}`;
 
   const handleCopyLink = () => {
     navigator.clipboard?.writeText(shareUrl).then(() => {
@@ -264,26 +265,49 @@ export default function LobbyRoomModal({
       gap: '16px'
     }}>
       {/* Barra de Navegación Superior */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button
-          onClick={() => setShowConfirmLeaveModal(true)}
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: '#cbd5e1',
-            borderRadius: '10px',
-            padding: '6px 12px',
-            fontSize: '12px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          <ArrowLeft size={16} />
-          Salir de la Sala
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={onMinimize || (() => {})}
+            title="Minimizar sala y navegar por la app"
+            style={{
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              color: '#60a5fa',
+              borderRadius: '10px',
+              padding: '6px 10px',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>📱</span>
+            <span>Explorar App</span>
+          </button>
+
+          <button
+            onClick={() => setShowConfirmLeaveModal(true)}
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#f87171',
+              borderRadius: '10px',
+              padding: '6px 10px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <X size={14} />
+            <span>Abandonar</span>
+          </button>
+        </div>
 
         <div style={{
           background: 'rgba(16, 185, 129, 0.15)',

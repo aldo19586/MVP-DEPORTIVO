@@ -1,5 +1,6 @@
-import React from 'react';
-import { Trophy, Users, Shield, Award, HelpCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trophy, Users, Shield, Award, HelpCircle, ChevronDown, Sparkles, UserCheck, Flame } from 'lucide-react';
+import FormatSelectorModal from './FormatSelectorModal.jsx';
 
 export default function SportSelector({
   sports,
@@ -15,7 +16,9 @@ export default function SportSelector({
   onCreateLobby,
   onOpenJoinLobbyModal
 }) {
+  const [showFormatModal, setShowFormatModal] = useState(false);
   const currentSport = sports.find((s) => s.id === selectedSportId) || sports[0];
+  const currentFormat = currentSport?.formats?.find((f) => f.id === selectedFormatId) || currentSport?.formats?.[0];
 
   const getTierClass = (level) => {
     switch (level) {
@@ -28,14 +31,15 @@ export default function SportSelector({
   };
 
   return (
-    <div style={{ padding: '0 16px', marginBottom: '16px' }}>
-      {/* Selector de Deporte */}
+    <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* 1. Selector de Deportes Horizontal */}
       <div style={{
         display: 'flex',
         gap: '8px',
         overflowX: 'auto',
-        paddingBottom: '8px',
-        scrollbarWidth: 'none'
+        padding: '2px 0 6px',
+        scrollbarWidth: 'none',
+        WebkitOverflowScrolling: 'touch'
       }}>
         {sports.map((sport) => {
           const isSelected = sport.id === selectedSportId;
@@ -44,7 +48,6 @@ export default function SportSelector({
               key={sport.id}
               onClick={() => {
                 onSelectSport(sport.id);
-                // Autoseleccionar primer formato activo
                 if (sport.formats && sport.formats.length > 0) {
                   onSelectFormat(sport.formats[0].id);
                 }
@@ -55,13 +58,14 @@ export default function SportSelector({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '10px 16px',
-                borderRadius: '12px',
-                border: isSelected ? '1px solid rgba(16, 185, 129, 0.6)' : '1px solid rgba(255, 255, 255, 0.08)',
-                background: isSelected ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15))' : 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '14px',
+                border: isSelected ? '2px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)',
+                background: isSelected ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.12) 100%)' : 'rgba(255, 255, 255, 0.03)',
+                boxShadow: isSelected ? '0 0 15px rgba(16, 185, 129, 0.25)' : 'none',
                 color: isSelected ? '#ffffff' : '#94a3b8',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                fontWeight: isSelected ? 700 : 500,
+                fontWeight: isSelected ? 800 : 600,
                 fontSize: '14px'
               }}
             >
@@ -72,224 +76,277 @@ export default function SportSelector({
         })}
       </div>
 
-      {/* Selector de Formato del Deporte Seleccionado */}
-      {currentSport && (
-        <div style={{
-          marginTop: '12px',
-          background: 'rgba(15, 23, 42, 0.6)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          borderRadius: '16px',
-          padding: '14px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      {/* 2. Tarjeta Principal de Configuración del Partido */}
+      <div style={{
+        background: 'rgba(15, 23, 42, 0.75)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '20px',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+      }}>
+        {/* BOTÓN INTUITIVO DE MODALIDAD (Abre Modal / Bottom Sheet) */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Modalidad de Juego
             </span>
-            <span style={{ fontSize: '11px', color: '#64748b' }}>
-              Configurable desde BD
+            <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>
+              Toca para cambiar
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {currentSport.formats.map((fmt) => {
-              const isSelected = fmt.id === selectedFormatId;
-              return (
-                <button
-                  key={fmt.id}
-                  onClick={() => onSelectFormat(fmt.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '10px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    border: isSelected ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)',
-                    background: isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.04)',
-                    color: isSelected ? '#042416' : '#cbd5e1'
-                  }}
-                >
-                  <Users size={14} />
-                  <span>{fmt.name}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tarjeta de Nivel y Rating para este formato específico */}
-          <div style={{
-            marginTop: '14px',
-            paddingTop: '12px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
+          <div
+            onClick={() => setShowFormatModal(true)}
+            style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.06) 100%)',
+              border: '1.5px solid rgba(16, 185, 129, 0.4)',
+              borderRadius: '14px',
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
-                width: '36px',
-                height: '36px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '10px',
-                background: 'rgba(245, 158, 11, 0.15)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Trophy size={18} color="#f59e0b" />
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit' }}>
-                    {currentProfile ? currentProfile.rating : 1400} pts
-                  </span>
-                  <span className={`tier-badge ${getTierClass(currentProfile?.declaredLevel)}`}>
-                    {currentProfile?.declaredLevel || 'Intermedio'}
-                  </span>
-                </div>
-                <p style={{ fontSize: '11px', color: '#64748b' }}>
-                  Glicko-2 (±{currentProfile?.rd || 300} RD) • {currentProfile?.wins || 0}V - {currentProfile?.losses || 0}D
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={onOpenQuestionnaire}
-              className="btn btn-secondary"
-              style={{ fontSize: '11px', padding: '6px 10px', gap: '4px' }}
-              title="Calibrar nivel inicial con test rápido"
-            >
-              <HelpCircle size={13} />
-              Calibrar Nivel
-            </button>
-          </div>
-
-          {/* Selector de Modo: Voy Solo vs Convocatoria con Amigos */}
-          <div style={{
-            marginTop: '14px',
-            paddingTop: '12px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '10px'
-          }}>
-            <button
-              onClick={() => setMode?.('solo')}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '12px 10px',
-                borderRadius: '12px',
-                border: mode === 'solo' ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)',
-                background: mode === 'solo' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                color: mode === 'solo' ? '#fff' : '#94a3b8',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Users size={16} color={mode === 'solo' ? '#10b981' : '#94a3b8'} />
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>Voy Solo (Fill)</span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#64748b' }}>
-                Búscame compañero(s) por radar
-              </span>
-            </button>
-
-            <button
-              onClick={() => setMode?.('squad')}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '12px 10px',
-                borderRadius: '12px',
-                border: mode === 'squad' ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
-                background: mode === 'squad' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                color: mode === 'squad' ? '#fff' : '#94a3b8',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Award size={16} color={mode === 'squad' ? '#3b82f6' : '#94a3b8'} />
-                <span style={{ fontSize: '13px', fontWeight: 800 }}>Convocatoria</span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#64748b' }}>
-                Invitar amigos por enlace
-              </span>
-            </button>
-          </div>
-
-          {/* Botón Principal de Avance a Pantalla 2 (Radar o Sala de Convocatoria) */}
-          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {mode === 'solo' ? (
-              <button
-                onClick={onProceedToRadar}
-                className="btn btn-primary"
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  fontSize: '15px',
-                  fontWeight: 900,
-                  borderRadius: '14px',
-                  letterSpacing: '0.3px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                <span>CONTINUAR AL RADAR DE BÚSQUEDA ➔</span>
-              </button>
-            ) : (
-              <button
-                onClick={onCreateLobby}
-                className="btn btn-primary"
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  fontSize: '15px',
-                  fontWeight: 900,
-                  borderRadius: '14px',
-                  background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-                  letterSpacing: '0.3px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                <Users size={18} />
-                <span>CREAR SALA DE CONVOCATORIA (ENLACE) ➔</span>
-              </button>
-            )}
-
-            <button
-              onClick={onOpenJoinLobbyModal}
-              className="btn btn-secondary"
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontSize: '12px',
-                fontWeight: 700,
-                borderRadius: '10px',
+                background: '#10b981',
+                color: '#042416',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '6px'
-              }}
-            >
-              <span>🔗 Unirse a una Sala con Código o Enlace</span>
-            </button>
+                fontWeight: 900,
+                fontSize: '13px'
+              }}>
+                {currentFormat?.playersPerTeam || 1}v{currentFormat?.playersPerTeam || 1}
+              </div>
+
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#fff' }}>
+                  {currentFormat?.name || 'Modalidad'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {currentFormat?.playersPerTeam === 1
+                    ? '1v1 Duelo Directo'
+                    : `${currentFormat?.playersPerTeam} por equipo • ${currentSport?.name}`}
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 800,
+              color: '#34d399'
+            }}>
+              <span>Elegir</span>
+              <ChevronDown size={14} />
+            </div>
           </div>
         </div>
+
+        {/* Resumen de Nivel y Puntos en este deporte */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: '12px',
+          padding: '10px 12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Trophy size={16} color="#f59e0b" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: 'Outfit' }}>
+                  {currentProfile ? currentProfile.rating : 1400} pts
+                </span>
+                <span className={`tier-badge ${getTierClass(currentProfile?.declaredLevel)}`} style={{ padding: '2px 6px', fontSize: '10px' }}>
+                  {currentProfile?.declaredLevel || 'Intermedio'}
+                </span>
+              </div>
+              <p style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>
+                {currentProfile?.wins || 0}V - {currentProfile?.losses || 0}D
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onOpenQuestionnaire}
+            style={{
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              color: '#93c5fd',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <HelpCircle size={12} />
+            Calibrar
+          </button>
+        </div>
+
+        {/* Selector de Modo: Voy Solo vs Convocatoria */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '8px',
+          background: 'rgba(0, 0, 0, 0.3)',
+          padding: '4px',
+          borderRadius: '14px',
+          border: '1px solid rgba(255, 255, 255, 0.05)'
+        }}>
+          <button
+            onClick={() => setMode?.('solo')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '10px 8px',
+              borderRadius: '10px',
+              border: mode === 'solo' ? '1px solid rgba(16, 185, 129, 0.6)' : 'none',
+              background: mode === 'solo' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.15))' : 'transparent',
+              color: mode === 'solo' ? '#fff' : '#94a3b8',
+              fontWeight: 800,
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Users size={14} color={mode === 'solo' ? '#10b981' : '#94a3b8'} />
+            <span>Voy Solo (Fill)</span>
+          </button>
+
+          <button
+            onClick={() => setMode?.('squad')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '10px 8px',
+              borderRadius: '10px',
+              border: mode === 'squad' ? '1px solid rgba(59, 130, 246, 0.6)' : 'none',
+              background: mode === 'squad' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(29, 78, 216, 0.15))' : 'transparent',
+              color: mode === 'squad' ? '#fff' : '#94a3b8',
+              fontWeight: 800,
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Award size={14} color={mode === 'squad' ? '#3b82f6' : '#94a3b8'} />
+            <span>Convocatoria</span>
+          </button>
+        </div>
+
+        {/* Botón de Acción Principal */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+          {mode === 'solo' ? (
+            <button
+              onClick={onProceedToRadar}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                padding: '14px',
+                fontSize: '14px',
+                fontWeight: 900,
+                borderRadius: '14px',
+                letterSpacing: '0.2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <Flame size={18} />
+              <span>BUSCAR DESAFÍO EN RADAR ➔</span>
+            </button>
+          ) : (
+            <button
+              onClick={onCreateLobby}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                padding: '14px',
+                fontSize: '14px',
+                fontWeight: 900,
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                letterSpacing: '0.2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <Users size={18} />
+              <span>CREAR SALA DE CONVOCATORIA ➔</span>
+            </button>
+          )}
+
+          <button
+            onClick={onOpenJoinLobbyModal}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '12px',
+              fontWeight: 700,
+              borderRadius: '10px',
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            <span>🔗 Unirse a Sala con Código o Enlace</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Modal de Selección de Formato */}
+      {showFormatModal && (
+        <FormatSelectorModal
+          sport={currentSport}
+          selectedFormatId={selectedFormatId}
+          onSelectFormat={onSelectFormat}
+          onClose={() => setShowFormatModal(false)}
+        />
       )}
     </div>
   );

@@ -14,9 +14,22 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
 }
 
 export class MatchmakingEngine {
-  constructor(io) {
+  constructor(io, connectedUsers = null, broadcastOnlineUsers = null) {
     this.io = io;
+    this.connectedUsers = connectedUsers;
+    this.broadcastOnlineUsers = broadcastOnlineUsers;
     this.checkInterval = null;
+    this.pendingMatches = new Map();
+  }
+
+  getPendingMatchForUser(userId) {
+    if (!userId) return null;
+    for (const pending of this.pendingMatches.values()) {
+      const inA = pending.teamA.some((p) => (p.userId || p.id) === userId);
+      const inB = pending.teamB.some((p) => (p.userId || p.id) === userId);
+      if (inA || inB) return pending;
+    }
+    return null;
   }
 
   start() {
@@ -144,6 +157,7 @@ export class MatchmakingEngine {
         name: user?.name || 'Jugador',
         avatar: user?.avatar || '',
         district: user?.district || 'Lima',
+        position: user?.position || 'MED',
         rating: profile.rating,
         rd: profile.rd,
         socketId: t.socketId
@@ -153,25 +167,166 @@ export class MatchmakingEngine {
     const teamA = teamATickets.map(mapTicketToPlayer);
     const teamB = teamBTickets.map(mapTicketToPlayer);
 
-    const match = db.createMatch({ sportId, formatId, teamA, teamB });
+    return this.launchPendingMatch(sportId, formatId, teamA, teamB);
+  }
 
-    // Notificar y auto-unir a la sala de chat a los sockets de ambos equipos
-    for (const player of [...teamA, ...teamB]) {
+  /**
+   * Lanza la fase de confirmación de 20 segundos (Estilo Dota 2)
+   */
+  launchPendingMatch(sportId, formatId, teamA, teamB) {
+    const pendingMatchId = `pending_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const allPlayers = [...teamA, ...teamB];
+    const totalPlayers = allPlayers.length;
+
+    const pendingMatch = {
+      pendingMatchId,
+      sportId,
+      formatId,
+      teamA,
+      teamB,
+      totalPlayers,
+      acceptedUserIds: new Set(),
+      createdAt: Date.now()
+    };
+
+    // Timer de 20 segundos para cancelar si no todos aceptan
+    pendingMatch.timeoutTimer = setTimeout(() => {
+      this.cancelPendingMatch(pendingMatchId, 'timeout', null);
+    }, 21000);
+
+    this.pendingMatches.set(pendingMatchId, pendingMatch);
+
+    // Notificar a todos los sockets de jugadores humanos
+    const promptPayload = {
+      pendingMatchId,
+      sportId,
+      formatId,
+      totalPlayers,
+      teamA: teamA.map(p => ({ id: p.userId || p.id, name: p.name, avatar: p.avatar, position: p.position })),
+      teamB: teamB.map(p => ({ id: p.userId || p.id, name: p.name, avatar: p.avatar, position: p.position })),
+      acceptedUserIds: [],
+      expiresInSeconds: 20
+    };
+
+    for (const player of allPlayers) {
       if (player.socketId) {
-        const sock = this.io.sockets.sockets.get(player.socketId);
-        if (sock) {
-          sock.join(match.id);
+        this.io.to(player.socketId).emit('matchPromptAcceptance', promptPayload);
+      }
+    }
+
+    // Auto-aceptar bots con retraso realista (0.5s - 2.5s)
+    const botPlayers = allPlayers.filter(p => p.isDemo || String(p.userId || p.id).startsWith('demo_user_'));
+    botPlayers.forEach((bot, idx) => {
+      setTimeout(() => {
+        if (this.pendingMatches.has(pendingMatchId)) {
+          this.handlePlayerAccept(pendingMatchId, bot.userId || bot.id);
         }
-        this.io.to(player.socketId).emit('matchFound', {
-          matchId: match.id,
-          sportId,
-          formatId,
-          match
+      }, 600 + idx * 400 + Math.random() * 500);
+    });
+
+    console.log(`[MATCHMAKING] Fase de Confirmación lanzada: ${pendingMatchId} (${sportId} ${formatId}) para ${totalPlayers} jugadores.`);
+    return pendingMatch;
+  }
+
+  handlePlayerAccept(pendingMatchId, userId) {
+    const pending = this.pendingMatches.get(pendingMatchId);
+    if (!pending) return;
+
+    pending.acceptedUserIds.add(userId);
+    const acceptedList = Array.from(pending.acceptedUserIds);
+
+    // Emitir actualización a todos los jugadores
+    const allPlayers = [...pending.teamA, ...pending.teamB];
+    for (const p of allPlayers) {
+      if (p.socketId) {
+        this.io.to(p.socketId).emit('pendingMatchUpdated', {
+          pendingMatchId,
+          acceptedUserIds: acceptedList,
+          acceptedCount: acceptedList.length,
+          totalPlayers: pending.totalPlayers
         });
       }
     }
 
-    console.log(`[MATCHMAKING] ¡Match creado ${match.id} (${sportId} ${formatId})! Equipo A: ${teamA.map(p => p.name).join(', ')} VS Equipo B: ${teamB.map(p => p.name).join(', ')}`);
+    // Si TODOS los jugadores confirmaron (ej. 10/10 en 5v5 o 2/2 en 1v1)
+    if (pending.acceptedUserIds.size >= pending.totalPlayers) {
+      clearTimeout(pending.timeoutTimer);
+      this.pendingMatches.delete(pendingMatchId);
+
+      const match = db.createMatch({
+        sportId: pending.sportId,
+        formatId: pending.formatId,
+        teamA: pending.teamA,
+        teamB: pending.teamB
+      });
+
+      for (const player of allPlayers) {
+        const pId = player.userId || player.id;
+        if (this.connectedUsers) {
+          const entry = this.connectedUsers.get(pId);
+          if (entry) {
+            entry.status = 'in_chat';
+            entry.details = `En Sala de Partido (${pending.sportId?.toUpperCase()} ${pending.formatId?.toUpperCase()})`;
+          }
+        }
+        if (player.socketId) {
+          const sock = this.io.sockets.sockets.get(player.socketId);
+          if (sock) {
+            sock.join(match.id);
+          }
+          this.io.to(player.socketId).emit('matchFound', {
+            matchId: match.id,
+            sportId: pending.sportId,
+            formatId: pending.formatId,
+            match
+          });
+        }
+      }
+
+      if (this.broadcastOnlineUsers) {
+        this.broadcastOnlineUsers();
+      }
+
+      console.log(`[MATCHMAKING] ¡Todos aceptaron! Partido oficial ${match.id} creado con éxito.`);
+    }
+  }
+
+  cancelPendingMatch(pendingMatchId, reason = 'timeout', declinedUserId = null) {
+    const pending = this.pendingMatches.get(pendingMatchId);
+    if (!pending) return;
+
+    clearTimeout(pending.timeoutTimer);
+    this.pendingMatches.delete(pendingMatchId);
+
+    const declinedUser = declinedUserId ? db.getUser(declinedUserId) : null;
+    const allPlayers = [...pending.teamA, ...pending.teamB];
+
+    for (const p of allPlayers) {
+      const pId = p.userId || p.id;
+      if (this.connectedUsers) {
+        const entry = this.connectedUsers.get(pId);
+        if (entry && entry.status !== 'in_game' && entry.status !== 'in_chat') {
+          entry.status = 'idle';
+          entry.details = 'En Radar principal';
+        }
+      }
+      if (p.socketId) {
+        this.io.to(p.socketId).emit('matchAcceptanceFailed', {
+          pendingMatchId,
+          reason,
+          declinedUserId,
+          message: reason === 'timeout'
+            ? '⚠️ Un jugador no confirmó a tiempo la partida. Regresando...'
+            : `⚠️ ${declinedUser?.name || 'Un jugador'} rechazó la partida. Regresando...`
+        });
+      }
+    }
+
+    if (this.broadcastOnlineUsers) {
+      this.broadcastOnlineUsers();
+    }
+
+    console.log(`[MATCHMAKING] Fase de confirmación cancelada para ${pendingMatchId}. Razón: ${reason}`);
   }
 
   /**
@@ -243,26 +398,6 @@ export class MatchmakingEngine {
       });
     }
 
-    const match = db.createMatch({
-      sportId,
-      formatId,
-      teamA,
-      teamB
-    });
-
-    if (socketId) {
-      const sock = this.io.sockets.sockets.get(socketId);
-      if (sock) {
-        sock.join(match.id);
-      }
-      this.io.to(socketId).emit('matchFound', {
-        matchId: match.id,
-        sportId,
-        formatId,
-        match
-      });
-    }
-
-    return match;
+    return this.launchPendingMatch(sportId, formatId, teamA, teamB);
   }
 }

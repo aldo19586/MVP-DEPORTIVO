@@ -436,6 +436,56 @@ class Database {
         declaredLevel: 'Intermedio'
       });
     }
+
+    // Sembrar partidos de demostración con detalles completos (Estilo MOBA / Dota 2)
+    const demoMatch1 = {
+      id: 'match_hist_101',
+      sportId: 'futbol',
+      formatId: '1v1',
+      status: 'finished',
+      is1v1: true,
+      venueDistrict: 'Surco, Lima (Cancha Sintética El Golazo)',
+      startedAtTime: '10:00 AM',
+      finishedAtTime: '10:45 AM',
+      durationMinutes: 45,
+      resultFinal: 'teamA',
+      reportedBy: 'demo_user_1',
+      teamA: [
+        { id: 'demo_user_1', userId: 'demo_user_1', name: 'Carlos Mendoza', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', district: 'Surco, Lima', position: 'DEL', rating: 1820 }
+      ],
+      teamB: [
+        { id: 'demo_user_3', userId: 'demo_user_3', name: 'Franco Benítez', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', district: 'San Borja, Lima', position: 'DEL', rating: 1780 }
+      ],
+      chatMessages: [],
+      createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
+    };
+
+    const demoMatch2 = {
+      id: 'match_hist_102',
+      sportId: 'futbol',
+      formatId: '5v5',
+      status: 'finished',
+      is1v1: false,
+      venueDistrict: 'Miraflores, Lima (Complejo Manuel Bonilla)',
+      startedAtTime: '08:30 PM',
+      finishedAtTime: '09:30 PM',
+      durationMinutes: 60,
+      resultFinal: 'teamA',
+      reportedBy: 'demo_user_2',
+      teamA: [
+        { id: 'demo_user_1', userId: 'demo_user_1', name: 'Carlos Mendoza', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', district: 'Surco, Lima', position: 'DEL', rating: 1820 },
+        { id: 'demo_user_2', userId: 'demo_user_2', name: 'Mateo Ramos', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', district: 'Miraflores, Lima', position: 'MED', rating: 1640 }
+      ],
+      teamB: [
+        { id: 'demo_user_4', userId: 'demo_user_4', name: 'Lucía Morales', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', district: 'Surco, Lima', position: 'DEL', rating: 1720 },
+        { id: 'demo_user_5', userId: 'demo_user_5', name: 'Rodrigo Paz', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150', district: 'San Isidro, Lima', position: 'DEF', rating: 1590 }
+      ],
+      chatMessages: [],
+      createdAt: new Date(Date.now() - 3600000 * 24).toISOString()
+    };
+
+    this.matches.set(demoMatch1.id, demoMatch1);
+    this.matches.set(demoMatch2.id, demoMatch2);
   }
 
   getSports() {
@@ -661,6 +711,85 @@ class Database {
     return null;
   }
 
+  cancelMatch(matchId, userId) {
+    const match = this.getMatch(matchId);
+    if (!match) return null;
+    match.status = 'cancelled';
+    match.cancelledBy = userId;
+    match.cancelledAt = new Date().toISOString();
+    return match;
+  }
+
+  removePlayerFromMatch(matchId, userId) {
+    const match = this.getMatch(matchId);
+    if (!match) return null;
+
+    let removedPlayer = null;
+    const indexA = match.teamA.findIndex(p => (p.userId || p.id) === userId);
+    if (indexA !== -1) {
+      removedPlayer = match.teamA.splice(indexA, 1)[0];
+    } else {
+      const indexB = match.teamB.findIndex(p => (p.userId || p.id) === userId);
+      if (indexB !== -1) {
+        removedPlayer = match.teamB.splice(indexB, 1)[0];
+      }
+    }
+
+    return { match, removedPlayer };
+  }
+
+  convertMatchToLobby(matchId, userId) {
+    const match = this.getMatch(matchId);
+    if (!match) return { error: 'Partido no encontrado' };
+
+    const inTeamA = match.teamA.some(p => (p.userId || p.id) === userId);
+    const myTeamPlayers = inTeamA ? [...match.teamA] : [...match.teamB];
+
+    const hostUser = myTeamPlayers.find(p => (p.userId || p.id) === userId) || myTeamPlayers[0];
+    if (!hostUser) return { error: 'No se encontró jugador para capitanear la sala' };
+
+    // Limpiar salas activas previas del usuario si hubiera
+    this.leaveAllLobbiesForUser(hostUser.userId || hostUser.id);
+
+    const sport = this.sports.find(s => s.id === match.sportId) || this.sports[0];
+    const format = sport?.formats?.find(f => f.id === match.formatId) || sport?.formats?.[0] || { playersPerTeam: 5 };
+    const playersPerTeam = format.playersPerTeam || 5;
+
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const code = `${match.sportId.substring(0, 3).toUpperCase()}-${randomSuffix}`;
+
+    const lobby = {
+      code,
+      sportId: match.sportId,
+      formatId: match.formatId,
+      formatName: format.name || match.formatId,
+      playersPerTeam,
+      totalSlots: playersPerTeam * 2,
+      hostUserId: hostUser.userId || hostUser.id,
+      hostName: hostUser.name,
+      status: 'waiting',
+      teamA: myTeamPlayers.map((p, idx) => ({
+        id: p.userId || p.id,
+        userId: p.userId || p.id,
+        name: p.name,
+        avatar: p.avatar,
+        position: p.position || 'MED',
+        rating: p.rating || 1400,
+        rd: p.rd || 300,
+        isReady: idx === 0,
+        isHost: (p.userId || p.id) === (hostUser.userId || hostUser.id)
+      })),
+      teamB: [],
+      createdAt: Date.now()
+    };
+
+    this.lobbies.set(code, lobby);
+    match.status = 'cancelled';
+    match.cancelledAt = new Date().toISOString();
+
+    return { lobby, match };
+  }
+
   startMatchTimer(matchId, durationMinutes = 60) {
     const match = this.getMatch(matchId);
     if (!match) return null;
@@ -708,6 +837,61 @@ class Database {
   getUserReviews(userId) {
     return this.reviews.filter(r => r.toUserId === userId);
   }
+
+  getUserMatchHistory(userId) {
+    const history = [];
+    for (const match of this.matches.values()) {
+      const inTeamA = match.teamA.some(p => p.id === userId || p.userId === userId);
+      const inTeamB = match.teamB.some(p => p.id === userId || p.userId === userId);
+
+      if (inTeamA || inTeamB) {
+        const myTeamKey = inTeamA ? 'teamA' : 'teamB';
+        const isFinished = match.status === 'finished';
+        const won = match.resultFinal === myTeamKey;
+        const draw = match.resultFinal === 'draw';
+
+        history.push({
+          id: match.id,
+          sportId: match.sportId,
+          formatId: match.formatId,
+          status: match.status,
+          resultFinal: match.resultFinal,
+          won,
+          draw,
+          pointsDelta: isFinished ? (won ? 35 : (draw ? 10 : -25)) : 0,
+          myTeam: inTeamA ? match.teamA : match.teamB,
+          rivalTeam: inTeamA ? match.teamB : match.teamA,
+          venueDistrict: match.venueDistrict || match.teamA[0]?.district || 'Surco, Lima',
+          startedAt: match.startedAtTime || '10:00 AM',
+          finishedAt: match.finishedAtTime || '10:45 AM',
+          durationMinutes: match.durationMinutes || match.matchTimer?.durationMinutes || 60,
+          reportedBy: match.reportedBy,
+          createdAt: match.createdAt
+        });
+      }
+    }
+    return history.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  getAllMatches() {
+    return Array.from(this.matches.values()).map(m => ({
+      id: m.id,
+      sportId: m.sportId,
+      formatId: m.formatId,
+      status: m.status,
+      teamA: m.teamA,
+      teamB: m.teamB,
+      venueDistrict: m.venueDistrict || m.teamA[0]?.district || 'Surco, Lima',
+      startedAt: m.startedAtTime || 'En curso',
+      finishedAt: m.finishedAtTime || '-',
+      durationMinutes: m.durationMinutes || m.matchTimer?.durationMinutes || 60,
+      matchTimer: m.matchTimer,
+      resultFinal: m.resultFinal,
+      reportedBy: m.reportedBy,
+      createdAt: m.createdAt
+    })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
 
   // Rankings por modo de juego (1v1, 2v2, 3v3)
   getLeaderboard(sportId = 'futbol', formatId = '1v1') {
@@ -924,6 +1108,32 @@ class Database {
 
     this._updateLobbyStatus(lobby);
     return lobby;
+  }
+
+  findLobbyByUserId(userId) {
+    if (!userId) return null;
+    for (const lobby of this.lobbies.values()) {
+      const inTeamA = lobby.teamA.some(p => (p.userId || p.id) === userId);
+      const inTeamB = lobby.teamB.some(p => (p.userId || p.id) === userId);
+      if (inTeamA || inTeamB) {
+        return lobby;
+      }
+    }
+    return null;
+  }
+
+  cleanUserFromAllLobbies(userId) {
+    if (!userId) return [];
+    const modifiedLobbies = [];
+    for (const lobby of Array.from(this.lobbies.values())) {
+      const inTeamA = lobby.teamA.some(p => (p.userId || p.id) === userId);
+      const inTeamB = lobby.teamB.some(p => (p.userId || p.id) === userId);
+      if (inTeamA || inTeamB) {
+        const updated = this.leaveLobby(lobby.code, userId);
+        modifiedLobbies.push({ code: lobby.code, updatedLobby: updated });
+      }
+    }
+    return modifiedLobbies;
   }
 
   toggleLobbyReady(code, userId) {

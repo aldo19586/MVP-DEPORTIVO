@@ -18,6 +18,7 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
     activeMatches: []
   });
 
+  const [allMatches, setAllMatches] = useState([]);
   const [selectedSport, setSelectedSport] = useState('futbol');
   const [questions, setQuestions] = useState([]);
   const [usersList, setUsersList] = useState([]);
@@ -59,6 +60,12 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
     fetch('/api/admin/users')
       .then((r) => r.json())
       .then((d) => d.users && setUsersList(d.users))
+      .catch(() => {});
+
+    // Cargar historial global de partidas
+    fetch('/api/admin/matches')
+      .then((r) => r.json())
+      .then((d) => d.matches && setAllMatches(d.matches))
       .catch(() => {});
   }, []);
 
@@ -167,7 +174,7 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
         {/* Pestañas del Panel */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
+          gridTemplateColumns: 'repeat(6, 1fr)',
           gap: '4px',
           background: 'rgba(255, 255, 255, 0.03)',
           padding: '4px',
@@ -175,7 +182,8 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
           marginBottom: '16px'
         }}>
           {[
-            { id: 'live', label: '🔴 En Vivo', count: liveActivity.onlineUsers?.length || 1 },
+            { id: 'live', label: '🔴 En Vivo' },
+            { id: 'history', label: '⚔️ Partidas' },
             { id: 'metrics', label: 'Métricas' },
             { id: 'questionnaires', label: 'Test Nivel' },
             { id: 'formats', label: 'Formatos' },
@@ -191,7 +199,7 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
                 borderRadius: '8px',
                 padding: '8px 2px',
                 cursor: 'pointer',
-                fontSize: '11px',
+                fontSize: '10.5px',
                 fontWeight: 800,
                 textAlign: 'center',
                 transition: 'all 0.2s',
@@ -202,6 +210,102 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
             </button>
           ))}
         </div>
+
+        {/* TAB 1: HISTORIAL GLOBAL DE PARTIDAS (ESTILO DOTA 2 / MOBA) */}
+        {activeTab === 'history' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 900, color: '#f8fafc' }}>
+                Historial de Todas las Partidas Jugadas
+              </span>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                {allMatches.length} partidas en base de datos
+              </span>
+            </div>
+
+            {allMatches.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', padding: '16px 0', textAlign: 'center' }}>
+                No hay registros de partidas guardadas aún.
+              </p>
+            ) : (
+              allMatches.map((m) => {
+                const isFinished = m.status === 'finished';
+                const isTeamAWinner = m.resultFinal === 'teamA';
+                const isTeamBWinner = m.resultFinal === 'teamB';
+                const isDraw = m.resultFinal === 'draw';
+
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderLeft: isFinished ? '4px solid #10b981' : '4px solid #a855f7',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: isFinished ? 'rgba(16, 185, 129, 0.15)' : 'rgba(168, 85, 247, 0.15)',
+                          color: isFinished ? '#34d399' : '#c084fc'
+                        }}>
+                          {isFinished ? 'FINALIZADO' : 'EN CANCHA'}
+                        </span>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>
+                          {m.sportId?.toUpperCase()} • {m.formatId}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>
+                        {isFinished ? (isDraw ? '🤝 EMPATE' : isTeamAWinner ? '🏆 Ganó Equipo A' : '🏆 Ganó Equipo B') : '⏱️ En juego'}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                      background: 'rgba(0, 0, 0, 0.2)',
+                      padding: '6px 8px',
+                      borderRadius: '6px'
+                    }}>
+                      <span>⏱️ {m.startedAt} - {m.finishedAt} ({m.durationMinutes} min)</span>
+                      <span>📍 {m.venueDistrict}</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '6px', alignItems: 'center', fontSize: '11px' }}>
+                      <div style={{ background: isTeamAWinner ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '6px', border: isTeamAWinner ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent' }}>
+                        <span style={{ fontWeight: 800, color: isTeamAWinner ? '#34d399' : '#cbd5e1', display: 'block', marginBottom: '2px' }}>
+                          Equipo A {isTeamAWinner && '👑'}
+                        </span>
+                        {m.teamA?.map((p) => p.name).join(', ')}
+                      </div>
+
+                      <span style={{ fontWeight: 900, color: '#f59e0b', fontSize: '10px' }}>VS</span>
+
+                      <div style={{ background: isTeamBWinner ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '6px', border: isTeamBWinner ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent', textAlign: 'right' }}>
+                        <span style={{ fontWeight: 800, color: isTeamBWinner ? '#34d399' : '#cbd5e1', display: 'block', marginBottom: '2px' }}>
+                          {isTeamBWinner && '👑 '}Equipo B
+                        </span>
+                        {m.teamB?.map((p) => p.name).join(', ')}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
 
         {/* TAB 0: EN VIVO (ACTIVIDAD EN TIEMPO REAL) */}
         {activeTab === 'live' && (
