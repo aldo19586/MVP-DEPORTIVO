@@ -1,7 +1,17 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
 import { getInitialGlicko } from './glicko2.js';
+import {
+  initDatabase,
+  sqlGetUser, sqlGetUserByEmail, sqlGetUserByName, sqlGetAllUsers, sqlInsertUser, sqlUpdateUser, sqlGetUserCount,
+  sqlGetProfile, sqlGetProfilesByUser, sqlGetProfilesBySportFormat, sqlInsertProfile,
+  sqlInsertMatch, sqlGetMatch, sqlGetAllMatches, sqlUpdateMatchStatus, sqlGetMatchCount,
+  sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
+  sqlGetConfig, sqlSetConfig,
+  sqlHasSeedData, forceSave
+} from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,35 +108,27 @@ const DEFAULT_QUESTIONNAIRES = {
         { text: '4ta / 3ra categoría (Bandejas, víboras y subida a la red)', score: 35, level: 'Avanzado' },
         { text: '2da o 1ra categoría (Remate por 3, smash de potencia)', score: 50, level: 'Competitivo' }
       ]
-    },
-    {
-      id: 'pad_q2',
-      question: '¿Cómo manejas el rebote en los cristales dobles y rejas?',
-      options: [
-        { text: 'Se me complica predecir el giro de la bola', score: 10, level: 'Principiante' },
-        { text: 'Devuelvo cómodo giros simples de pared de fondo', score: 25, level: 'Intermedio' },
-        { text: 'Domino dobles paredes y bajadas de pared con velocidad', score: 40, level: 'Avanzado' }
-      ]
     }
   ],
   basquet: [
     {
-      id: 'bas_q1',
-      question: '¿Cuál es tu experiencia jugando streetball / básquetbol?',
+      id: 'bsq_q1',
+      question: '¿Cómo describirías tu experiencia en baloncesto?',
       options: [
-        { text: 'Tiros libres y pases recreativos en el parque', score: 10, level: 'Principiante' },
-        { text: 'Partidos de media cancha (2v2 / 3v3) con buen tiro de media', score: 25, level: 'Intermedio' },
-        { text: 'Torneos FIBA 3x3 o ligas distritales competitivas', score: 45, level: 'Avanzado' }
+        { text: 'Solo juego en la losa del barrio (Recreativo)', score: 10, level: 'Principiante' },
+        { text: 'Juego pick-up games regulares con buen tiro', score: 25, level: 'Intermedio' },
+        { text: 'He jugado en ligas interescolares o universitarias', score: 40, level: 'Avanzado' },
+        { text: 'Jugador federado o semi-profesional (Liga Nacional/FIBA)', score: 50, level: 'Competitivo' }
       ]
     }
   ],
   tenis: [
     {
       id: 'ten_q1',
-      question: '¿Cuál es tu nivel NTRP aproximado en Tenis?',
+      question: '¿Cuál es tu nivel de tenis aproximado?',
       options: [
-        { text: 'NTRP 2.0 - 2.5 (Peloteo básico de iniciación)', score: 10, level: 'Principiante' },
-        { text: 'NTRP 3.0 - 3.5 (Saque consistente y topspin regular)', score: 25, level: 'Intermedio' },
+        { text: 'NTRP 1.0 - 2.5 (Principiante, peloteo básico)', score: 10, level: 'Principiante' },
+        { text: 'NTRP 3.0 - 3.5 (Interclubes, consistencia en golpes)', score: 25, level: 'Intermedio' },
         { text: 'NTRP 4.0 - 4.5 (Golpes con ritmo, profundidad y volea)', score: 40, level: 'Avanzado' },
         { text: 'NTRP 5.0+ (Jugador de ranking nacional o federado)', score: 50, level: 'Competitivo' }
       ]
@@ -382,58 +384,123 @@ const SEED_USERS = [
 
 class Database {
   constructor() {
+    // Caché en memoria para acceso rápido (se sincroniza con SQLite)
     this.users = new Map();
     this.sports = INITIAL_SPORTS;
-    this.questionnaires = DEFAULT_QUESTIONNAIRES;
+    this.questionnaires = { ...DEFAULT_QUESTIONNAIRES };
     this.profiles = new Map(); // key: userId_sportId_formatId
-    this.challenges = []; // cola de búsqueda activa
+    this.challenges = []; // cola de búsqueda activa — SOLO EN MEMORIA (tiempo real)
     this.matches = new Map(); // id -> match
-    this.lobbies = new Map(); // code -> lobby
+    this.lobbies = new Map(); // code -> lobby — SOLO EN MEMORIA (tiempo real)
     this.reviews = [];
     this.futReviews = [];
-    this.init();
+    this._sqliteReady = false;
   }
 
-  init() {
-    // Cargar semillas
+  /**
+   * Inicialización asíncrona — DEBE llamarse antes de usar la DB.
+   * Carga datos de SQLite o siembra datos iniciales si la DB está vacía.
+   */
+  async initAsync() {
+    await initDatabase();
+    this._sqliteReady = true;
+
+    // Cargar configuración persistente
+    const savedSports = sqlGetConfig('sports');
+    if (savedSports) {
+      this.sports = savedSports;
+    }
+    const savedQuestionnaires = sqlGetConfig('questionnaires');
+    if (savedQuestionnaires) {
+      this.questionnaires = savedQuestionnaires;
+    }
+
+    // Si la DB tiene datos de semilla, cargarlos al caché en memoria
+    if (sqlHasSeedData()) {
+      console.log('[DB] Cargando datos persistentes desde SQLite...');
+      this._loadFromSqlite();
+    } else {
+      console.log('[DB] Base de datos vacía, sembrando datos iniciales...');
+      this._seedInitialData();
+    }
+
+    console.log(`[DB] Inicialización completa: ${this.users.size} usuarios, ${this.profiles.size} perfiles, ${this.matches.size} partidos cargados.`);
+  }
+
+  /**
+   * Carga todos los datos persistidos de SQLite al caché en memoria.
+   */
+  _loadFromSqlite() {
+    // Cargar usuarios
+    const allUsers = sqlGetAllUsers();
+    for (const u of allUsers) {
+      this.users.set(u.id, u);
+    }
+
+    // Cargar perfiles
+    for (const u of allUsers) {
+      const profiles = sqlGetProfilesByUser(u.id);
+      for (const p of profiles) {
+        const key = this.getProfileKey(p.userId, p.sportId, p.formatId);
+        this.profiles.set(key, p);
+      }
+    }
+
+    // Cargar partidos
+    const allMatches = sqlGetAllMatches();
+    for (const m of allMatches) {
+      this.matches.set(m.id, m);
+    }
+
+    // Cargar reseñas
+    // Las reseñas se almacenan serializado en SQLite, las cargamos al array
+    const allUserIds = allUsers.map(u => u.id);
+    const reviewsSet = new Set();
+    for (const uid of allUserIds) {
+      const reviews = sqlGetUserReviews(uid);
+      for (const r of reviews) {
+        const key = JSON.stringify(r);
+        if (!reviewsSet.has(key)) {
+          reviewsSet.add(key);
+          this.reviews.push(r);
+        }
+      }
+    }
+  }
+
+  /**
+   * Siembra los datos iniciales (SEED_USERS + partidos demo) y los persiste en SQLite.
+   */
+  _seedInitialData() {
+    // Guardar configuración
+    sqlSetConfig('sports', this.sports);
+    sqlSetConfig('questionnaires', this.questionnaires);
+
+    // Cargar semillas de usuarios
     for (const u of SEED_USERS) {
       this.users.set(u.id, u);
+      sqlInsertUser(u);
+
       // Perfiles por defecto para el demo por formato
-      this.setProfile(u.id, 'futbol', '1v1', {
-        rating: u.ratingOverall,
-        rd: 120,
-        volatility: 0.06,
-        matchesPlayed: 14,
-        wins: 10,
-        losses: 4,
+      const profile1v1 = {
+        userId: u.id, sportId: 'futbol', formatId: '1v1',
+        rating: u.ratingOverall, rd: 120, volatility: 0.06,
+        matchesPlayed: 14, wins: 10, losses: 4,
         declaredLevel: u.ratingOverall >= 1800 ? 'Competitivo' : u.ratingOverall >= 1550 ? 'Avanzado' : 'Intermedio'
-      });
+      };
+      this.setProfile(u.id, 'futbol', '1v1', profile1v1);
+
       this.setProfile(u.id, 'futbol', '2v2', {
-        rating: u.ratingOverall - 40,
-        rd: 140,
-        volatility: 0.06,
-        matchesPlayed: 8,
-        wins: 5,
-        losses: 3,
-        declaredLevel: 'Avanzado'
+        rating: u.ratingOverall - 40, rd: 140, volatility: 0.06,
+        matchesPlayed: 8, wins: 5, losses: 3, declaredLevel: 'Avanzado'
       });
       this.setProfile(u.id, 'futbol', '3v3', {
-        rating: u.ratingOverall - 20,
-        rd: 150,
-        volatility: 0.06,
-        matchesPlayed: 5,
-        wins: 4,
-        losses: 1,
-        declaredLevel: 'Avanzado'
+        rating: u.ratingOverall - 20, rd: 150, volatility: 0.06,
+        matchesPlayed: 5, wins: 4, losses: 1, declaredLevel: 'Avanzado'
       });
       this.setProfile(u.id, 'padel', '2v2', {
-        rating: 1550,
-        rd: 160,
-        volatility: 0.06,
-        matchesPlayed: 6,
-        wins: 4,
-        losses: 2,
-        declaredLevel: 'Intermedio'
+        rating: 1550, rd: 160, volatility: 0.06,
+        matchesPlayed: 6, wins: 4, losses: 2, declaredLevel: 'Intermedio'
       });
     }
 
@@ -486,7 +553,38 @@ class Database {
 
     this.matches.set(demoMatch1.id, demoMatch1);
     this.matches.set(demoMatch2.id, demoMatch2);
+    sqlInsertMatch(demoMatch1);
+    sqlInsertMatch(demoMatch2);
+
+    forceSave();
+    console.log('[DB] Datos iniciales sembrados y persistidos en SQLite.');
   }
+
+  // ==========================================
+  // PERSISTENCIA: Helpers para sincronizar caché <-> SQLite
+  // ==========================================
+
+  _persistUser(user) {
+    if (this._sqliteReady) {
+      sqlUpdateUser(user);
+    }
+  }
+
+  _persistProfile(profile) {
+    if (this._sqliteReady) {
+      sqlInsertProfile(profile);
+    }
+  }
+
+  _persistMatch(match) {
+    if (this._sqliteReady) {
+      sqlInsertMatch(match);
+    }
+  }
+
+  // ==========================================
+  // API PÚBLICA — EXACTAMENTE IGUAL QUE ANTES
+  // ==========================================
 
   getSports() {
     return this.sports;
@@ -514,6 +612,127 @@ class Database {
     if (user.password && password && user.password !== password) {
       return { error: 'Contraseña incorrecta. Por favor verifica tus datos.' };
     }
+    return { user };
+  }
+
+  getUserByName(name) {
+    if (!name || typeof name !== 'string') return null;
+    const clean = name.trim().toLowerCase();
+    for (const u of this.users.values()) {
+      if (u.name && u.name.trim().toLowerCase() === clean) {
+        return u;
+      }
+    }
+    const fromSql = sqlGetUserByName(clean);
+    if (fromSql) {
+      this.users.set(fromSql.id, fromSql);
+      return fromSql;
+    }
+    return null;
+  }
+
+  loginWithPin({ name, pin }) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return { error: 'Ingresa tu nombre de jugador' };
+    }
+    const cleanPin = String(pin || '').trim();
+    if (!cleanPin || !/^\d{4}$/.test(cleanPin)) {
+      return { error: 'El PIN debe ser exactamente de 4 dígitos numéricos' };
+    }
+
+    const cleanName = name.trim();
+    const user = this.getUserByName(cleanName);
+    if (!user) {
+      return { error: `No se encontró el jugador "${cleanName}". ¿Deseas registrarte?` };
+    }
+
+    // Verificar PIN
+    if (user.pinHash) {
+      const match = bcrypt.compareSync(cleanPin, user.pinHash);
+      if (!match) {
+        return { error: 'PIN incorrecto. Verifica los 4 dígitos.' };
+      }
+    } else if (user.password && user.password === cleanPin) {
+      // Si fue creado con password plano idéntico al PIN, migrarlo a hash
+      user.pinHash = bcrypt.hashSync(cleanPin, 10);
+      this._persistUser(user);
+    } else {
+      return { error: 'Esta cuenta no tiene PIN configurado. Inicia sesión con correo.' };
+    }
+
+    return { user };
+  }
+
+  registerWithPin({
+    name,
+    pin,
+    district = 'Surco, Lima',
+    avatar = null,
+    bio = 'Listo para competir con juego limpio.',
+    favoriteSports = ['futbol'],
+    primarySport = 'futbol',
+    position = 'DEL',
+    declaredLevel = 'Intermedio'
+  }) {
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return { error: 'El nombre debe tener al menos 2 caracteres' };
+    }
+    const cleanPin = String(pin || '').trim();
+    if (!cleanPin || !/^\d{4}$/.test(cleanPin)) {
+      return { error: 'El PIN debe ser exactamente de 4 dígitos numéricos' };
+    }
+
+    const cleanName = name.trim();
+    const existing = this.getUserByName(cleanName);
+    if (existing) {
+      return { error: `Ya existe un jugador registrado como "${cleanName}". Prueba iniciando sesión con tu PIN o usa otro apodo.` };
+    }
+
+    const pinHash = bcrypt.hashSync(cleanPin, 10);
+    const id = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const syntheticEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${id.substring(5, 10)}@matchsport.local`;
+
+    // Generar stats base para su carta FUT según el nivel, con un TOPE MÁXIMO DE 70 para recién registrados
+    const baseVal = declaredLevel === 'Competitivo' ? 68 : declaredLevel === 'Avanzado' ? 66 : declaredLevel === 'Principiante' ? 58 : 63;
+    const initialFutStats = {
+      rit: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
+      tir: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
+      pas: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
+      reg: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
+      def: Math.min(70, Math.max(50, baseVal - 3 + Math.floor(Math.random() * 5 - 2))),
+      fis: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
+      reviewsCount: 1
+    };
+    initialFutStats.ovr = calculateOvrFromStats(initialFutStats, baseVal * 20);
+
+    const user = {
+      id,
+      email: syntheticEmail,
+      password: null,
+      pinHash,
+      name: cleanName,
+      avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanName)}`,
+      district: district || 'Surco, Lima',
+      bio: bio || 'Listo para competir con juego limpio.',
+      favoriteSports: Array.isArray(favoriteSports) && favoriteSports.length > 0 ? favoriteSports : [primarySport || 'futbol'],
+      primarySport: primarySport || 'futbol',
+      position: position || 'DEL',
+      role: 'player',
+      verifiedDni: true,
+      likesCount: 0,
+      futStats: initialFutStats,
+      createdAt: new Date().toISOString()
+    };
+
+    this.users.set(id, user);
+    this._persistUser(user);
+
+    // Inicializar perfiles para sus deportes
+    this.getProfile(id, user.primarySport, '1v1');
+    if (user.primarySport === 'futbol') {
+      this.getProfile(id, 'futbol', '5v5');
+    }
+
     return { user };
   }
 
@@ -556,6 +775,7 @@ class Database {
       createdAt: new Date().toISOString()
     };
     this.users.set(id, user);
+    this._persistUser(user);
 
     // Inicializar perfiles para sus deportes favoritos
     for (const sportId of user.favoriteSports) {
@@ -587,6 +807,7 @@ class Database {
     user.futStats.reviewsCount = count + 1;
     user.futStats.ovr = calculateOvrFromStats(user.futStats, user.ratingOverall || 1500);
 
+    this._persistUser(user);
     return user.futStats;
   }
 
@@ -611,6 +832,7 @@ class Database {
         declaredLevel: 'Intermedio'
       };
       this.profiles.set(key, profile);
+      this._persistProfile(profile);
     }
     return this.profiles.get(key);
   }
@@ -620,6 +842,7 @@ class Database {
     const current = this.getProfile(userId, sportId, formatId);
     const updated = { ...current, ...data };
     this.profiles.set(key, updated);
+    this._persistProfile(updated);
     return updated;
   }
 
@@ -693,6 +916,7 @@ class Database {
       createdAt: new Date().toISOString()
     };
     this.matches.set(matchId, match);
+    this._persistMatch(match);
     return match;
   }
 
@@ -717,6 +941,7 @@ class Database {
     match.status = 'cancelled';
     match.cancelledBy = userId;
     match.cancelledAt = new Date().toISOString();
+    this._persistMatch(match);
     return match;
   }
 
@@ -735,6 +960,7 @@ class Database {
       }
     }
 
+    this._persistMatch(match);
     return { match, removedPlayer };
   }
 
@@ -786,6 +1012,7 @@ class Database {
     this.lobbies.set(code, lobby);
     match.status = 'cancelled';
     match.cancelledAt = new Date().toISOString();
+    this._persistMatch(match);
 
     return { lobby, match };
   }
@@ -812,6 +1039,7 @@ class Database {
       text: `▶ Partido iniciado en cancha. Temporizador programado para ${durationMinutes} minutos. ¡Al sonar la alarma de pitazo final marquen el resultado!`
     });
 
+    this._persistMatch(match);
     return match.matchTimer;
   }
 
@@ -826,11 +1054,16 @@ class Database {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     match.chatMessages.push(msg);
+    this._persistMatch(match);
     return msg;
   }
 
   addReview(review) {
-    this.reviews.push({ ...review, createdAt: new Date().toISOString() });
+    const reviewData = { ...review, createdAt: new Date().toISOString() };
+    this.reviews.push(reviewData);
+    if (this._sqliteReady) {
+      sqlInsertReview(reviewData);
+    }
     return review;
   }
 
@@ -924,6 +1157,9 @@ class Database {
 
   saveQuestionnaire(sportId, questions) {
     this.questionnaires[sportId] = questions;
+    if (this._sqliteReady) {
+      sqlSetConfig('questionnaires', this.questionnaires);
+    }
     return this.questionnaires[sportId];
   }
 
@@ -951,6 +1187,9 @@ class Database {
     const format = sport.formats.find(f => f.id === formatId);
     if (!format) return null;
     format.active = active;
+    if (this._sqliteReady) {
+      sqlSetConfig('sports', this.sports);
+    }
     return format;
   }
 
@@ -1297,4 +1536,10 @@ class Database {
   }
 }
 
+// ==========================================
+// EXPORTACIÓN: Singleton asíncrono
+// ==========================================
+
+// Creamos la instancia pero la inicialización SQLite es asíncrona.
+// El servidor DEBE llamar a db.initAsync() antes de aceptar conexiones.
 export const db = new Database();

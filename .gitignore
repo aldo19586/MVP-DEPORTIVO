@@ -27,3 +27,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# SQLite database (datos locales de runtime)
+matchsport.db
+
+# Logs de matchmaking
+logs/

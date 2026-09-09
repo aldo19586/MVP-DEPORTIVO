@@ -175,6 +175,9 @@ export default function AuthModal({ onLogin }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [authTab, setAuthTab] = useState('pin'); // 'pin' | 'email'
+  const [pinAction, setPinAction] = useState('login'); // 'login' | 'register'
   const [avatar, setAvatar] = useState(AVATARS[0]);
 
   // Deportes seleccionados: favorito (principal) + hasta 2 secundarios
@@ -196,6 +199,97 @@ export default function AuthModal({ onLogin }) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // AUTENTICACIÓN RÁPIDA CON NOMBRE + PIN (Fase 2)
+  const handlePinLoginSubmit = async (e) => {
+    e?.preventDefault();
+    if (!name || name.trim().length < 2) {
+      setError('Por favor ingresa tu nombre de jugador');
+      return;
+    }
+    const cleanPin = String(pin || '').trim();
+    if (!cleanPin || !/^\d{4}$/.test(cleanPin)) {
+      setError('El PIN debe tener exactamente 4 dígitos numéricos');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/pin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), pin: cleanPin })
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        const fullUser = { ...data.user, lat, lng, radiusKm, district };
+        localStorage.setItem('matchsport_location', JSON.stringify({ lat, lng, radiusKm, district }));
+        onLogin(fullUser);
+      } else {
+        setError(data.error || 'Nombre o PIN incorrecto');
+      }
+    } catch (err) {
+      setError('No se pudo conectar con el servidor. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePinRegisterSubmit = async (e) => {
+    e?.preventDefault();
+    if (!name || name.trim().length < 2) {
+      setError('El nombre debe tener al menos 2 caracteres');
+      return;
+    }
+    const cleanPin = String(pin || '').trim();
+    if (!cleanPin || !/^\d{4}$/.test(cleanPin)) {
+      setError('El PIN debe tener exactamente 4 dígitos numéricos');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/pin-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          pin: cleanPin,
+          district,
+          avatar,
+          primarySport,
+          position,
+          declaredLevel: calculatedLevel || 'Intermedio'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        const fullUser = {
+          ...data.user,
+          lat,
+          lng,
+          radiusKm,
+          district,
+          primarySport,
+          position
+        };
+        setCreatedUser(fullUser);
+        localStorage.setItem('matchsport_location', JSON.stringify({ lat, lng, radiusKm, district }));
+        setView('register');
+        setStep(5);
+      } else {
+        setError(data.error || 'Error al registrar jugador');
+      }
+    } catch (err) {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Cambiar posiciones automáticamente si cambia el deporte principal
   const handleSelectPrimarySport = (sportId) => {
@@ -413,7 +507,7 @@ export default function AuthModal({ onLogin }) {
       <div className="modal-content" style={{ padding: '22px 18px 26px', maxWidth: '440px', maxHeight: '92vh', overflowY: 'auto' }}>
         
         {/* ========================================================================= */}
-        {/* VISTA 1: PANTALLA INICIAL (ELECCIÓN: INICIAR SESIÓN O REGISTRARME)          */}
+        {/* VISTA 1: PANTALLA INICIAL (ACCESO CON PIN O CORREO TRADICIONAL)           */}
         {/* ========================================================================= */}
         {view === 'choice' && (
           <div style={{ textAlign: 'center' }}>
@@ -421,57 +515,333 @@ export default function AuthModal({ onLogin }) {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '64px',
-              height: '64px',
-              borderRadius: '20px',
+              width: '60px',
+              height: '60px',
+              borderRadius: '18px',
               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               boxShadow: '0 0 25px rgba(16, 185, 129, 0.45)',
-              marginBottom: '14px'
+              marginBottom: '10px'
             }}>
-              <Sparkles size={32} color="#ffffff" />
+              <Sparkles size={30} color="#ffffff" />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '4px' }}>
-              <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '2px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>
                 MATCHSPORT
               </h2>
-              <span className="brand-tag">DESAFÍO</span>
+              <span className="brand-tag">MVP</span>
             </div>
 
-            <p style={{ fontSize: '13px', color: '#94a3b8', maxWidth: '320px', margin: '0 auto 24px', lineHeight: 1.4 }}>
-              Encuentra rivales deportivos, compite en canchas de tu zona y construye tu Carta Oficial FUT.
+            <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '320px', margin: '0 auto 16px', lineHeight: 1.3 }}>
+              Matchmaking deportivo con cartas FUT y ratings en tiempo real.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Pestañas de Modo: PIN Rápido vs Correo */}
+            <div style={{
+              display: 'flex',
+              background: '#0f172a',
+              borderRadius: '12px',
+              padding: '4px',
+              marginBottom: '16px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}>
               <button
                 type="button"
-                onClick={() => {
-                  setError('');
-                  setView('register');
-                  setStep(1);
+                onClick={() => { setError(''); setAuthTab('pin'); }}
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: '9px',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: authTab === 'pin' ? 800 : 600,
+                  background: authTab === 'pin' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
+                  color: authTab === 'pin' ? '#fff' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: authTab === 'pin' ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none'
                 }}
-                className="btn btn-primary"
-                style={{ padding: '14px', fontSize: '15px', fontWeight: 800, gap: '8px' }}
               >
-                <span>Crear Cuenta / Registrarme</span>
-                <ArrowRight size={18} />
+                ⚡ Nombre + PIN (Rápido)
               </button>
-
               <button
                 type="button"
-                onClick={() => {
-                  setError('');
-                  setView('login');
+                onClick={() => { setError(''); setAuthTab('email'); }}
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: '9px',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: authTab === 'email' ? 800 : 600,
+                  background: authTab === 'email' ? '#334155' : 'transparent',
+                  color: authTab === 'email' ? '#fff' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
                 }}
-                className="btn btn-secondary"
-                style={{ padding: '14px', fontSize: '14px', fontWeight: 700 }}
               >
-                Ya tengo una cuenta • Iniciar Sesión
+                ✉️ Correo Tradicional
               </button>
             </div>
 
+            {error && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '10px',
+                padding: '8px 12px',
+                fontSize: '12px',
+                color: '#fca5a5',
+                marginBottom: '14px',
+                textAlign: 'left'
+              }}>
+                {error}
+              </div>
+            )}
+
+            {/* MODO PIN (Fase 2) */}
+            {authTab === 'pin' && (
+              <div>
+                {/* Selector Entrar vs Registrarse */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setError(''); setPinAction('login'); }}
+                    style={{
+                      flex: 1,
+                      padding: '7px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: pinAction === 'login' ? 800 : 600,
+                      background: pinAction === 'login' ? '#1e293b' : 'transparent',
+                      border: pinAction === 'login' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.06)',
+                      color: pinAction === 'login' ? '#10b981' : '#64748b',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Ya tengo cuenta (Login)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setError(''); setPinAction('register'); }}
+                    style={{
+                      flex: 1,
+                      padding: '7px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: pinAction === 'register' ? 800 : 600,
+                      background: pinAction === 'register' ? '#1e293b' : 'transparent',
+                      border: pinAction === 'register' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.06)',
+                      color: pinAction === 'register' ? '#10b981' : '#64748b',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Nuevo Jugador
+                  </button>
+                </div>
+
+                <form onSubmit={pinAction === 'login' ? handlePinLoginSubmit : handlePinRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '4px' }}>
+                      Nombre / Apodo de Jugador
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <User size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '11px' }} />
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Ej: Paolo9, Guerrero, Crack..."
+                        required
+                        style={{
+                          width: '100%',
+                          background: '#1e293b',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '10px',
+                          padding: '9px 12px 9px 36px',
+                          color: '#fff',
+                          fontSize: '13px',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '4px' }}>
+                      <span>PIN Secreto (4 dígitos numéricos)</span>
+                      <span style={{ color: '#64748b', fontWeight: 400 }}>{pin.length}/4</span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '11px' }} />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        value={pin}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          setPin(val);
+                        }}
+                        placeholder="••••"
+                        required
+                        style={{
+                          width: '100%',
+                          background: '#1e293b',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '10px',
+                          padding: '9px 36px 9px 36px',
+                          color: '#fff',
+                          fontSize: '15px',
+                          letterSpacing: '6px',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '9px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#94a3b8',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Opciones adicionales para nuevo jugador */}
+                  {pinAction === 'register' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '4px' }}>
+                          Deporte Principal
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                          {AVAILABLE_SPORTS.map((sport) => (
+                            <button
+                              key={sport.id}
+                              type="button"
+                              onClick={() => handleSelectPrimarySport(sport.id)}
+                              style={{
+                                padding: '6px 8px',
+                                borderRadius: '8px',
+                                border: primarySport === sport.id ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.06)',
+                                background: primarySport === sport.id ? 'rgba(16,185,129,0.15)' : '#1e293b',
+                                color: primarySport === sport.id ? '#10b981' : '#cbd5e1',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}
+                            >
+                              <span>{sport.icon}</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sport.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#cbd5e1', marginBottom: '4px' }}>
+                          Posición en Cancha
+                        </label>
+                        <select
+                          value={position}
+                          onChange={(e) => setPosition(e.target.value)}
+                          style={{
+                            width: '100%',
+                            background: '#1e293b',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            borderRadius: '10px',
+                            padding: '8px 12px',
+                            color: '#fff',
+                            fontSize: '12px',
+                            outline: 'none'
+                          }}
+                        >
+                          {(SPORT_POSITIONS[primarySport] || SPORT_POSITIONS.futbol).map((pos) => (
+                            <option key={pos.id} value={pos.id}>
+                              {pos.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || (pinAction === 'login' ? (!name || pin.length !== 4) : (!name || pin.length !== 4))}
+                    className="btn btn-primary"
+                    style={{
+                      padding: '12px',
+                      fontSize: '14px',
+                      fontWeight: 800,
+                      gap: '8px',
+                      marginTop: '4px',
+                      opacity: (loading || pin.length !== 4 || !name) ? 0.6 : 1
+                    }}
+                  >
+                    {loading ? (
+                      <span>Verificando con SQLite...</span>
+                    ) : pinAction === 'login' ? (
+                      <>
+                        <span>⚡ Entrar a la Cancha</span>
+                        <ArrowRight size={18} />
+                      </>
+                    ) : (
+                      <>
+                        <span>✨ Crear Jugador y Entrar</span>
+                        <Sparkles size={18} />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* MODO CORREO (Tradicional) */}
+            {authTab === 'email' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setView('register');
+                    setStep(1);
+                  }}
+                  className="btn btn-primary"
+                  style={{ padding: '12px', fontSize: '14px', fontWeight: 800, gap: '8px' }}
+                >
+                  <span>Registro Completo (5 Pasos con Test FUT)</span>
+                  <ArrowRight size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setView('login');
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '12px', fontSize: '13px', fontWeight: 700 }}
+                >
+                  Iniciar con Correo y Contraseña
+                </button>
+              </div>
+            )}
+
             {/* Accesos rápidos destacados para pruebas */}
-            <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '14px' }}>
+            <div style={{ marginTop: '18px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
               <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
                 Accesos rápidos de prueba (1 clic):
               </p>
@@ -482,8 +852,8 @@ export default function AuthModal({ onLogin }) {
                 className="btn btn-primary"
                 style={{
                   width: '100%',
-                  padding: '11px',
-                  fontSize: '13px',
+                  padding: '9px',
+                  fontSize: '12px',
                   fontWeight: 900,
                   background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
                   borderColor: '#ef4444',
@@ -500,7 +870,7 @@ export default function AuthModal({ onLogin }) {
                   type="button"
                   onClick={() => handleQuickLogin('carlos.crack@deporte.pe', 'Carlos Mendoza', 'Surco, Lima', AVATARS[0], 'DEL', 'futbol')}
                   className="btn btn-secondary"
-                  style={{ fontSize: '11px', padding: '7px 10px', flex: 1 }}
+                  style={{ fontSize: '11px', padding: '6px 8px', flex: 1 }}
                 >
                   ⚡ Carlos (Fútbol)
                 </button>
@@ -508,7 +878,7 @@ export default function AuthModal({ onLogin }) {
                   type="button"
                   onClick={() => handleQuickLogin('mateo.padel@deporte.pe', 'Mateo Ramos', 'Miraflores, Lima', AVATARS[1], 'DRIVE', 'padel')}
                   className="btn btn-secondary"
-                  style={{ fontSize: '11px', padding: '7px 10px', flex: 1 }}
+                  style={{ fontSize: '11px', padding: '6px 8px', flex: 1 }}
                 >
                   🎾 Mateo (Pádel)
                 </button>

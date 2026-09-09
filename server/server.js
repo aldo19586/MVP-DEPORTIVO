@@ -93,6 +93,45 @@ app.post('/api/auth/register', (req, res) => {
   res.json({ user });
 });
 
+// Autenticación rápida por Nombre + PIN de 4 dígitos (Fase 2)
+app.post('/api/auth/pin-login', (req, res) => {
+  const { name, pin } = req.body;
+  if (!name || !pin) {
+    return res.status(400).json({ error: 'Nombre y PIN de 4 dígitos son requeridos' });
+  }
+  const result = db.loginWithPin({ name, pin });
+  if (result.error) {
+    return res.status(401).json({ error: result.error });
+  }
+  res.json({ user: result.user });
+});
+
+app.post('/api/auth/pin-register', (req, res) => {
+  const { name, pin, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
+  if (!name || name.trim().length < 2) {
+    return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
+  }
+  if (!pin || !/^\d{4}$/.test(String(pin).trim())) {
+    return res.status(400).json({ error: 'El PIN debe ser exactamente de 4 dígitos numéricos' });
+  }
+  const result = db.registerWithPin({ name, pin, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel });
+  if (result.error) {
+    return res.status(409).json({ error: result.error });
+  }
+  res.json({ user: result.user });
+});
+
+app.get('/api/auth/check-name/:name', (req, res) => {
+  const user = db.getUserByName(req.params.name);
+  res.json({ exists: !!user, name: req.params.name });
+});
+
+app.get('/api/user/:userId', (req, res) => {
+  const user = db.getUser(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json({ user });
+});
+
 app.get('/api/profile/:userId/:sportId/:formatId', (req, res) => {
   const { userId, sportId, formatId } = req.params;
   const profile = db.getProfile(userId, sportId, formatId);
@@ -1247,12 +1286,26 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, '0.0.0.0', () => {
-  const localIp = getLocalIp();
-  console.log(`\n============================================================`);
-  console.log(`🏆 MATCHMAKING DEPORTIVO - SERVIDOR ACTIVO`);
-  console.log(`📡 Backend Socket.IO: http://localhost:${PORT}`);
-  console.log(`📱 En tu PC:          http://localhost:3000`);
-  console.log(`📲 En tu Celular/LAN: http://${localIp}:3000`);
-  console.log(`============================================================\n`);
-});
+
+// Inicialización asíncrona: cargar SQLite antes de aceptar conexiones
+async function startServer() {
+  try {
+    await db.initAsync();
+    console.log('[SERVER] Base de datos SQLite inicializada correctamente.');
+  } catch (err) {
+    console.error('[SERVER] Error al inicializar SQLite:', err);
+    process.exit(1);
+  }
+
+  server.listen(PORT, '0.0.0.0', () => {
+    const localIp = getLocalIp();
+    console.log(`\n============================================================`);
+    console.log(`🏆 MATCHMAKING DEPORTIVO - SERVIDOR ACTIVO (con SQLite)`);
+    console.log(`📡 Backend Socket.IO: http://localhost:${PORT}`);
+    console.log(`📱 En tu PC:          http://localhost:3000`);
+    console.log(`📲 En tu Celular/LAN: http://${localIp}:3000`);
+    console.log(`============================================================\n`);
+  });
+}
+
+startServer();
