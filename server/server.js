@@ -29,6 +29,10 @@ matchmakingEngine.start();
 // Mapeo de usuario a socketId
 const userSocketMap = new Map();
 
+// Temporizadores de gracia para reconexión (Fase 3: 25 segundos antes de expulsar de salas o colas)
+const disconnectGraceTimers = new Map();
+const DISCONNECT_GRACE_PERIOD_MS = 25000;
+
 import peruDistricts from './peru_districts.json' with { type: 'json' };
 
 // Helper para obtener la IP local LAN
@@ -277,6 +281,14 @@ app.post('/api/lobby/leave', (req, res) => {
 // ---------------- SOCKET.IO REALTIME ----------------
 
 io.on('connection', (socket) => {
+  // Cancelar temporizador de gracia si el socket envía userId en handshake auth
+  const authUserId = socket.handshake.auth?.userId;
+  if (authUserId && disconnectGraceTimers.has(authUserId)) {
+    clearTimeout(disconnectGraceTimers.get(authUserId));
+    disconnectGraceTimers.delete(authUserId);
+    console.log(`[SOCKET] 🟢 Jugador ${authUserId} reconectado por handshake auth. Período de gracia cancelado.`);
+  }
+
   // Enviar lista actual de usuarios autenticados conectados
   socket.emit('onlineUsersUpdate', {
     count: connectedUsers.size,
@@ -285,6 +297,13 @@ io.on('connection', (socket) => {
 
   socket.on('registerUser', ({ userId, user: clientUser }) => {
     if (!userId) return;
+
+    // 0. Cancelar temporizador de gracia si este usuario estaba en desconexión temporal
+    if (disconnectGraceTimers.has(userId)) {
+      clearTimeout(disconnectGraceTimers.get(userId));
+      disconnectGraceTimers.delete(userId);
+      console.log(`[SOCKET] 🟢 Jugador ${userId} reconectado exitosamente dentro del período de gracia.`);
+    }
 
     // 1. Exclusividad de sesión: Si ya existía una sesión en otro dispositivo/pestaña, notificar al socket viejo
     const oldSocketId = userSocketMap.get(userId);
@@ -374,6 +393,10 @@ io.on('connection', (socket) => {
 
   socket.on('unregisterUser', () => {
     if (socket.userId) {
+      if (disconnectGraceTimers.has(socket.userId)) {
+        clearTimeout(disconnectGraceTimers.get(socket.userId));
+        disconnectGraceTimers.delete(socket.userId);
+      }
       userSocketMap.delete(socket.userId);
       connectedUsers.delete(socket.userId);
       socket.userId = null;
@@ -1259,29 +1282,65 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     // Limpiar entrada temporal de guest
     connectedUsers.delete(socket.id);
 
-    if (socket.userId) {
-      // Solo eliminar si este socket era el activo actualmente
-      if (userSocketMap.get(socket.userId) === socket.id) {
-        userSocketMap.delete(socket.userId);
-        connectedUsers.delete(socket.userId);
-      }
+    const userId = socket.userId;
+    if (userId) {
+      // Solo actuar si este socket era el socket activo registrado para el usuario
+      if (userSocketMap.get(userId) === socket.id) {
+        console.log(`[SOCKET] ⚠️ Jugador ${userId} desconectado (${reason}). Iniciando período de gracia de ${DISCONNECT_GRACE_PERIOD_MS / 1000}s...`);
 
-      // Si el usuario estaba en alguna sala de convocatoria, abandonarla automáticamente
-      const activeLobby = db.getUserActiveLobby(socket.userId);
-      if (activeLobby) {
-        console.log(`[LOBBY] Jugador ${socket.userId} desconectado. Abandonando sala #${activeLobby.code}...`);
-        const updatedLobby = db.leaveLobby(activeLobby.code, socket.userId);
-        if (updatedLobby) {
-          io.to(`lobby_${activeLobby.code}`).emit('lobbyUpdated', { lobby: updatedLobby });
+        // Marcar estado en connectedUsers como reconectando
+        const userEntry = connectedUsers.get(userId);
+        if (userEntry) {
+          userEntry.status = 'reconnecting';
+          userEntry.details = 'Reconectando señal móvil...';
+          broadcastOnlineUsers();
         }
-      }
-    }
 
-    broadcastOnlineUsers();
+        // Cancelar temporizador previo si existiera
+        if (disconnectGraceTimers.has(userId)) {
+          clearTimeout(disconnectGraceTimers.get(userId));
+        }
+
+        // Iniciar temporizador de gracia de 25 segundos
+        const timer = setTimeout(() => {
+          disconnectGraceTimers.delete(userId);
+
+          // Si pasados 25 segundos el usuario NO se ha reconectado con otro socket:
+          if (userSocketMap.get(userId) === socket.id) {
+            console.log(`[SOCKET] ⏰ Período de gracia expirado para ${userId}. Ejecutando desconexión definitiva.`);
+            userSocketMap.delete(userId);
+            connectedUsers.delete(userId);
+
+            // 1. Si el usuario estaba en alguna sala de convocatoria, abandonarla definitivamente
+            const activeLobby = db.getUserActiveLobby(userId);
+            if (activeLobby) {
+              console.log(`[LOBBY] Jugador ${userId} desconectado definitivamente. Abandonando sala #${activeLobby.code}...`);
+              const updatedLobby = db.leaveLobby(activeLobby.code, userId);
+              if (updatedLobby) {
+                io.to(`lobby_${activeLobby.code}`).emit('lobbyUpdated', { lobby: updatedLobby });
+              }
+            }
+
+            // 2. Si tenía una búsqueda activa en el radar y no regresó, cancelar la búsqueda
+            const activeChallenge = db.getChallengeByUserId(userId);
+            if (activeChallenge) {
+              db.removeChallengeByUserId(userId);
+              console.log(`[MATCHMAKING] Búsqueda de ${userId} cancelada por desconexión prolongada.`);
+            }
+
+            broadcastOnlineUsers();
+          }
+        }, DISCONNECT_GRACE_PERIOD_MS);
+
+        disconnectGraceTimers.set(userId, timer);
+      }
+    } else {
+      broadcastOnlineUsers();
+    }
   });
 });
 

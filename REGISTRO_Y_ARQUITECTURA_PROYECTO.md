@@ -217,4 +217,41 @@ app_config (key PK, value_json)
 - ✅ Persistencia confirmada entre reinicios de procesos independientes de Node.js.
 - ✅ Compilación de producción (`npm run build`) completada con éxito.
 
+---
+
+### Fase 3 — Reconexión Automática de Socket.IO ✅ COMPLETADA (2026-09-08)
+- **Estado:** ✅ Completada y verificada
+- **Problema abordado:** Anteriormente, ante un micro-corte de red de 1 segundo (ej: cambio de Wi-Fi a 4G o bloqueo de pantalla móvil), el servidor expulsaba de inmediato al jugador de su sala de convocatoria (`db.leaveLobby`) y dejaba su cola de búsqueda huérfana.
+- **Mecanismo de Período de Gracia (Grace Period de 25 segundos):**
+  - Al desconectarse un socket, el servidor **NO expulsa al jugador**.
+  - Marca su estado temporal en `connectedUsers` como `status: 'reconnecting'`.
+  - Inicia un temporizador de gracia de 25 segundos (`disconnectGraceTimers.set(userId, timer)`).
+  - Si el usuario se reconecta dentro de ese lapso:
+    - Se cancela el temporizador.
+    - Se actualiza el nuevo `socket.id` en el mapa de usuarios (`userSocketMap`), en su sala de convocatoria (`lobby.code`), en su partida activa (`match.id`) y en su búsqueda activa de Radar (`activeChallenge.socketId`).
+    - El servidor emite automáticamente `lobbyRestored` y `queueStatus` al nuevo socket.
+  - Solo si transcurren los 25 segundos sin reconexión se ejecuta la limpieza definitiva.
+- **Configuración del Cliente (`src/services/socket.js`):**
+  - `reconnectionAttempts: 30` (reintentos durante ~2 minutos).
+  - `reconnectionDelay: 1000` con tope `reconnectionDelayMax: 5000` y factor de aleatoriedad (jitter) `0.5`.
+  - Handshake inicial pasando `auth: { userId }` desde `localStorage`.
+- **Experiencia de Usuario en React (`src/App.jsx`):**
+  - Estado `connectionStatus`: `'connected'`, `'reconnecting'`, `'restored'`.
+  - Banner superior flotante que informa al usuario: 🟡 *"Reconectando señal... manteniendo tu lugar"* y 🟢 *"Conexión restablecida"*.
+
+#### Archivos creados/modificados:
+| Archivo | Acción | Descripción |
+|---|---|---|
+| `src/services/socket.js` | **MODIFICADO** | Parámetros de reconexión resiliente, handshake de auth y logging de eventos de reconexión |
+| `server/server.js` | **MODIFICADO** | `disconnectGraceTimers`, cancelación en `registerUser`/`handshake`, gracia de 25s en `disconnect` antes de limpiar lobbies o colas |
+| `src/App.jsx` | **MODIFICADO** | Escucha de eventos `connect`, `disconnect`, `reconnect`, registro automático con `user.id` persistente y banner flotante |
+| `scripts/test_socket_reconnection.js` | **NUEVO** | Suite de pruebas de reconexión automática tanto para Lobbies como para colas de Radar |
+
+#### Verificación Realizada:
+- ✅ **Escenario A (Lobbies):** Cliente crea sala de convocatoria, sufre desconexión abrupta de 3s, reconecta con nuevo `socket.id` y recupera intacta la sala vía `lobbyRestored`.
+- ✅ **Escenario B (Radar):** Cliente inicia búsqueda en Radar, sufre corte de 3s, reconecta con nuevo `socket.id` y su búsqueda continúa activa vía `queueStatus`.
+- ✅ **Handshake Auth:** Identificación directa por `userId` persistente en handshake de conexión.
+- ✅ **Compilación de Producción:** `npm run build` aprobado sin errores.
+
+
 

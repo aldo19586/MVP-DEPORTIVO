@@ -142,6 +142,9 @@ export default function App() {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [likeNotification, setLikeNotification] = useState(null);
 
+  // Estado de conexión y reconexión transparente Socket.IO (Fase 3)
+  const [connectionStatus, setConnectionStatus] = useState('connected'); // 'connected' | 'reconnecting' | 'restored'
+
   // Cargar deportes desde la API
   useEffect(() => {
     fetch('/api/sports')
@@ -179,23 +182,49 @@ export default function App() {
     }
   }, [user?.id, selectedSportId, selectedFormatId]);
 
-  // 1. Registro reactivo de usuario en Socket.IO (al conectar o cambiar de cuenta)
+  // 1. Registro reactivo de usuario y manejo de reconexión transparente en Socket.IO (Fase 3)
   useEffect(() => {
-    const register = () => {
+    let restoreTimer = null;
+
+    const handleConnect = () => {
+      setConnectionStatus((prev) => {
+        if (prev === 'reconnecting') {
+          restoreTimer = setTimeout(() => {
+            setConnectionStatus('connected');
+          }, 2500);
+          return 'restored';
+        }
+        return 'connected';
+      });
+
       if (user?.id) {
         socket.emit('registerUser', { userId: user.id, user });
+        if (activeMatch?.id) {
+          socket.emit('joinMatchRoom', { matchId: activeMatch.id });
+        }
       }
     };
 
+    const handleDisconnect = (reason) => {
+      console.warn('[APP] Conexión Socket.IO interrumpida:', reason);
+      setConnectionStatus('reconnecting');
+    };
+
     if (socket.connected) {
-      register();
+      handleConnect();
     }
-    socket.on('connect', register);
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.io.on('reconnect', handleConnect);
 
     return () => {
-      socket.off('connect', register);
+      if (restoreTimer) clearTimeout(restoreTimer);
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.io.off('reconnect', handleConnect);
     };
-  }, [user?.id, user?.name, user?.district]);
+  }, [user?.id, user?.name, user?.district, activeMatch?.id]);
 
   // 2. Escucha global de eventos Socket.IO en tiempo real (siempre activa)
   useEffect(() => {
@@ -804,6 +833,60 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Banner Flotante de Reconexión de Socket.IO (Fase 3) */}
+      {connectionStatus === 'reconnecting' && (
+        <div style={{
+          position: 'fixed',
+          top: '12px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10000,
+          background: 'rgba(245, 158, 11, 0.95)',
+          backdropFilter: 'blur(8px)',
+          color: '#000',
+          padding: '7px 16px',
+          borderRadius: '20px',
+          fontSize: '12px',
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.45)'
+        }}>
+          <span style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#b45309',
+            animation: 'pulse 1s infinite'
+          }} />
+          <span>Reconectando señal... manteniendo tu lugar</span>
+        </div>
+      )}
+
+      {connectionStatus === 'restored' && (
+        <div style={{
+          position: 'fixed',
+          top: '12px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10000,
+          background: 'rgba(16, 185, 129, 0.95)',
+          backdropFilter: 'blur(8px)',
+          color: '#fff',
+          padding: '7px 16px',
+          borderRadius: '20px',
+          fontSize: '12px',
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 4px 20px rgba(16, 185, 129, 0.4)'
+        }}>
+          <span>🟢 Conexión restablecida</span>
+        </div>
+      )}
+
       {/* Toast Flotante estilo Isla Dinámica para Tiempo en Cancha */}
       <LiveMatchToast
         match={activeMatch}
