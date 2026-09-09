@@ -313,3 +313,32 @@ app_config (key PK, value_json)
 - ✅ Generación automática de la carpeta `logs/` y el archivo `logs/matchmaking.log`.
 - ✅ Validación de los tags `[EVALUANDO 1v1]`, `[NO EMPAREJADO]`, `[VENTANA EXPANDIDA]`, `[EMPAREJADO]`, `[CONFIRMACIÓN INICIADA]`, `[BOT USADO]`, `[JUGADOR ACEPTÓ]`, `[CANCELADO]` y `[CONFIRMADO]`.
 - ✅ Compilación de producción (`npm run build`) verificada sin errores.
+
+---
+
+### Fase 6 — Testing Manual Dirigido del Flujo de Aceptación (20s) ✅ COMPLETADA (2026-09-08)
+- **Estado:** ✅ Completada y verificada
+- **Propósito:** Validar el comportamiento interactivo, gráfico y de red del modal estilo Dota 2 (`MatchAcceptModal.jsx`) bajo condiciones reales y de estrés en red local (múltiples celulares y ventanas).
+- **Matriz de 10 Escenarios Implementada:**
+  1. **El Camino Feliz (100% Confirmado):** Todos los participantes aceptan antes de los 20s. Transición suave a la sala oficial con efectos de audio y confetti.
+  2. **Timeout por Inacción (AFK):** Al vencer los 20s (barra roja en los últimos 5s), el servidor cancela limpiamente con `[CANCELADO] Razón: timeout`, notificando a los jugadores y restaurando el radar a estado listo.
+  3. **Rechazo Voluntario:** Al presionar "✕ Rechazar y volver", el servidor aborta inmediatamente y avisa al rival con el nombre de quien declinó.
+  4. **Doble Tap / Spam:** El botón se bloquea de inmediato tras el primer click (`disabled={isUserAccepted}`), evitando eventos socket duplicados.
+  5. **Micro-corte de Red ANTES de Aceptar:** Gracias al Grace Period de 25s (Fase 3), el socket reconecta con banner amarillo y el usuario puede confirmar si aún le queda tiempo.
+  6. **Micro-corte de Red DESPUÉS de Aceptar:** El voto se preserva en memoria y base de datos; al reconectar el usuario es redirigido directamente a la sala de partido activa.
+  7. **Cierre Abrupto de App / Pestaña:** El servidor maneja la desconexión sin excepciones no capturadas y cancela por timeout de forma segura.
+  8. **Carrera en el Segundo 0:** El servidor otorga un margen de gracia de 1s (21s vs 20s de UI) que evita que un tap en el segundo 1 sea rechazado injustamente.
+  9. **Asistencia de Bots Realista:** Los bots aceptan con delays escalonados (0.6s - 2.5s) simulando humanos.
+  10. **Re-ingreso Inmediato al Radar:** Tras fallar o cancelar, el radar queda completamente limpio para iniciar una nueva búsqueda sin necesidad de refrescar la página.
+
+---
+
+## 🏆 CHECKLIST FINAL — 6 FASES LOCALES COMPLETADAS AL 100%
+
+- [x] **Persistencia de Datos:** Reinicio el servidor y los datos de usuarios, partidos y ratings siguen intactos en SQLite (`matchsport.db`).
+- [x] **Identidad Segura:** Cierre de sesión y re-ingreso con Nombre + PIN de 4 dígitos (`bcryptjs`), recuperando carta FUT, historial y posición.
+- [x] **Reconexión Resiliente:** Corte de Wi-Fi de 10-15 segundos no expulsa al jugador; al volver la señal recupera su sala de convocatoria o su búsqueda en radar sin perder su lugar.
+- [x] **25 Bots Realistas:** Base de datos sembrada con 25 jugadores en 12 distritos de Lima con 3 rangos de OVR (~60, ~75, ~90) y PIN universal `1234`.
+- [x] **Trazabilidad Total:** Registro persistente en `logs/matchmaking.log` y consola para auditar cada emparejamiento, diferencias de OVR y distancias.
+- [x] **Validación de Experiencia (20s):** Flujo de aceptación validado con la matriz de 10 escenarios de estrés y casos límite.
+
