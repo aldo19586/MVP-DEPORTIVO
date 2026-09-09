@@ -1078,8 +1078,10 @@ class Database {
       const inTeamB = match.teamB.some(p => p.id === userId || p.userId === userId);
 
       if (inTeamA || inTeamB) {
+        // El historial solo incluye partidos oficiales terminados
+        if (match.status !== 'finished') continue;
+
         const myTeamKey = inTeamA ? 'teamA' : 'teamB';
-        const isFinished = match.status === 'finished';
         const won = match.resultFinal === myTeamKey;
         const draw = match.resultFinal === 'draw';
 
@@ -1087,11 +1089,11 @@ class Database {
           id: match.id,
           sportId: match.sportId,
           formatId: match.formatId,
-          status: match.status,
+          status: 'finished',
           resultFinal: match.resultFinal,
           won,
           draw,
-          pointsDelta: isFinished ? (won ? 35 : (draw ? 10 : -25)) : 0,
+          pointsDelta: won ? 35 : (draw ? 10 : -25),
           myTeam: inTeamA ? match.teamA : match.teamB,
           rivalTeam: inTeamA ? match.teamB : match.teamA,
           venueDistrict: match.venueDistrict || match.teamA[0]?.district || 'Surco, Lima',

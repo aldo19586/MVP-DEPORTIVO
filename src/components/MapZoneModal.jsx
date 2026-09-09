@@ -63,10 +63,22 @@ export default function MapZoneModal({
 
   // Calcular dinámicamente qué distritos están dentro del área circular de alcance
   const coveredDistricts = useMemo(() => {
-    return DISTRICTS_WITH_COORDS.filter((d) => {
-      const dist = getDistanceKm(lat, lng, d.lat, d.lng);
-      return dist <= radiusKm;
-    });
+    const seen = new Set();
+    const list = [];
+    const withDist = DISTRICTS_WITH_COORDS.map((d) => ({
+      ...d,
+      distKm: getDistanceKm(lat, lng, d.lat, d.lng)
+    })).filter((d) => d.distKm <= radiusKm)
+      .sort((a, b) => a.distKm - b.distKm);
+
+    for (const d of withDist) {
+      const normName = d.distrito.replace(/^Santiago de /i, '').toLowerCase();
+      if (!seen.has(normName)) {
+        seen.add(normName);
+        list.push(d);
+      }
+    }
+    return list;
   }, [lat, lng, radiusKm]);
 
   useEffect(() => {

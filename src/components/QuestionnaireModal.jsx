@@ -51,7 +51,7 @@ export default function QuestionnaireModal({
               Test de Nivel Deportivo
             </h3>
             <p style={{ fontSize: '12px', color: '#94a3b8' }}>
-              Calibración inicial de Glicko-2 para {sportName} ({formatName})
+              Nivel inicial para {sportName} ({formatName})
             </p>
           </div>
           <button
@@ -130,10 +130,10 @@ export default function QuestionnaireModal({
             border: '1px solid rgba(59, 130, 246, 0.2)',
             borderRadius: '10px',
             padding: '10px 12px',
-            fontSize: '11px',
+            fontSize: '12px',
             color: '#93c5fd'
           }}>
-            ℹ️ <strong>Nota de Glicko-2:</strong> Tus primeros partidos ajustarán rápidamente tu rating (alta incertidumbre RD) hasta reflejar tu verdadero desempeño en la cancha.
+            Tu puntaje se irá calibrando automáticamente según los resultados de tus partidos.
           </div>
 
           <button
@@ -141,7 +141,7 @@ export default function QuestionnaireModal({
             className="btn btn-primary"
             style={{ width: '100%', padding: '12px', marginTop: '4px' }}
           >
-            Guardar y Calibrar Rating
+            Confirmar Nivel
           </button>
         </div>
       </div>

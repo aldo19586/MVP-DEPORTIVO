@@ -63,7 +63,7 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
                   alt={myTeam[0].name}
                   style={{ width: '54px', height: '54px', borderRadius: '50%', border: '2px solid #10b981', objectFit: 'cover' }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '150px', lineHeight: 1.25 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
                   {myTeam[0].name}
                 </span>
                 <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700, fontFamily: 'Outfit', marginTop: '2px' }}>
@@ -139,7 +139,7 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
                   alt={rivalTeam[0].name}
                   style={{ width: '54px', height: '54px', borderRadius: '50%', border: '2px solid #ef4444', objectFit: 'cover' }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '150px', lineHeight: 1.25 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
                   {rivalTeam[0].name}
                 </span>
                 <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700, fontFamily: 'Outfit', marginTop: '2px' }}>

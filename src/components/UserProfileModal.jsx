@@ -48,10 +48,11 @@ export default function UserProfileModal({
   const isAdmin = user.role === 'admin';
   const glickoRating = currentProfile?.rating || 1400;
 
-  // Stats acumuladas del jugador
-  const matchesPlayed = matchHistory.length > 0 ? matchHistory.length : (currentProfile?.matchesPlayed || 0);
-  const wins = matchHistory.length > 0 ? matchHistory.filter(m => m.won).length : (currentProfile?.wins || 0);
-  const losses = matchHistory.length > 0 ? matchHistory.filter(m => !m.won && !m.draw && m.status === 'finished').length : (currentProfile?.losses || 0);
+  // Stats acumuladas del jugador (solo partidas finalizadas)
+  const finishedHistory = (matchHistory || []).filter(m => m.status === 'finished');
+  const matchesPlayed = finishedHistory.length > 0 ? finishedHistory.length : (currentProfile?.matchesPlayed || 0);
+  const wins = finishedHistory.length > 0 ? finishedHistory.filter(m => m.won).length : (currentProfile?.wins || 0);
+  const losses = finishedHistory.length > 0 ? finishedHistory.filter(m => !m.won && !m.draw).length : (currentProfile?.losses || 0);
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
@@ -411,7 +412,7 @@ export default function UserProfileModal({
                   <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '12px' }}>
                     Cargando historial...
                   </div>
-                ) : matchHistory.length === 0 ? (
+                ) : finishedHistory.length === 0 ? (
                   <div style={{
                     background: 'rgba(255, 255, 255, 0.02)',
                     border: '1px dashed rgba(255, 255, 255, 0.08)',
@@ -427,7 +428,7 @@ export default function UserProfileModal({
                     </p>
                   </div>
                 ) : (
-                  matchHistory.map((m) => {
+                  finishedHistory.map((m) => {
                     const isWin = m.won;
                     const isDraw = m.draw;
                     const isFinished = m.status === 'finished';

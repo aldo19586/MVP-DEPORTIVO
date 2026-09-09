@@ -572,8 +572,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Ancon, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -11.773,
+    "lng": -77.176
   },
   {
     "id": 65,
@@ -1315,12 +1315,12 @@
   },
   {
     "id": 147,
-    "distrito": "Bre&ntilde;a",
+    "distrito": "Breña",
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Bre&ntilde;a, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.058,
+    "lng": -77.046
   },
   {
     "id": 148,
@@ -2399,8 +2399,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Chaclacayo, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -11.978,
+    "lng": -76.768
   },
   {
     "id": 268,
@@ -3371,8 +3371,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Cieneguilla, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.093,
+    "lng": -76.787
   },
   {
     "id": 376,
@@ -6476,8 +6476,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Jesus Maria, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.074,
+    "lng": -77.049
   },
   {
     "id": 721,
@@ -7016,8 +7016,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "La Victoria, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.065,
+    "lng": -77.018
   },
   {
     "id": 781,
@@ -7808,8 +7808,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Lurin, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.274,
+    "lng": -76.87
   },
   {
     "id": 869,
@@ -7961,8 +7961,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Magdalena del Mar, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.091,
+    "lng": -77.07
   },
   {
     "id": 886,
@@ -7970,8 +7970,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Magdalena Vieja, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.078,
+    "lng": -77.063
   },
   {
     "id": 887,
@@ -9563,8 +9563,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Pachacamac, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.23,
+    "lng": -76.862
   },
   {
     "id": 1064,
@@ -11516,8 +11516,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Rimac, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.03,
+    "lng": -77.027
   },
   {
     "id": 1281,
@@ -12524,8 +12524,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "San Juan de Lurigancho, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -11.978,
+    "lng": -77.006
   },
   {
     "id": 1393,
@@ -12533,8 +12533,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "San Juan de Miraflores, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.162,
+    "lng": -76.963
   },
   {
     "id": 1394,
@@ -12713,8 +12713,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "San Martin de Porres, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.029,
+    "lng": -77.079
   },
   {
     "id": 1414,
@@ -13415,8 +13415,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Santa Maria del Mar, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.404,
+    "lng": -76.772
   },
   {
     "id": 1492,
@@ -13667,8 +13667,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Santiago de Surco, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.137,
+    "lng": -76.985
   },
   {
     "id": 1520,
@@ -15674,8 +15674,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Villa el Salvador, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.215,
+    "lng": -76.935
   },
   {
     "id": 1743,
@@ -15683,8 +15683,8 @@
     "provincia": "Lima",
     "departamento": "Lima",
     "label": "Villa Maria del Triunfo, Lima (Lima)",
-    "lat": null,
-    "lng": null
+    "lat": -12.158,
+    "lng": -76.931
   },
   {
     "id": 1744,

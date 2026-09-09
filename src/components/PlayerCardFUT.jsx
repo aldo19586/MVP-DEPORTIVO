@@ -187,7 +187,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
             color: '#94a3b8',
             fontWeight: 600
           }}>
-            <span>📍 {district}</span>
+            <span>{district}</span>
             <span>•</span>
             <span style={{ color: '#10b981' }}>{tierName}</span>
           </div>
@@ -215,7 +215,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
               {stats.rit}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.5px' }}>
-              ⚡ RIT
+              RIT
             </span>
           </div>
 
@@ -224,7 +224,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
               {stats.reg}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.5px' }}>
-              🪄 REG
+              REG
             </span>
           </div>
 
@@ -233,7 +233,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
               {stats.tir}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.5px' }}>
-              ⚽ TIR
+              TIR
             </span>
           </div>
 
@@ -242,7 +242,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
               {stats.def}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.5px' }}>
-              🛡️ DEF
+              DEF
             </span>
           </div>
 
@@ -251,7 +251,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
               {stats.pas}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.5px' }}>
-              🎯 PAS
+              PAS
             </span>
           </div>
 
@@ -260,7 +260,7 @@ export default function PlayerCardFUT({ user, sport = 'futbol', onClose }) {
               {stats.fis}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.5px' }}>
-              💪 FÍS
+              FÍS
             </span>
           </div>
         </div>

@@ -441,10 +441,30 @@ h1, h2, h3, h4, .font-heading {
 /* Versus Match Screen */
 .versus-container {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   margin: 20px 0;
+  width: 100%;
+}
+
+.accept-teams-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  text-align: left;
+  width: 100%;
+}
+
+@media (max-width: 380px) {
+  .accept-teams-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .versus-container {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 
 .team-card {
@@ -453,6 +473,8 @@ h1, h2, h3, h4, .font-heading {
   border-radius: var(--radius-md);
   padding: 14px;
   text-align: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .team-card.mine {

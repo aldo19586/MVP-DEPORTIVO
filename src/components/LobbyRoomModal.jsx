@@ -561,8 +561,8 @@ export default function LobbyRoomModal({
             }} />
             <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>
               {allReady
-                ? '¡TODOS ESTÁN LISTOS!'
-                : `Esperando: ${readyCount} / ${neededPlayers} jugadores listos`}
+                ? 'Todos los jugadores listos'
+                : `Esperando: ${readyCount} / ${neededPlayers} listos`}
             </span>
           </div>
 
@@ -585,7 +585,7 @@ export default function LobbyRoomModal({
             }}
           >
             {isMyReady ? <Check size={14} /> : <UserCheck size={14} />}
-            {isMyReady ? '¡ESTOY LISTO! ✓' : 'MARCAR LISTO'}
+            {isMyReady ? 'Listo ✓' : 'Marcar listo'}
           </button>
         </div>
 
@@ -600,15 +600,14 @@ export default function LobbyRoomModal({
                   width: '100%',
                   padding: '14px',
                   fontSize: '14px',
-                  fontWeight: 900,
+                  fontWeight: 800,
                   borderRadius: '14px',
-                  letterSpacing: '0.5px',
                   background: 'linear-gradient(135deg, #10b981, #059669)',
                   boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
                 }}
               >
                 <Play size={16} />
-                <span>🚀 INICIAR PARTIDO PRIVADO EN CANCHA ({lobby.formatId.toUpperCase()})</span>
+                <span>Iniciar Partido ({lobby.formatId.toUpperCase()})</span>
               </button>
             ) : (
               <>
@@ -639,8 +638,8 @@ export default function LobbyRoomModal({
                       Jugar con Bots Demo
                     </span>
                   </div>
-                  <span style={{ fontSize: '10px', color: playWithBots ? '#f59e0b' : '#94a3b8', fontWeight: 700 }}>
-                    {playWithBots ? '⚡ Directo a la Conversación' : '📡 Búsqueda en Radar'}
+                  <span style={{ fontSize: '11px', color: playWithBots ? '#f59e0b' : '#94a3b8', fontWeight: 600 }}>
+                    {playWithBots ? 'Partida Inmediata' : 'Búsqueda en Radar'}
                   </span>
                 </div>
 
@@ -687,7 +686,7 @@ export default function LobbyRoomModal({
                       width: '100%',
                       padding: '14px',
                       fontSize: '13px',
-                      fontWeight: 900,
+                      fontWeight: 800,
                       borderRadius: '14px',
                       background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                       display: 'flex',
@@ -698,7 +697,7 @@ export default function LobbyRoomModal({
                     }}
                   >
                     <Bot size={16} />
-                    <span>BUSCAR PARTIDA CON BOTS (Directo a la Sala de Chat)</span>
+                    <span>Iniciar con Bots Demo</span>
                   </button>
                 ) : (
                   <button
@@ -708,7 +707,7 @@ export default function LobbyRoomModal({
                       width: '100%',
                       padding: '14px',
                       fontSize: '13px',
-                      fontWeight: 900,
+                      fontWeight: 800,
                       borderRadius: '14px',
                       background: 'linear-gradient(135deg, #10b981, #059669)',
                       display: 'flex',
@@ -719,14 +718,14 @@ export default function LobbyRoomModal({
                     }}
                   >
                     <Globe size={16} />
-                    <span>📡 BUSCAR EN RADAR ({lobby.formatId.toUpperCase()} • {location?.radiusKm || 6} KM)</span>
+                    <span>Buscar en Radar ({lobby.formatId.toUpperCase()} • {location?.radiusKm || 6} km)</span>
                   </button>
                 )}
 
                 <div style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8' }}>
                   {playWithBots
-                    ? `⚡ Se completarán los rivales con bots para ir directo a la sala de conversación.`
-                    : `📡 Tu equipo pasará al Radar escaneando rivales en ${location?.district || 'Surco, Lima'} a ${location?.radiusKm || 6} km a la redonda.`}
+                    ? `Se completarán los rivales con bots para jugar de inmediato.`
+                    : `Buscando rivales en ${location?.district || 'Surco, Lima'} a ${location?.radiusKm || 6} km.`}
                 </div>
               </>
             )}

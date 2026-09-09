@@ -465,10 +465,10 @@ export default function ChatRoom({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
               {[
-                { mins: 30, label: '⏱️ 30 Minutos' },
-                { mins: 45, label: '⏱️ 45 Minutos' },
-                { mins: 60, label: '⏱️ 60 Min (1h)' },
-                { mins: 90, label: '⏱️ 90 Min (1.5h)' }
+                { mins: 30, label: '30 Minutos' },
+                { mins: 45, label: '45 Minutos' },
+                { mins: 60, label: '60 Min (1 hora)' },
+                { mins: 90, label: '90 Min (1.5 horas)' }
               ].map(({ mins, label }) => (
                 <button
                   key={mins}
@@ -491,10 +491,10 @@ export default function ChatRoom({
         </div>
       )}
 
-      {/* Modal de Confirmación para Cancelar y Salir del Partido */}
+      {/* Modal de Confirmación para Cancelar Partido y Abandonar */}
       {showConfirmLeaveModal && (
         <div className="modal-overlay" style={{ zIndex: 99999 }}>
-          <div className="modal-content" style={{ maxWidth: '340px', padding: '22px', textAlign: 'center' }}>
+          <div className="modal-content" style={{ maxWidth: '360px', padding: '24px', textAlign: 'center' }}>
             <div style={{
               width: '48px',
               height: '48px',
@@ -504,13 +504,12 @@ export default function ChatRoom({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 12px',
-              fontSize: '22px'
+              margin: '0 auto 12px'
             }}>
-              🚪
+              <X size={22} color="#ef4444" />
             </div>
 
-            <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
               ¿Cancelar y Salir del Partido?
             </h3>
             <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', marginBottom: '18px', lineHeight: '1.4' }}>

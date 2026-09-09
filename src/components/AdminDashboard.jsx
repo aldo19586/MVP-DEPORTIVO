@@ -265,7 +265,7 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
                         </span>
                       </div>
                       <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>
-                        {isFinished ? (isDraw ? '🤝 EMPATE' : isTeamAWinner ? '🏆 Ganó Equipo A' : '🏆 Ganó Equipo B') : '⏱️ En juego'}
+                        {isFinished ? (isDraw ? 'Empate' : isTeamAWinner ? 'Ganó Equipo A' : 'Ganó Equipo B') : 'En juego'}
                       </span>
                     </div>
 
@@ -279,14 +279,15 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
                       padding: '6px 8px',
                       borderRadius: '6px'
                     }}>
-                      <span>⏱️ {m.startedAt} - {m.finishedAt} ({m.durationMinutes} min)</span>
-                      <span>📍 {m.venueDistrict}</span>
+                      <span>{m.startedAt} - {m.finishedAt} ({m.durationMinutes} min)</span>
+                      <span>•</span>
+                      <span>{m.venueDistrict}</span>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '6px', alignItems: 'center', fontSize: '11px' }}>
                       <div style={{ background: isTeamAWinner ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '6px', border: isTeamAWinner ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent' }}>
                         <span style={{ fontWeight: 800, color: isTeamAWinner ? '#34d399' : '#cbd5e1', display: 'block', marginBottom: '2px' }}>
-                          Equipo A {isTeamAWinner && '👑'}
+                          Equipo A {isTeamAWinner && '(Ganador)'}
                         </span>
                         {m.teamA?.map((p) => p.name).join(', ')}
                       </div>
@@ -295,7 +296,7 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
 
                       <div style={{ background: isTeamBWinner ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '6px', border: isTeamBWinner ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid transparent', textAlign: 'right' }}>
                         <span style={{ fontWeight: 800, color: isTeamBWinner ? '#34d399' : '#cbd5e1', display: 'block', marginBottom: '2px' }}>
-                          {isTeamBWinner && '👑 '}Equipo B
+                          Equipo B {isTeamBWinner && '(Ganador)'}
                         </span>
                         {m.teamB?.map((p) => p.name).join(', ')}
                       </div>

@@ -122,13 +122,30 @@ export default function MatchAcceptModal({
             <span>Confirmados: <strong style={{ color: '#34d399' }}>{acceptedCount}</strong> de {totalPlayers}</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
+          <div
+            className="accept-teams-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+              gap: '8px',
+              textAlign: 'left',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}
+          >
             {/* Mi Equipo */}
-            <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '10px', padding: '8px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#34d399', marginBottom: '6px', textTransform: 'uppercase' }}>
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.04)',
+              border: '1px solid rgba(16, 185, 129, 0.15)',
+              borderRadius: '10px',
+              padding: '8px',
+              minWidth: 0,
+              overflow: 'hidden'
+            }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#34d399', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Tu Equipo ({myTeam?.length || 0})
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
                 {myTeam?.map((p, idx) => {
                   const pId = p.userId || p.id;
                   const isAccepted = acceptedIds.includes(pId) || (pId === currentUserId && hasAccepted);
@@ -142,10 +159,12 @@ export default function MatchAcceptModal({
                         padding: '4px 6px',
                         borderRadius: '6px',
                         background: isAccepted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                        border: isAccepted ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)'
+                        border: isAccepted ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)',
+                        minWidth: 0,
+                        gap: '6px'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                         <img
                           src={p.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80'}
                           alt={p.name}
@@ -154,10 +173,23 @@ export default function MatchAcceptModal({
                             height: '22px',
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            border: `1px solid ${isAccepted ? '#10b981' : '#64748b'}`
+                            border: `1px solid ${isAccepted ? '#10b981' : '#64748b'}`,
+                            flexShrink: 0
                           }}
                         />
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: isAccepted ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span
+                          title={`${p.name} ${pId === currentUserId ? '(Tú)' : ''}`}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: isAccepted ? '#fff' : '#94a3b8',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            flex: 1,
+                            minWidth: 0
+                          }}
+                        >
                           {p.name} {pId === currentUserId && '(Tú)'}
                         </span>
                       </div>
@@ -180,11 +212,18 @@ export default function MatchAcceptModal({
             </div>
 
             {/* Equipo Rival */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '10px', padding: '8px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#f87171', marginBottom: '6px', textTransform: 'uppercase' }}>
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.04)',
+              border: '1px solid rgba(239, 68, 68, 0.15)',
+              borderRadius: '10px',
+              padding: '8px',
+              minWidth: 0,
+              overflow: 'hidden'
+            }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#f87171', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Rival ({rivalTeam?.length || 0})
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
                 {rivalTeam?.map((p, idx) => {
                   const pId = p.userId || p.id;
                   const isAccepted = acceptedIds.includes(pId);
@@ -198,10 +237,12 @@ export default function MatchAcceptModal({
                         padding: '4px 6px',
                         borderRadius: '6px',
                         background: isAccepted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                        border: isAccepted ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)'
+                        border: isAccepted ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)',
+                        minWidth: 0,
+                        gap: '6px'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                         <img
                           src={p.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80'}
                           alt={p.name}
@@ -210,10 +251,23 @@ export default function MatchAcceptModal({
                             height: '22px',
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            border: `1px solid ${isAccepted ? '#10b981' : '#64748b'}`
+                            border: `1px solid ${isAccepted ? '#10b981' : '#64748b'}`,
+                            flexShrink: 0
                           }}
                         />
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: isAccepted ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span
+                          title={p.name}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: isAccepted ? '#fff' : '#94a3b8',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            flex: 1,
+                            minWidth: 0
+                          }}
+                        >
                           {p.name}
                         </span>
                       </div>
