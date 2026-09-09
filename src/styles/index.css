@@ -51,6 +51,14 @@ h1, h2, h3, h4, .font-heading {
   letter-spacing: -0.02em;
 }
 
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* App container */
 .app-container {
   width: 100%;

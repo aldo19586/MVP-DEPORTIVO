@@ -250,7 +250,7 @@ export default function App() {
       setSearchChallenge(null);
     });
 
-    // Fase de Confirmación de Asistencia estilo Dota 2
+    // Fase de Confirmación de Asistencia
     socket.on('matchPromptAcceptance', (payload) => {
       setPendingMatch(payload);
       setIsSearching(false);
@@ -1263,7 +1263,7 @@ export default function App() {
         />
       )}
 
-      {/* MODAL 2.5: Confirmación de Asistencia (Estilo Dota 2) */}
+      {/* MODAL 2.5: Confirmación de Asistencia */}
       {pendingMatch && (
         <MatchAcceptModal
           pendingMatch={pendingMatch}

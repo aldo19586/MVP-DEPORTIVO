@@ -102,7 +102,7 @@ export default function MatchAcceptModal({
           </div>
         </div>
 
-        {/* Contador de Aceptados (Estilo Dota 2) */}
+        {/* Contador de Aceptados */}
         <div style={{
           background: 'rgba(255, 255, 255, 0.03)',
           border: '1px solid rgba(255, 255, 255, 0.08)',

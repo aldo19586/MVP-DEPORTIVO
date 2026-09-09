@@ -211,7 +211,7 @@ export default function AdminDashboard({ sports, onlineUsers = [], onClose }) {
           ))}
         </div>
 
-        {/* TAB 1: HISTORIAL GLOBAL DE PARTIDAS (ESTILO DOTA 2 / MOBA) */}
+        {/* TAB 1: HISTORIAL GLOBAL DE PARTIDOS */}
         {activeTab === 'history' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

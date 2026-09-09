@@ -517,32 +517,32 @@ export default function AuthModal({ onLogin }) {
               justifyContent: 'center',
               width: '60px',
               height: '60px',
-              borderRadius: '18px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              boxShadow: '0 0 25px rgba(16, 185, 129, 0.45)',
+              borderRadius: '16px',
+              background: '#10b981',
+              color: '#042416',
               marginBottom: '10px'
             }}>
-              <Sparkles size={30} color="#ffffff" />
+              <span style={{ fontSize: '24px' }}>⚽</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '2px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', letterSpacing: '-0.3px' }}>
                 MATCHSPORT
               </h2>
               <span className="brand-tag">MVP</span>
             </div>
 
             <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '320px', margin: '0 auto 16px', lineHeight: 1.3 }}>
-              Matchmaking deportivo con cartas FUT y ratings en tiempo real.
+              Encuentra rivales y organiza partidos deportivos.
             </p>
 
-            {/* Pestañas de Modo: PIN Rápido vs Correo */}
+            {/* Pestañas de Modo: PIN vs Correo */}
             <div style={{
               display: 'flex',
-              background: '#0f172a',
-              borderRadius: '12px',
-              padding: '4px',
-              marginBottom: '16px',
+              background: '#090d16',
+              borderRadius: '10px',
+              padding: '3px',
+              marginBottom: '14px',
               border: '1px solid rgba(255, 255, 255, 0.08)'
             }}>
               <button
@@ -550,37 +550,36 @@ export default function AuthModal({ onLogin }) {
                 onClick={() => { setError(''); setAuthTab('pin'); }}
                 style={{
                   flex: 1,
-                  padding: '8px 10px',
-                  borderRadius: '9px',
+                  padding: '7px 10px',
+                  borderRadius: '7px',
                   border: 'none',
                   fontSize: '12px',
-                  fontWeight: authTab === 'pin' ? 800 : 600,
-                  background: authTab === 'pin' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
-                  color: authTab === 'pin' ? '#fff' : '#94a3b8',
+                  fontWeight: authTab === 'pin' ? 700 : 500,
+                  background: authTab === 'pin' ? '#10b981' : 'transparent',
+                  color: authTab === 'pin' ? '#042416' : '#94a3b8',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: authTab === 'pin' ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none'
+                  transition: 'all 0.15s ease'
                 }}
               >
-                ⚡ Nombre + PIN (Rápido)
+                PIN (4 dígitos)
               </button>
               <button
                 type="button"
                 onClick={() => { setError(''); setAuthTab('email'); }}
                 style={{
                   flex: 1,
-                  padding: '8px 10px',
-                  borderRadius: '9px',
+                  padding: '7px 10px',
+                  borderRadius: '7px',
                   border: 'none',
                   fontSize: '12px',
-                  fontWeight: authTab === 'email' ? 800 : 600,
-                  background: authTab === 'email' ? '#334155' : 'transparent',
+                  fontWeight: authTab === 'email' ? 700 : 500,
+                  background: authTab === 'email' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
                   color: authTab === 'email' ? '#fff' : '#94a3b8',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.15s ease'
                 }}
               >
-                ✉️ Correo Tradicional
+                Correo
               </button>
             </div>
 
@@ -602,7 +601,7 @@ export default function AuthModal({ onLogin }) {
             {/* MODO PIN (Fase 2) */}
             {authTab === 'pin' && (
               <div>
-                {/* Selector Entrar vs Registrarse */}
+                {/* Selector Iniciar Sesión vs Crear Cuenta */}
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                   <button
                     type="button"
@@ -612,14 +611,14 @@ export default function AuthModal({ onLogin }) {
                       padding: '7px',
                       borderRadius: '8px',
                       fontSize: '12px',
-                      fontWeight: pinAction === 'login' ? 800 : 600,
-                      background: pinAction === 'login' ? '#1e293b' : 'transparent',
+                      fontWeight: pinAction === 'login' ? 700 : 500,
+                      background: pinAction === 'login' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
                       border: pinAction === 'login' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.06)',
                       color: pinAction === 'login' ? '#10b981' : '#64748b',
                       cursor: 'pointer'
                     }}
                   >
-                    Ya tengo cuenta (Login)
+                    Iniciar Sesión
                   </button>
                   <button
                     type="button"
@@ -629,14 +628,14 @@ export default function AuthModal({ onLogin }) {
                       padding: '7px',
                       borderRadius: '8px',
                       fontSize: '12px',
-                      fontWeight: pinAction === 'register' ? 800 : 600,
-                      background: pinAction === 'register' ? '#1e293b' : 'transparent',
+                      fontWeight: pinAction === 'register' ? 700 : 500,
+                      background: pinAction === 'register' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
                       border: pinAction === 'register' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.06)',
                       color: pinAction === 'register' ? '#10b981' : '#64748b',
                       cursor: 'pointer'
                     }}
                   >
-                    Nuevo Jugador
+                    Crear Cuenta
                   </button>
                 </div>
 
@@ -785,24 +784,18 @@ export default function AuthModal({ onLogin }) {
                     style={{
                       padding: '12px',
                       fontSize: '14px',
-                      fontWeight: 800,
+                      fontWeight: 700,
                       gap: '8px',
                       marginTop: '4px',
                       opacity: (loading || pin.length !== 4 || !name) ? 0.6 : 1
                     }}
                   >
                     {loading ? (
-                      <span>Verificando con SQLite...</span>
+                      <span>Verificando...</span>
                     ) : pinAction === 'login' ? (
-                      <>
-                        <span>⚡ Entrar a la Cancha</span>
-                        <ArrowRight size={18} />
-                      </>
+                      <span>Entrar</span>
                     ) : (
-                      <>
-                        <span>✨ Crear Jugador y Entrar</span>
-                        <Sparkles size={18} />
-                      </>
+                      <span>Crear Cuenta</span>
                     )}
                   </button>
                 </form>
@@ -820,10 +813,9 @@ export default function AuthModal({ onLogin }) {
                     setStep(1);
                   }}
                   className="btn btn-primary"
-                  style={{ padding: '12px', fontSize: '14px', fontWeight: 800, gap: '8px' }}
+                  style={{ padding: '12px', fontSize: '14px', fontWeight: 700 }}
                 >
-                  <span>Registro Completo (5 Pasos con Test FUT)</span>
-                  <ArrowRight size={16} />
+                  <span>Registro con Correo</span>
                 </button>
 
                 <button
@@ -833,36 +825,37 @@ export default function AuthModal({ onLogin }) {
                     setView('login');
                   }}
                   className="btn btn-secondary"
-                  style={{ padding: '12px', fontSize: '13px', fontWeight: 700 }}
+                  style={{ padding: '12px', fontSize: '13px', fontWeight: 600 }}
                 >
                   Iniciar con Correo y Contraseña
                 </button>
               </div>
             )}
 
-            {/* Accesos rápidos destacados para pruebas */}
+            {/* Accesos rápidos de prueba */}
             <div style={{ marginTop: '18px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
               <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
-                Accesos rápidos de prueba (1 clic):
+                Accesos de prueba:
               </p>
 
               <button
                 type="button"
                 onClick={() => handleQuickLogin('admin@matchsport.pe', 'Admin MatchSport (Dueño)', 'San Isidro, Lima', AVATARS[2], 'DEL', 'futbol')}
-                className="btn btn-primary"
                 style={{
                   width: '100%',
                   padding: '9px',
                   fontSize: '12px',
-                  fontWeight: 900,
-                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-                  borderColor: '#ef4444',
-                  boxShadow: '0 4px 15px rgba(239, 68, 68, 0.3)',
-                  gap: '6px',
-                  marginBottom: '8px'
+                  fontWeight: 700,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '10px',
+                  color: '#cbd5e1',
+                  cursor: 'pointer',
+                  marginBottom: '8px',
+                  transition: 'all 0.15s'
                 }}
               >
-                👑 Entrar como Administrador / Dueño
+                Acceso Administrador
               </button>
 
               <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
@@ -872,7 +865,7 @@ export default function AuthModal({ onLogin }) {
                   className="btn btn-secondary"
                   style={{ fontSize: '11px', padding: '6px 8px', flex: 1 }}
                 >
-                  ⚡ Carlos (Fútbol)
+                  Carlos (Fútbol)
                 </button>
                 <button
                   type="button"
@@ -880,7 +873,7 @@ export default function AuthModal({ onLogin }) {
                   className="btn btn-secondary"
                   style={{ fontSize: '11px', padding: '6px 8px', flex: 1 }}
                 >
-                  🎾 Mateo (Pádel)
+                  Mateo (Pádel)
                 </button>
               </div>
             </div>
@@ -1044,26 +1037,27 @@ export default function AuthModal({ onLogin }) {
             {/* Accesos rápidos también en Login */}
             <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '14px' }}>
               <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginBottom: '8px' }}>
-                O ingresa directamente con un perfil de prueba:
+                Accesos de prueba:
               </p>
 
               <button
                 type="button"
                 onClick={() => handleQuickLogin('admin@matchsport.pe', 'Admin MatchSport (Dueño)', 'San Isidro, Lima', AVATARS[2], 'DEL', 'futbol')}
-                className="btn btn-primary"
                 style={{
                   width: '100%',
-                  padding: '11px',
-                  fontSize: '13px',
-                  fontWeight: 900,
-                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-                  borderColor: '#ef4444',
-                  boxShadow: '0 4px 15px rgba(239, 68, 68, 0.3)',
-                  gap: '6px',
-                  marginBottom: '8px'
+                  padding: '9px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '10px',
+                  color: '#cbd5e1',
+                  cursor: 'pointer',
+                  marginBottom: '8px',
+                  transition: 'all 0.15s'
                 }}
               >
-                👑 Entrar como Administrador / Dueño
+                Acceso Administrador
               </button>
 
               <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
@@ -1071,17 +1065,17 @@ export default function AuthModal({ onLogin }) {
                   type="button"
                   onClick={() => handleQuickLogin('carlos.crack@deporte.pe', 'Carlos Mendoza', 'Surco, Lima', AVATARS[0], 'DEL', 'futbol')}
                   className="btn btn-secondary"
-                  style={{ fontSize: '11px', padding: '7px 10px', flex: 1 }}
+                  style={{ fontSize: '11px', padding: '6px 8px', flex: 1 }}
                 >
-                  ⚡ Carlos (Fútbol)
+                  Carlos (Fútbol)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickLogin('mateo.padel@deporte.pe', 'Mateo Ramos', 'Miraflores, Lima', AVATARS[1], 'DRIVE', 'padel')}
                   className="btn btn-secondary"
-                  style={{ fontSize: '11px', padding: '7px 10px', flex: 1 }}
+                  style={{ fontSize: '11px', padding: '6px 8px', flex: 1 }}
                 >
-                  🎾 Mateo (Pádel)
+                  Mateo (Pádel)
                 </button>
               </div>
             </div>

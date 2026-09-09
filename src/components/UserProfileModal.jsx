@@ -35,7 +35,7 @@ export default function UserProfileModal({
   const [matchHistory, setMatchHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Cargar historial de partidas del jugador (Estilo Dota 2 / MOBA)
+  // Cargar historial de partidos del jugador
   React.useEffect(() => {
     if (user?.id) {
       setHistoryLoading(true);
@@ -414,20 +414,20 @@ export default function UserProfileModal({
                 </div>
               </div>
 
-              {/* Título de Historial Estilo MOBA / Dota 2 */}
+              {/* Título de Historial de Partidos */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 900, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  ⚔️ Historial de Partidas (Estilo MOBA)
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#f1f5f9' }}>
+                  Historial de Partidos
                 </span>
                 <span style={{ fontSize: '10px', color: '#64748b' }}>
-                  {matchHistory.length} registros
+                  {matchHistory.length} partidos
                 </span>
               </div>
 
-              {/* Lista de Partidas Estilo MOBA */}
+              {/* Lista de Partidos */}
               {historyLoading ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>
-                  Cargando historial de partidas...
+                  Cargando historial de partidos...
                 </div>
               ) : matchHistory.length === 0 ? (
                 <div style={{
@@ -551,7 +551,7 @@ export default function UserProfileModal({
                           </span>
                         </div>
 
-                        {/* Alineaciones Estilo MOBA: Mi Equipo vs Rivales */}
+                        {/* Alineaciones: Mi Equipo vs Rivales */}
                         <div style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr auto 1fr',
