@@ -6,6 +6,7 @@ import os from 'os';
 import { db } from './db.js';
 import { MatchmakingEngine } from './matchmakingEngine.js';
 import { calculateGlicko2Match, getInitialGlicko } from './glicko2.js';
+import { logger } from './logger.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -432,7 +433,10 @@ io.on('connection', (socket) => {
     };
 
     db.addChallenge(challenge);
+    const queuedUser = db.getUser(userId);
+    const queuedUserName = queuedUser?.name || userId;
     console.log(`[QUEUE] Usuario ${userId} en cola para ${sportId} ${formatId} (Radio: ${radiusKm || 6}km en ${district})`);
+    logger.info(`[COLA UNIDA] ${queuedUserName} en cola para ${sportId} ${formatId} | Radio: ${radiusKm || 6}km | Distrito: ${district}`);
 
     const entry = connectedUsers.get(userId);
     if (entry) {
@@ -452,8 +456,10 @@ io.on('connection', (socket) => {
 
   socket.on('cancelQueue', ({ userId }) => {
     const removed = db.removeChallengeByUserId(userId);
+    const cancelUser = db.getUser(userId);
     if (removed) {
       console.log(`[QUEUE] Usuario ${userId} canceló su búsqueda`);
+      logger.info(`[COLA CANCELADA] ${cancelUser?.name || userId} canceló la búsqueda en cola.`);
     }
 
     const entry = connectedUsers.get(userId);

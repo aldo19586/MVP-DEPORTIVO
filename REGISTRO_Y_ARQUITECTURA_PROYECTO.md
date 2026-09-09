@@ -281,6 +281,35 @@ app_config (key PK, value_json)
 - ✅ Login con PIN `1234` verificado en jugadores de los 3 tiers (Alto: Farfán OVR 91, Medio: Lapadula OVR 79, Bajo: Díaz OVR 62).
 - ✅ Tabla de posiciones (Leaderboard) de Fútbol 1v1 y 5v5 actualizada con ratings realistas ordenados.
 
+---
 
+### Fase 5 — Logging Básico con Winston ✅ COMPLETADA (2026-09-08)
+- **Estado:** ✅ Completada y verificada
+- **Módulo Creado:** `server/logger.js` (basado en la biblioteca `winston`)
+- **Destinos de Salida (Transports):**
+  1. **Archivo persistente:** `logs/matchmaking.log` con rotación automática (límite de 5MB por archivo, hasta 3 archivos históricos). Ignorado en git vía `.gitignore`.
+  2. **Consola en vivo:** Con formato a color (`colorize`), niveles claramente diferenciados (`info`, `warn`, `error`) y timestamps (`YYYY-MM-DD HH:mm:ss`).
+- **Eventos Registrados en el Motor de Matchmaking:**
+  - **`[COLA UNIDA]` y `[COLA CANCELADA]`:** Entrada y salida de usuarios a la cola del radar, registrando deporte, formato, radio geográfico en km y distrito.
+  - **`[VENTANA EXPANDIDA]`:** Se emite cuando un ticket supera los 5 segundos de espera y su ventana de tolerancia base de rating (±180) se expande dinámicamente (+30 pts cada 5s) hasta un máximo de 600 pts.
+  - **`[EVALUANDO 1v1]`:** Registro explícito de cada par evaluado, mostrando el nombre de ambos jugadores, sus ratings OVR, la diferencia de rating actual frente a la tolerancia máxima, y la distancia en km calculada por Haversine frente al radio permitido.
+  - **`[EMPAREJADO]`:** Registro cuando un par cumple ambos criterios (rating y distancia).
+  - **`[NO EMPAREJADO]`:** Registro de la razón puntual del descarte (diferencia de rating o distancia fuera del radio de búsqueda).
+  - **`[CONFIRMACIÓN INICIADA]`:** Inicio de la ventana Dota 2 de 20 segundos con el `pendingMatchId`, deporte, formato y cantidad de jugadores requeridos.
+  - **`[JUGADOR ACEPTÓ]`:** Registro de cada jugador que pulsa "Aceptar" con el contador actualizado `(X/total)`.
+  - **`[CONFIRMADO]`:** Confirmación total (todos aceptaron) y creación del partido oficial.
+  - **`[CANCELADO]`:** Cancelación por timeout o por rechazo explícito, indicando el usuario responsable.
+  - **`[BOT USADO]`:** Identificación clara de partidas de prueba rápida contra bots asistidos por el servidor (`forceDemoMatch`).
 
+#### Archivos creados/modificados:
+| Archivo | Acción | Descripción |
+|---|---|---|
+| `server/logger.js` | **NUEVO** | Instancia de Winston con transportes a `logs/matchmaking.log` y consola formateada |
+| `server/matchmakingEngine.js` | **MODIFICADO** | Integración de logger en evaluación 1v1, grupos, expansión de ventana, confirmación y bots |
+| `server/server.js` | **MODIFICADO** | Logger en eventos `startQueue` y `cancelQueue` |
+| `scripts/test_matchmaking_logging.js` | **NUEVO** | Suite de prueba automatizada para validar la generación correcta de logs estructurados |
 
+#### Verificación Realizada:
+- ✅ Generación automática de la carpeta `logs/` y el archivo `logs/matchmaking.log`.
+- ✅ Validación de los tags `[EVALUANDO 1v1]`, `[NO EMPAREJADO]`, `[VENTANA EXPANDIDA]`, `[EMPAREJADO]`, `[CONFIRMACIÓN INICIADA]`, `[BOT USADO]`, `[JUGADOR ACEPTÓ]`, `[CANCELADO]` y `[CONFIRMADO]`.
+- ✅ Compilación de producción (`npm run build`) verificada sin errores.

@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { logger } from './logger.js';
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0; // Si no hay coordenadas explícitas, compatible por defecto
@@ -79,6 +80,14 @@ export class MatchmakingEngine {
       const waitTimeSec = (Date.now() - t.createdAt) / 1000;
       // Ventana de rating: base ±180, expandiéndose +30 puntos cada 5 segundos de espera
       const tolerance = Math.min(600, 180 + Math.floor(waitTimeSec / 5) * 30);
+
+      // Registrar expansión de ventana de búsqueda (solo si cambió la tolerancia registrada)
+      if (tolerance > 180 && t._lastLoggedTolerance !== tolerance) {
+        t._lastLoggedTolerance = tolerance;
+        const user = db.getUser(t.userId);
+        logger.info(`[VENTANA EXPANDIDA] ${user?.name || t.userId} (${profile.rating} OVR) en espera ${waitTimeSec.toFixed(1)}s: Tolerancia ampliada a ±${tolerance} pts.`);
+      }
+
       return {
         ...t,
         rating: profile.rating,
@@ -104,10 +113,14 @@ export class MatchmakingEngine {
     for (let i = 0; i < tickets.length; i++) {
       if (matchedIndices.has(i)) continue;
       const t1 = tickets[i];
+      const u1 = db.getUser(t1.userId);
+      const u1Name = u1?.name || t1.userId;
 
       for (let j = i + 1; j < tickets.length; j++) {
         if (matchedIndices.has(j)) continue;
         const t2 = tickets[j];
+        const u2 = db.getUser(t2.userId);
+        const u2Name = u2?.name || t2.userId;
 
         const ratingDiff = Math.abs(t1.rating - t2.rating);
         const maxTolerance = Math.max(t1.tolerance, t2.tolerance);
@@ -117,12 +130,20 @@ export class MatchmakingEngine {
         const allowedRadius = Math.max(t1.radiusKm || 8, t2.radiusKm || 8);
         const withinPerimeter = distanceKm <= allowedRadius;
 
+        logger.info(`[EVALUANDO 1v1] ${u1Name} (${t1.rating} OVR) vs ${u2Name} (${t2.rating} OVR) | Diff: ${ratingDiff} pts (Tol: ±${maxTolerance}) | Dist: ${distanceKm.toFixed(2)} km (Max: ${allowedRadius} km)`);
+
         if (ratingDiff <= maxTolerance && withinPerimeter) {
           matchedIndices.add(i);
           matchedIndices.add(j);
 
+          logger.info(`[EMPAREJADO] ${u1Name} vs ${u2Name} | Deporte: ${sportId} ${formatId} | Diff: ${ratingDiff} pts | Dist: ${distanceKm.toFixed(2)} km`);
           this.createAndNotifyMatch(sportId, formatId, [t1], [t2]);
           break;
+        } else {
+          const reason = ratingDiff > maxTolerance
+            ? `Diferencia de rating (${ratingDiff} pts) supera tolerancia (±${maxTolerance} pts)`
+            : `Distancia (${distanceKm.toFixed(2)} km) excede radio permitido (${allowedRadius} km)`;
+          logger.info(`[NO EMPAREJADO] ${u1Name} vs ${u2Name} | Razón: ${reason}`);
         }
       }
     }
@@ -131,12 +152,18 @@ export class MatchmakingEngine {
   resolveTeamMatch(sportId, formatId, playersPerTeam, tickets) {
     // En 2v2 o 3v3: juntar grupos que cumplan la cantidad necesaria
     const neededTotal = playersPerTeam * 2;
-    if (tickets.length < neededTotal) return;
+    if (tickets.length < neededTotal) {
+      return;
+    }
 
     // Para el MVP, tomamos los tickets compatibles más cercanos en rating
     const candidates = tickets.slice(0, neededTotal);
     const teamA = candidates.slice(0, playersPerTeam);
     const teamB = candidates.slice(playersPerTeam, neededTotal);
+
+    const teamANames = teamA.map(t => db.getUser(t.userId)?.name || t.userId).join(', ');
+    const teamBNames = teamB.map(t => db.getUser(t.userId)?.name || t.userId).join(', ');
+    logger.info(`[EMPAREJADO GRUPO] Deporte: ${sportId} ${formatId} | Equipo A: [${teamANames}] vs Equipo B: [${teamBNames}]`);
 
     this.createAndNotifyMatch(sportId, formatId, teamA, teamB);
   }
@@ -225,6 +252,7 @@ export class MatchmakingEngine {
     });
 
     console.log(`[MATCHMAKING] Fase de Confirmación lanzada: ${pendingMatchId} (${sportId} ${formatId}) para ${totalPlayers} jugadores.`);
+    logger.info(`[CONFIRMACIÓN INICIADA] ${pendingMatchId} | Deporte: ${sportId} ${formatId} | Jugadores requeridos: ${totalPlayers} | Ventana: 20s`);
     return pendingMatch;
   }
 
@@ -234,6 +262,9 @@ export class MatchmakingEngine {
 
     pending.acceptedUserIds.add(userId);
     const acceptedList = Array.from(pending.acceptedUserIds);
+
+    const user = db.getUser(userId);
+    logger.info(`[JUGADOR ACEPTÓ] ${user?.name || userId} confirmó asistencia en ${pendingMatchId} (${acceptedList.length}/${pending.totalPlayers})`);
 
     // Emitir actualización a todos los jugadores
     const allPlayers = [...pending.teamA, ...pending.teamB];
@@ -288,6 +319,7 @@ export class MatchmakingEngine {
       }
 
       console.log(`[MATCHMAKING] ¡Todos aceptaron! Partido oficial ${match.id} creado con éxito.`);
+      logger.info(`[CONFIRMADO] Todos los jugadores aceptaron. Partido oficial ${match.id} (${pending.sportId} ${pending.formatId}) creado con éxito.`);
     }
   }
 
@@ -327,6 +359,7 @@ export class MatchmakingEngine {
     }
 
     console.log(`[MATCHMAKING] Fase de confirmación cancelada para ${pendingMatchId}. Razón: ${reason}`);
+    logger.warn(`[CANCELADO] Fase de confirmación cancelada para ${pendingMatchId}. Razón: ${reason}${declinedUser ? ` (por ${declinedUser.name})` : ''}`);
   }
 
   /**
@@ -340,6 +373,8 @@ export class MatchmakingEngine {
     const sport = db.getSports().find(s => s.id === sportId);
     const format = sport?.formats?.find(f => f.id === formatId);
     const playersPerTeam = format ? format.playersPerTeam : 1;
+
+    logger.info(`[BOT USADO] Match demo forzado solicitado por ${user?.name || userId} (${sportId} ${formatId}) con rivales bot.`);
 
     // Crear Equipo A con el usuario principal
     const teamA = [
