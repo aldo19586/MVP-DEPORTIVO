@@ -50,52 +50,60 @@ export default function MatchAcceptModal({
   const progressPercent = (timeLeft / 20) * 100;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 99999, background: 'rgba(5, 8, 15, 0.88)', backdropFilter: 'blur(12px)' }}>
+    <div className="modal-overlay" style={{ zIndex: 99999, background: 'rgba(5, 8, 15, 0.88)', backdropFilter: 'blur(12px)', overflowX: 'hidden' }}>
       <div
         className="modal-content"
         style={{
-          maxWidth: '460px',
-          width: '94%',
-          padding: '24px 20px',
-          borderRadius: '24px',
-          background: 'linear-gradient(180deg, #0f172a 0%, #090e17 100%)',
-          border: '1px solid rgba(16, 185, 129, 0.4)',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 40px rgba(16, 185, 129, 0.25)',
+          maxWidth: '440px',
+          width: '92%',
+          padding: '22px 18px',
+          borderRadius: '20px',
+          background: '#0f172a',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7)',
           textAlign: 'center',
-          animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          overflowX: 'hidden'
         }}
       >
         {/* Header con Deporte y Formato */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', padding: '4px 12px', borderRadius: '20px', marginBottom: '10px' }}>
-          <Zap size={14} color="#10b981" />
-          <span style={{ fontSize: '11px', fontWeight: 900, color: '#34d399', letterSpacing: '0.5px' }}>
-            {pendingMatch?.sportId?.toUpperCase()} • {pendingMatch?.formatId?.toUpperCase()} ({totalPlayers} JUGADORES)
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          padding: '4px 10px',
+          borderRadius: '99px',
+          marginBottom: '10px'
+        }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#34d399' }}>
+            {pendingMatch?.sportId?.toUpperCase()} • {pendingMatch?.formatId?.toUpperCase()}
           </span>
         </div>
 
-        <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#fff', margin: '0 0 4px', letterSpacing: '0.2px' }}>
-          ¡PARTIDO ENCONTRADO!
+        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>
+          ¡Partido Encontrado!
         </h2>
         <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px' }}>
-          Confirma tu asistencia para entrar a la sala de coordinación oficial
+          Confirma tu asistencia para ingresar a la sala de coordinación.
         </p>
 
         {/* Barra de Tiempo Regresiva */}
-        <div style={{ marginBottom: '18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '11px', fontWeight: 800 }}>
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '11px', fontWeight: 700 }}>
             <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Clock size={12} color="#f59e0b" /> Tiempo para confirmar
+              <Clock size={12} color="#f59e0b" /> Tiempo restante
             </span>
-            <span style={{ color: timeLeft <= 5 ? '#ef4444' : '#fbbf24', fontSize: '13px' }}>
+            <span style={{ color: timeLeft <= 5 ? '#ef4444' : '#fbbf24', fontSize: '12px', fontWeight: 800 }}>
               {timeLeft}s
             </span>
           </div>
-          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '99px', overflow: 'hidden' }}>
             <div
               style={{
                 width: `${progressPercent}%`,
                 height: '100%',
-                background: timeLeft <= 5 ? 'linear-gradient(90deg, #ef4444, #f87171)' : 'linear-gradient(90deg, #10b981, #34d399)',
+                background: timeLeft <= 5 ? '#ef4444' : '#10b981',
                 transition: 'width 1s linear'
               }}
             />
@@ -104,24 +112,23 @@ export default function MatchAcceptModal({
 
         {/* Contador de Aceptados */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '16px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: '14px',
           padding: '12px',
-          marginBottom: '18px'
+          marginBottom: '16px'
         }}>
-          <div style={{ fontSize: '12px', fontWeight: 900, color: '#38bdf8', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <ShieldCheck size={14} />
-            <span>JUGADORES CONFIRMADOS: {acceptedCount} / {totalPlayers}</span>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <span>Confirmados: <strong style={{ color: '#34d399' }}>{acceptedCount}</strong> de {totalPlayers}</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', textAlign: 'left' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
             {/* Mi Equipo */}
-            <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', padding: '8px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 900, color: '#34d399', marginBottom: '6px', textTransform: 'uppercase' }}>
-                Mi Equipo ({myTeam?.length || 0})
+            <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '10px', padding: '8px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#34d399', marginBottom: '6px', textTransform: 'uppercase' }}>
+                Tu Equipo ({myTeam?.length || 0})
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {myTeam?.map((p, idx) => {
                   const pId = p.userId || p.id;
                   const isAccepted = acceptedIds.includes(pId) || (pId === currentUserId && hasAccepted);
@@ -133,10 +140,9 @@ export default function MatchAcceptModal({
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '4px 6px',
-                        borderRadius: '8px',
-                        background: isAccepted ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.03)',
-                        border: isAccepted ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.06)',
-                        transition: 'all 0.3s ease'
+                        borderRadius: '6px',
+                        background: isAccepted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                        border: isAccepted ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
@@ -144,29 +150,28 @@ export default function MatchAcceptModal({
                           src={p.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80'}
                           alt={p.name}
                           style={{
-                            width: '24px',
-                            height: '24px',
+                            width: '22px',
+                            height: '22px',
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            filter: isAccepted ? 'none' : 'grayscale(80%)',
-                            border: `1.5px solid ${isAccepted ? '#10b981' : '#64748b'}`
+                            border: `1px solid ${isAccepted ? '#10b981' : '#64748b'}`
                           }}
                         />
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: isAccepted ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: isAccepted ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.name} {pId === currentUserId && '(Tú)'}
                         </span>
                       </div>
                       <div style={{
-                        width: '18px',
-                        height: '18px',
+                        width: '16px',
+                        height: '16px',
                         borderRadius: '50%',
-                        background: isAccepted ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                        background: isAccepted ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0
                       }}>
-                        {isAccepted ? <Check size={12} color="#fff" /> : <Clock size={10} color="#64748b" />}
+                        {isAccepted ? <Check size={10} color="#042416" strokeWidth={3} /> : <Clock size={9} color="#64748b" />}
                       </div>
                     </div>
                   );
@@ -175,11 +180,11 @@ export default function MatchAcceptModal({
             </div>
 
             {/* Equipo Rival */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '12px', padding: '8px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 900, color: '#f87171', marginBottom: '6px', textTransform: 'uppercase' }}>
-                Equipo Rival ({rivalTeam?.length || 0})
+            <div style={{ background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '10px', padding: '8px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#f87171', marginBottom: '6px', textTransform: 'uppercase' }}>
+                Rival ({rivalTeam?.length || 0})
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {rivalTeam?.map((p, idx) => {
                   const pId = p.userId || p.id;
                   const isAccepted = acceptedIds.includes(pId);
@@ -191,10 +196,9 @@ export default function MatchAcceptModal({
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '4px 6px',
-                        borderRadius: '8px',
-                        background: isAccepted ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.03)',
-                        border: isAccepted ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.06)',
-                        transition: 'all 0.3s ease'
+                        borderRadius: '6px',
+                        background: isAccepted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                        border: isAccepted ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
@@ -202,29 +206,28 @@ export default function MatchAcceptModal({
                           src={p.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80'}
                           alt={p.name}
                           style={{
-                            width: '24px',
-                            height: '24px',
+                            width: '22px',
+                            height: '22px',
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            filter: isAccepted ? 'none' : 'grayscale(80%)',
-                            border: `1.5px solid ${isAccepted ? '#10b981' : '#64748b'}`
+                            border: `1px solid ${isAccepted ? '#10b981' : '#64748b'}`
                           }}
                         />
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: isAccepted ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: isAccepted ? '#fff' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.name}
                         </span>
                       </div>
                       <div style={{
-                        width: '18px',
-                        height: '18px',
+                        width: '16px',
+                        height: '16px',
                         borderRadius: '50%',
-                        background: isAccepted ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                        background: isAccepted ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0
                       }}>
-                        {isAccepted ? <Check size={12} color="#fff" /> : <Clock size={10} color="#64748b" />}
+                        {isAccepted ? <Check size={10} color="#042416" strokeWidth={3} /> : <Clock size={9} color="#64748b" />}
                       </div>
                     </div>
                   );
@@ -240,35 +243,28 @@ export default function MatchAcceptModal({
             onClick={handleAcceptClick}
             disabled={isUserAccepted}
             style={{
-              background: isUserAccepted
-                ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
-                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              color: '#fff',
-              border: isUserAccepted ? '1px solid #10b981' : 'none',
-              borderRadius: '14px',
-              padding: '14px',
-              fontSize: '15px',
-              fontWeight: 900,
+              width: '100%',
+              padding: '13px',
+              fontSize: '14px',
+              fontWeight: 800,
+              borderRadius: '12px',
+              border: 'none',
+              cursor: isUserAccepted ? 'default' : 'pointer',
+              background: isUserAccepted ? 'rgba(16, 185, 129, 0.15)' : '#10b981',
+              color: isUserAccepted ? '#34d399' : '#042416',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px',
-              cursor: isUserAccepted ? 'default' : 'pointer',
-              boxShadow: isUserAccepted ? 'none' : '0 4px 20px rgba(16, 185, 129, 0.4)',
-              transition: 'all 0.2s ease',
-              transform: isUserAccepted ? 'none' : 'scale(1.02)'
+              gap: '6px'
             }}
           >
             {isUserAccepted ? (
               <>
-                <Check size={18} />
-                <span>¡CONFIRMADO! ESPERANDO A LOS DEMÁS...</span>
+                <Check size={16} />
+                <span>Confirmado • Esperando rivales...</span>
               </>
             ) : (
-              <>
-                <Zap size={18} />
-                <span>ACEPTAR PARTIDO</span>
-              </>
+              <span>Confirmar Asistencia</span>
             )}
           </button>
 
@@ -279,12 +275,12 @@ export default function MatchAcceptModal({
               border: 'none',
               color: '#64748b',
               fontSize: '12px',
-              fontWeight: 700,
+              fontWeight: 600,
               padding: '6px',
               cursor: 'pointer'
             }}
           >
-            ✕ Rechazar y volver
+            Rechazar y salir
           </button>
         </div>
       </div>

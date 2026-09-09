@@ -401,6 +401,8 @@ h1, h2, h3, h4, .font-heading {
   padding: 12px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 16px));
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   animation: fadeIn 0.2s ease-out;
 }
@@ -464,18 +466,18 @@ h1, h2, h3, h4, .font-heading {
 }
 
 .versus-badge {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #1e293b;
-  border: 2px solid #3b82f6;
+  background: #0f172a;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 900;
-  font-size: 14px;
-  color: #60a5fa;
-  box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+  font-weight: 800;
+  font-size: 12px;
+  color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 /* Chat Messages - Modern Minimalist */

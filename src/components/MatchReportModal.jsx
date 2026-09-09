@@ -231,71 +231,71 @@ export default function MatchReportModal({
         ) : (
           /* FASE 2: RESULTADO FINAL Y CALIFICACIÓN */
           <div>
-            <h3 style={{ fontSize: '22px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
-              {ratingUpdateInfo?.won ? '¡VICTORIA REGISTRADA! 🎉' : 'PARTIDO FINALIZADO ⚽'}
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', marginBottom: '2px' }}>
+              {ratingUpdateInfo?.won ? '¡Victoria Registrada!' : 'Partido Finalizado'}
             </h3>
             <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '14px' }}>
               Resultado oficial registrado en la tabla de clasificación.
             </p>
 
-            {/* Tarjeta de Delta de Rating (+35 pts) */}
+            {/* Tarjeta de Delta de Rating con Tipografía Armoniosa */}
             <div style={{
-              background: ratingUpdateInfo?.won ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-              border: `1px solid ${ratingUpdateInfo?.won ? '#10b981' : '#ef4444'}`,
-              borderRadius: '16px',
-              padding: '14px',
-              marginBottom: '18px'
+              background: ratingUpdateInfo?.won ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${ratingUpdateInfo?.won ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              borderRadius: '14px',
+              padding: '12px 14px',
+              marginBottom: '16px'
             }}>
-              <span style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Tu Ranking en Modo {match?.formatId || '1v1'}
+              <span style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Tu Ranking en Modo {match?.formatId?.toUpperCase() || '1V1'}
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', margin: '6px 0' }}>
-                <span style={{ fontSize: '18px', color: '#94a3b8', fontFamily: 'Outfit' }}>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '6px' }}>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#94a3b8', fontFamily: 'Outfit' }}>
                   {ratingUpdateInfo?.oldRating || 1400}
                 </span>
-                <ArrowRight size={18} color="#94a3b8" />
-                <span style={{ fontSize: '24px', fontWeight: 900, color: '#fff', fontFamily: 'Outfit' }}>
+                <ArrowRight size={15} color="#64748b" />
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit' }}>
                   {ratingUpdateInfo?.newRating || 1435} pts
                 </span>
                 <span style={{
-                  fontSize: '15px',
-                  fontWeight: 900,
-                  color: ratingUpdateInfo?.ratingChange >= 0 ? '#10b981' : '#ef4444'
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '2px 7px',
+                  borderRadius: '6px',
+                  background: ratingUpdateInfo?.ratingChange >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                  color: ratingUpdateInfo?.ratingChange >= 0 ? '#34d399' : '#f87171'
                 }}>
-                  {ratingUpdateInfo?.ratingChange >= 0 ? `+${ratingUpdateInfo?.ratingChange}` : ratingUpdateInfo?.ratingChange}
+                  {ratingUpdateInfo?.ratingChange >= 0 ? `+${ratingUpdateInfo?.ratingChange} pts` : `${ratingUpdateInfo?.ratingChange} pts`}
                 </span>
               </div>
-              <p style={{ fontSize: '11px', color: '#64748b' }}>
-                {is1v1 ? 'Puntos oficiales de Duelo 1v1 (+35 al ganador)' : 'Rating de Equipo actualizado'}
-              </p>
             </div>
 
             {/* SECCIÓN POST-MATCH SEGÚN FORMATO */}
             {is1v1 ? (
-              /* CALIFICACIÓN DE LOS 6 ATRIBUTOS FUT DEL RIVAL (SOLO EN 1v1) */
+              /* CALIFICACIÓN DE ATRIBUTOS DEL RIVAL */
               !reviewSent ? (
                 <div style={{
                   textAlign: 'left',
                   background: 'rgba(255, 255, 255, 0.02)',
                   padding: '14px',
-                  borderRadius: '16px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                  borderRadius: '14px',
+                  border: '1px solid rgba(255, 255, 255, 0.06)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                    <Sparkles size={16} color="#fbbf24" />
-                    <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>
-                      Califica la Carta FUT de {rivalName}
+                  <div style={{ marginBottom: '10px' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#fff', margin: 0 }}>
+                      Calificar Desempeño: {rivalName}
                     </h4>
+                    <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0' }}>
+                      Ajusta los atributos deportivos observados en cancha:
+                    </p>
                   </div>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '12px' }}>
-                    Tus votos calibran sus 6 estadísticas de jugador FIFA independientemente de quién ganó:
-                  </p>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '11px' }}>
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
-                        <span>⚡ RIT (Ritmo):</span>
-                        <strong style={{ color: '#fbbf24' }}>{rit}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1', marginBottom: '2px' }}>
+                        <span>Ritmo (RIT):</span>
+                        <strong style={{ color: '#34d399' }}>{rit}</strong>
                       </div>
                       <input
                         type="range"
@@ -303,14 +303,14 @@ export default function MatchReportModal({
                         max="99"
                         value={rit}
                         onChange={(e) => setRit(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#fbbf24' }}
+                        style={{ width: '100%', accentColor: '#10b981' }}
                       />
                     </div>
 
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
-                        <span>🪄 REG (Regate):</span>
-                        <strong style={{ color: '#fbbf24' }}>{reg}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1', marginBottom: '2px' }}>
+                        <span>Regate (REG):</span>
+                        <strong style={{ color: '#34d399' }}>{reg}</strong>
                       </div>
                       <input
                         type="range"
@@ -318,14 +318,14 @@ export default function MatchReportModal({
                         max="99"
                         value={reg}
                         onChange={(e) => setReg(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#fbbf24' }}
+                        style={{ width: '100%', accentColor: '#10b981' }}
                       />
                     </div>
 
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
-                        <span>⚽ TIR (Tiro):</span>
-                        <strong style={{ color: '#fbbf24' }}>{tir}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1', marginBottom: '2px' }}>
+                        <span>Tiro (TIR):</span>
+                        <strong style={{ color: '#34d399' }}>{tir}</strong>
                       </div>
                       <input
                         type="range"
@@ -333,14 +333,14 @@ export default function MatchReportModal({
                         max="99"
                         value={tir}
                         onChange={(e) => setTir(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#fbbf24' }}
+                        style={{ width: '100%', accentColor: '#10b981' }}
                       />
                     </div>
 
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
-                        <span>🛡️ DEF (Defensa):</span>
-                        <strong style={{ color: '#fbbf24' }}>{def}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1', marginBottom: '2px' }}>
+                        <span>Defensa (DEF):</span>
+                        <strong style={{ color: '#34d399' }}>{def}</strong>
                       </div>
                       <input
                         type="range"
@@ -348,14 +348,14 @@ export default function MatchReportModal({
                         max="99"
                         value={def}
                         onChange={(e) => setDef(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#fbbf24' }}
+                        style={{ width: '100%', accentColor: '#10b981' }}
                       />
                     </div>
 
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
-                        <span>🎯 PAS (Pase):</span>
-                        <strong style={{ color: '#fbbf24' }}>{pas}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1', marginBottom: '2px' }}>
+                        <span>Pase (PAS):</span>
+                        <strong style={{ color: '#34d399' }}>{pas}</strong>
                       </div>
                       <input
                         type="range"
@@ -363,14 +363,14 @@ export default function MatchReportModal({
                         max="99"
                         value={pas}
                         onChange={(e) => setPas(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#fbbf24' }}
+                        style={{ width: '100%', accentColor: '#10b981' }}
                       />
                     </div>
 
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
-                        <span>💪 FÍS (Físico):</span>
-                        <strong style={{ color: '#fbbf24' }}>{fis}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1', marginBottom: '2px' }}>
+                        <span>Físico (FÍS):</span>
+                        <strong style={{ color: '#34d399' }}>{fis}</strong>
                       </div>
                       <input
                         type="range"
@@ -378,7 +378,7 @@ export default function MatchReportModal({
                         max="99"
                         value={fis}
                         onChange={(e) => setFis(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#fbbf24' }}
+                        style={{ width: '100%', accentColor: '#10b981' }}
                       />
                     </div>
                   </div>
@@ -388,34 +388,36 @@ export default function MatchReportModal({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     marginTop: '12px',
-                    padding: '8px',
-                    background: 'rgba(16, 185, 129, 0.1)',
-                    borderRadius: '8px'
+                    padding: '8px 10px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(16, 185, 129, 0.2)'
                   }}>
-                    <span style={{ fontSize: '12px', color: '#6ee7b7' }}>¿Buen rival? Dejar Like deportivo</span>
+                    <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Reconocimiento deportivo</span>
                     <button
                       type="button"
                       onClick={() => setGiveLike(!giveLike)}
                       style={{
-                        background: giveLike ? '#10b981' : 'rgba(255,255,255,0.1)',
+                        background: giveLike ? '#10b981' : 'rgba(255,255,255,0.06)',
                         border: 'none',
                         borderRadius: '6px',
-                        padding: '4px 10px',
+                        padding: '4px 8px',
                         color: giveLike ? '#042416' : '#94a3b8',
-                        fontWeight: 800,
+                        fontSize: '11px',
+                        fontWeight: 700,
                         cursor: 'pointer'
                       }}
                     >
-                      {giveLike ? '👍 Like Dado' : '+1 Like'}
+                      {giveLike ? '✓ Like dado' : '+1 Like'}
                     </button>
                   </div>
 
                   <button
                     onClick={handleSendFutReview}
                     className="btn btn-primary"
-                    style={{ width: '100%', marginTop: '14px', padding: '10px', fontSize: '13px', fontWeight: 800 }}
+                    style={{ width: '100%', marginTop: '12px', padding: '10px', fontSize: '12px', fontWeight: 800 }}
                   >
-                    Guardar Carta FUT del Rival
+                    Guardar Calificación
                   </button>
                 </div>
               ) : (
@@ -423,11 +425,11 @@ export default function MatchReportModal({
                   background: 'rgba(16, 185, 129, 0.1)',
                   border: '1px solid #10b981',
                   borderRadius: '12px',
-                  padding: '12px',
+                  padding: '10px',
                   color: '#6ee7b7',
                   fontSize: '12px'
                 }}>
-                  ✓ ¡Estadísticas FUT guardadas! La carta de tu rival ha sido actualizada con tus calificaciones.
+                  ✓ Calificación guardada exitosamente.
                 </div>
               )
             ) : (
@@ -490,9 +492,9 @@ export default function MatchReportModal({
             <button
               onClick={onClose}
               className="btn btn-secondary"
-              style={{ width: '100%', marginTop: '16px', padding: '12px' }}
+              style={{ width: '100%', marginTop: '14px', padding: '10px', fontSize: '13px', borderRadius: '10px' }}
             >
-              Volver al Radar de Desafíos
+              Volver al Radar
             </button>
           </div>
         )}

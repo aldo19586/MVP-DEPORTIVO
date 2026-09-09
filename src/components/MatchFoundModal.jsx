@@ -13,9 +13,9 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
       <div
         className="modal-content"
         style={{
-          maxWidth: '440px',
+          maxWidth: '460px',
           width: '92%',
-          padding: '22px 18px',
+          padding: '22px 20px',
           textAlign: 'center',
           borderRadius: '20px',
           background: '#0f172a',
@@ -30,26 +30,23 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
           background: 'rgba(16, 185, 129, 0.12)',
           border: '1px solid rgba(16, 185, 129, 0.3)',
           color: '#34d399',
-          padding: '4px 10px',
+          padding: '4px 12px',
           borderRadius: '99px',
           fontSize: '11px',
           fontWeight: 700,
           marginBottom: '10px'
         }}>
-          <span>⚡ Match Confirmado</span>
+          <span>{match.sportId?.toUpperCase()} • {match.formatId?.toUpperCase()}</span>
         </div>
 
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', margin: '0 0 16px' }}>
           ¡Desafío Encontrado!
         </h2>
-        <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px' }}>
-          {match.sportId?.toUpperCase()} • {match.formatId?.toUpperCase()}
-        </p>
 
         {/* Versus Cards */}
         <div className="versus-container" style={{ alignItems: 'center', marginBottom: '16px' }}>
           {/* Mi Equipo */}
-          <div className="team-card mine" style={{ flex: 1, minWidth: 0, padding: '12px 10px' }}>
+          <div className="team-card mine" style={{ flex: 1, minWidth: 0, padding: '14px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '10px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>
                 Tu Equipo
@@ -64,12 +61,12 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
                 <img
                   src={myTeam[0].avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=me'}
                   alt={myTeam[0].name}
-                  style={{ width: '52px', height: '52px', borderRadius: '50%', border: '2px solid #10b981', objectFit: 'cover' }}
+                  style={{ width: '54px', height: '54px', borderRadius: '50%', border: '2px solid #10b981', objectFit: 'cover' }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '150px', lineHeight: 1.25 }}>
                   {myTeam[0].name}
                 </span>
-                <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 700, fontFamily: 'Outfit' }}>
+                <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700, fontFamily: 'Outfit', marginTop: '2px' }}>
                   {myTeam[0].position ? `${myTeam[0].position} • ` : ''}{myTeam[0].rating || 1400} pts
                 </span>
               </div>
@@ -125,7 +122,7 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
           </div>
 
           {/* Equipo Rival */}
-          <div className="team-card rival" style={{ flex: 1, minWidth: 0, padding: '12px 10px' }}>
+          <div className="team-card rival" style={{ flex: 1, minWidth: 0, padding: '14px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '10px', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
                 Rival
@@ -140,12 +137,12 @@ export default function MatchFoundModal({ match, currentUserId, onEnterChat }) {
                 <img
                   src={rivalTeam[0].avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=rival'}
                   alt={rivalTeam[0].name}
-                  style={{ width: '52px', height: '52px', borderRadius: '50%', border: '2px solid #ef4444', objectFit: 'cover' }}
+                  style={{ width: '54px', height: '54px', borderRadius: '50%', border: '2px solid #ef4444', objectFit: 'cover' }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginTop: '6px', maxWidth: '150px', lineHeight: 1.25 }}>
                   {rivalTeam[0].name}
                 </span>
-                <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 700, fontFamily: 'Outfit' }}>
+                <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700, fontFamily: 'Outfit', marginTop: '2px' }}>
                   {rivalTeam[0].position ? `${rivalTeam[0].position} • ` : ''}{rivalTeam[0].rating || 1400} pts
                 </span>
               </div>
