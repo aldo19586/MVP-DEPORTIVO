@@ -361,13 +361,17 @@ export default function ChatRoom({
       </div>
 
       {/* Chips Rápidos de Coordinación */}
-      <div style={{
-        display: 'flex',
-        gap: '6px',
-        overflowX: 'auto',
-        padding: '8px 12px',
-        background: 'rgba(15, 23, 42, 0.9)'
-      }}>
+      <div
+        className="hide-scrollbar"
+        style={{
+          display: 'flex',
+          gap: '6px',
+          overflowX: 'auto',
+          padding: '8px 12px',
+          background: 'rgba(15, 23, 42, 0.9)',
+          scrollbarWidth: 'none'
+        }}
+      >
         {QUICK_CHIPS.map((chip, idx) => (
           <button
             key={idx}

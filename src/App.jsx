@@ -1096,7 +1096,7 @@ export default function App() {
       )}
 
       {/* BARRA FLOTANTE MINI-PLAYER DE SALA DE CONVOCATORIA (LOBBY) */}
-      {activeLobby && currentView !== 'lobby' && (
+      {activeLobby && !activeMatch && currentView !== 'lobby' && (
         <div style={{
           position: 'fixed',
           bottom: '16px',

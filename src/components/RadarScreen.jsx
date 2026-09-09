@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Crosshair, Users, UserCheck, Shield, Flame, MapPin, Zap, Clock, Target, ArrowLeft } from 'lucide-react';
+import { Target, ArrowLeft } from 'lucide-react';
 
 export default function RadarScreen({
   user,
@@ -7,8 +7,6 @@ export default function RadarScreen({
   format,
   currentProfile,
   isSearching,
-  mode,
-  setMode,
   location,
   squadMembers = [],
   onOpenMapModal,
@@ -38,13 +36,13 @@ export default function RadarScreen({
   };
 
   return (
-    <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Barra de Navegación para Volver a Pantalla 1 */}
+    <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra Superior: Volver y Datos del Deporte */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        background: 'rgba(15, 23, 42, 0.7)',
+        background: '#0f172a',
         border: '1px solid rgba(255, 255, 255, 0.08)',
         borderRadius: '14px',
         padding: '10px 14px'
@@ -54,9 +52,9 @@ export default function RadarScreen({
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#38bdf8',
+            color: '#94a3b8',
             fontSize: '13px',
-            fontWeight: 800,
+            fontWeight: 700,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -71,9 +69,6 @@ export default function RadarScreen({
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
-          background: 'rgba(255, 255, 255, 0.05)',
-          padding: '4px 10px',
-          borderRadius: '8px',
           fontSize: '12px',
           color: '#cbd5e1'
         }}>
@@ -87,49 +82,42 @@ export default function RadarScreen({
 
       {/* Visualizador de Radar / Sonar */}
       <div style={{
-        background: 'radial-gradient(circle at center, rgba(16, 185, 129, 0.06) 0%, rgba(15, 23, 42, 0.8) 70%)',
+        background: '#0f172a',
         border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '24px',
-        padding: '30px 16px',
+        borderRadius: '20px',
+        padding: '24px 16px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
       }}>
-        <div style={{ position: 'absolute', top: '14px', left: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {/* Selector de Radio en la esquina izquierda */}
+        <div style={{ position: 'absolute', top: '14px', left: '16px' }}>
           <button
             onClick={onOpenMapModal}
             style={{
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
               borderRadius: '99px',
               padding: '4px 10px',
-              color: '#6ee7b7',
+              color: '#34d399',
               fontSize: '11px',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
-              transition: 'all 0.2s ease'
+              gap: '5px'
             }}
-            title="Toca para definir tu radio en el mapa interactivo"
           >
             <Target size={13} color="#10b981" />
             <span>Radio: {location?.radiusKm || 6} km ({location?.district || 'Surco'})</span>
-            <span style={{ color: '#94a3b8', fontSize: '9px' }}>🗺️ Cambiar Radio</span>
           </button>
         </div>
 
-        <div style={{ position: 'absolute', top: '14px', right: '16px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Flame size={14} color="#f59e0b" />
-          <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>
-            {isSearching ? 'Buscando...' : 'Radar Activo'}
-          </span>
-        </div>
-
-        <div className="radar-container" style={{ margin: '15px 0' }}>
+        {/* Círculo Central de Radar */}
+        <div className="radar-container" style={{ margin: '20px 0 14px' }}>
           <div className="radar-circle">
             <div className="radar-circle-inner">
               {isSearching && <div className="radar-beam"></div>}
@@ -180,68 +168,64 @@ export default function RadarScreen({
           </div>
         </div>
 
-        {/* Contador de tiempo en vivo integrado en el Radar */}
+        {/* Indicador y Tiempo de Búsqueda (Único, sin duplicidad) */}
         {isSearching && (
           <div style={{
-            margin: '0 0 14px 0',
+            margin: '0 0 10px 0',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'rgba(16, 185, 129, 0.15)',
+            background: 'rgba(16, 185, 129, 0.12)',
             border: '1px solid #10b981',
             borderRadius: '99px',
-            padding: '6px 16px',
-            boxShadow: '0 0 15px rgba(16, 185, 129, 0.3)'
+            padding: '5px 14px'
           }}>
             <div style={{
-              width: '8px',
-              height: '8px',
+              width: '7px',
+              height: '7px',
               borderRadius: '50%',
               background: '#10b981',
-              boxShadow: '0 0 8px #10b981'
+              boxShadow: '0 0 6px #10b981',
+              animation: 'pulse 1.2s infinite'
             }}></div>
-            <span style={{ fontFamily: 'Outfit', fontSize: '15px', fontWeight: 800, color: '#fff' }}>
+            <span style={{ fontFamily: 'Outfit', fontSize: '14px', fontWeight: 800, color: '#fff' }}>
               {formatTime(elapsedSec)}
             </span>
             <span style={{ fontSize: '11px', color: '#6ee7b7', fontWeight: 600 }}>
-              {squadMembers && squadMembers.length > 1 ? 'buscando equipo rival' : 'buscando rival'}
+              {squadMembers && squadMembers.length > 1 ? 'Buscando equipo rival' : 'Buscando rival'}
             </span>
           </div>
         )}
 
-        <div style={{ textAlign: 'center', maxWidth: '340px', zIndex: 2 }}>
-          <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#fff', marginBottom: '4px' }}>
+        {/* Estado y Subtítulo Conciso */}
+        <div style={{ textAlign: 'center', maxWidth: '320px', zIndex: 2 }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>
             {isSearching
-              ? (squadMembers && squadMembers.length > 1
-                  ? `Buscando Rival ${format?.id?.toUpperCase() || ''} para tu Equipo...`
-                  : 'Escaneando Canchas en tu Radio...')
-              : '¿Listo para el Desafío?'}
+              ? (squadMembers && squadMembers.length > 1 ? 'Buscando Rival para el Equipo' : 'Buscando Rival')
+              : '¿Listo para Jugar?'}
           </h3>
-          <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.4 }}>
+          <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
             {isSearching
-              ? (squadMembers && squadMembers.length > 1
-                  ? `Buscando un equipo rival online de la misma modalidad (${format?.name || format?.id}) para ${squadMembers.map((m) => m.name).join(' & ')} en un radio de ${location?.radiusKm || 6} km.`
-                  : `Buscando rival en un radio de ${location?.radiusKm || 6} km a la redonda (Rating: ~${currentProfile?.rating || 1400} pts)`)
-              : `Ajusta tu radio en el mapa. El sistema empareja rivales en cualquier cancha dentro de tus km seleccionados.`}
+              ? `Radio de ${location?.radiusKm || 6} km • Rating: ~${currentProfile?.rating || 1400} pts`
+              : `Emparejaremos automáticamente con un rival en tu zona.`}
           </p>
         </div>
 
-        {/* Botón Principal de Búsqueda */}
-        <div style={{ width: '100%', maxWidth: '340px', marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {/* Botones de Acción */}
+        <div style={{ width: '100%', maxWidth: '320px', marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {!isSearching ? (
             <button
               onClick={onStartSearch}
               className="btn btn-primary"
               style={{
                 width: '100%',
-                padding: '16px',
-                fontSize: '15px',
-                borderRadius: '16px',
-                letterSpacing: '0.02em'
+                padding: '14px',
+                fontSize: '14px',
+                borderRadius: '12px',
+                fontWeight: 800
               }}
             >
-              <Crosshair size={20} />
-              BUSCAR DESAFÍO PVP ⚡
+              Buscar Partido
             </button>
           ) : (
             <button
@@ -249,9 +233,10 @@ export default function RadarScreen({
               className="btn btn-danger"
               style={{
                 width: '100%',
-                padding: '14px',
-                fontSize: '14px',
-                borderRadius: '14px'
+                padding: '12px',
+                fontSize: '13px',
+                borderRadius: '12px',
+                fontWeight: 700
               }}
             >
               Cancelar Búsqueda
@@ -261,34 +246,21 @@ export default function RadarScreen({
           {/* Botón de prueba instantánea */}
           <button
             onClick={onForceDemoMatch}
-            className="btn btn-secondary"
             style={{
               width: '100%',
               fontSize: '12px',
-              padding: '10px',
-              borderRadius: '12px',
-              gap: '6px'
+              padding: '9px',
+              borderRadius: '10px',
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              fontWeight: 600,
+              transition: 'all 0.15s'
             }}
           >
-            <Zap size={14} color="#f59e0b" />
-            Probar Match Instantáneo (Rival Bot Demo)
+            Rival de Prueba (Bot)
           </button>
-        </div>
-      </div>
-
-      {/* Reglas y Garantías de Fair Play */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        borderRadius: '14px',
-        padding: '14px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        <Shield size={24} color="#10b981" style={{ flexShrink: 0 }} />
-        <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.4 }}>
-          <strong style={{ color: '#fff' }}>Garantía de Juego Limpio:</strong> Ambos equipos reportan el resultado tras el pitazo final. Los ratings de Glicko-2 se ajustan matemáticamente sin trampas.
         </div>
       </div>
     </div>
