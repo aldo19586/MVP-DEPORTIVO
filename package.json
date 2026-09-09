@@ -8,6 +8,7 @@
     "dev:client": "vite --host 0.0.0.0 --port 5173",
     "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
+    "seed": "node server/seed.js",
     "start": "node server/server.js"
   },
   "dependencies": {

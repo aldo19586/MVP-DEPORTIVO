@@ -253,5 +253,34 @@ app_config (key PK, value_json)
 - ✅ **Handshake Auth:** Identificación directa por `userId` persistente en handshake de conexión.
 - ✅ **Compilación de Producción:** `npm run build` aprobado sin errores.
 
+---
+
+### Fase 4 — Seed de Datos de Prueba Realistas ✅ COMPLETADA (2026-09-08)
+- **Estado:** ✅ Completada y verificada
+- **Script creado:** `server/seed.js` (ejecutable vía `node server/seed.js` o `npm run seed`)
+- **Propósito:** Población de 25 jugadores bots con perfiles completos y variados para permitir pruebas exhaustivas de matchmaking, leaderboards y juego en vivo sin depender de usuarios humanos simultáneos.
+- **Distribución de Jugadores:**
+  - **⚽ Posiciones:** DEL (7), MED (9), DEF (6), POR (3).
+  - **🏆 Rangos de OVR:**
+    - **Tier Alto (~90 OVR):** 7 jugadores competitivos (ej: Paolo Guerrero 92, Jefferson Farfán 91, Renato Tapia 90, Pedro Gallese 89, Christian Cueva 89). Rating Glicko: 1940 - 2080.
+    - **Tier Medio (~75 OVR):** 11 jugadores intermedios (ej: Gianluca Lapadula 79, Edison Flores 78, Luis Advíncula 78, Yoshimar Yotún 77). Rating Glicko: 1570 - 1710.
+    - **Tier Bajo (~60 OVR):** 7 jugadores aficionados/principiantes (ej: Joaquín Rojas 63, Mateo Díaz 62, Diego Castro 62). Rating Glicko: 1190 - 1310.
+  - **📍 Coordenadas Geoespaciales:** Coordenadas GPS en 12 distritos de Lima dentro de un radio de 10km (Surco, Miraflores, San Borja, San Isidro, Barranco, Chorrillos, Jesús María, Lince, Magdalena, Surquillo, Pueblo Libre, San Miguel).
+  - **🔑 Acceso y Pruebas:** Todos los jugadores tienen PIN `"1234"` (hasheado con `bcryptjs`), permitiendo iniciar sesión manualmente como cualquiera de ellos desde la interfaz web.
+  - **🧹 Limpieza Idempotente:** Limpia automáticamente registros de prueba anteriores (`seed_player_%`) en SQLite antes de insertar la nueva camada, protegiendo cuentas reales.
+
+#### Archivos creados/modificados:
+| Archivo | Acción | Descripción |
+|---|---|---|
+| `server/seed.js` | **NUEVO** | Generador de 25 jugadores realistas con stats FUT, GPS Lima y PIN `1234` |
+| `package.json` | **MODIFICADO** | Añadido script `"seed": "node server/seed.js"` |
+| `scripts/test_seed_verification.js` | **NUEVO** | Suite de verificación de logins por PIN, atributos FUT y leaderboards |
+
+#### Verificación Realizada:
+- ✅ Ejecución limpia de `npm run seed` con generación de 25 jugadores.
+- ✅ Login con PIN `1234` verificado en jugadores de los 3 tiers (Alto: Farfán OVR 91, Medio: Lapadula OVR 79, Bajo: Díaz OVR 62).
+- ✅ Tabla de posiciones (Leaderboard) de Fútbol 1v1 y 5v5 actualizada con ratings realistas ordenados.
+
+
 
 
