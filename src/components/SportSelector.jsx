@@ -16,11 +16,14 @@ export default function SportSelector({
   onCreateLobby,
   onOpenJoinLobbyModal,
   onOpenReplacementMarket,
-  replacementCount = 0
+  replacementCount = 0,
+  activeMatch = null,
+  onReturnToMatch = null
 }) {
   const [showFormatModal, setShowFormatModal] = useState(false);
   const currentSport = sports.find((s) => s.id === selectedSportId) || sports[0];
   const currentFormat = currentSport?.formats?.find((f) => f.id === selectedFormatId) || currentSport?.formats?.[0];
+  const hasActiveMatch = Boolean(activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled');
 
   return (
     <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -195,10 +198,13 @@ export default function SportSelector({
           background: 'rgba(0, 0, 0, 0.25)',
           padding: '4px',
           borderRadius: '12px',
-          border: '1px solid rgba(255, 255, 255, 0.06)'
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          opacity: hasActiveMatch ? 0.45 : 1,
+          pointerEvents: hasActiveMatch ? 'none' : 'auto'
         }}>
           <button
             onClick={() => setMode?.('solo')}
+            disabled={hasActiveMatch}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -211,7 +217,7 @@ export default function SportSelector({
               color: mode === 'solo' ? '#fff' : '#94a3b8',
               fontWeight: 700,
               fontSize: '12px',
-              cursor: 'pointer',
+              cursor: hasActiveMatch ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s'
             }}
           >
@@ -221,6 +227,7 @@ export default function SportSelector({
 
           <button
             onClick={() => setMode?.('squad')}
+            disabled={hasActiveMatch}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -233,7 +240,7 @@ export default function SportSelector({
               color: mode === 'squad' ? '#fff' : '#94a3b8',
               fontWeight: 700,
               fontSize: '12px',
-              cursor: 'pointer',
+              cursor: hasActiveMatch ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s'
             }}
           >
@@ -241,95 +248,158 @@ export default function SportSelector({
           </button>
         </div>
 
-        {/* Botones de Acción Principal */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
-          {mode === 'solo' ? (
-            <button
-              onClick={onProceedToRadar}
-              className="btn btn-primary"
-              style={{
-                width: '100%',
-                padding: '13px',
-                fontSize: '14px',
-                fontWeight: 800,
-                borderRadius: '12px'
-              }}
-            >
-              Buscar Partido
-            </button>
-          ) : (
-            <button
-              onClick={onCreateLobby}
-              className="btn btn-primary"
-              style={{
-                width: '100%',
-                padding: '13px',
-                fontSize: '14px',
-                fontWeight: 800,
-                borderRadius: '12px'
-              }}
-            >
-              Crear Sala
-            </button>
-          )}
-
-          <button
-            onClick={onOpenJoinLobbyModal}
-            style={{
-              width: '100%',
-              padding: '10px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '10px',
-              background: 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            Unirse con Código
-          </button>
-
-          {/* Acceso a Bolsa de Suplentes (Partidos incompletos o con bajas) */}
-          <button
-            onClick={onOpenReplacementMarket}
-            style={{
-              width: '100%',
-              padding: '11px 14px',
-              fontSize: '12px',
-              fontWeight: 800,
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(239, 68, 68, 0.12) 100%)',
-              border: '1.5px solid rgba(245, 158, 11, 0.4)',
-              color: '#fbbf24',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(245, 158, 11, 0.12)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '15px' }}>🚨</span>
-              <span>Bolsa de Suplentes</span>
+        {/* Botones de Acción Principal o Bloqueo si hay Partido Activo */}
+        {hasActiveMatch ? (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 78, 59, 0.28) 100%)',
+            border: '1.5px solid rgba(16, 185, 129, 0.6)',
+            borderRadius: '14px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.15)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>⚔️</span>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 900, color: '#34d399', letterSpacing: '0.3px' }}>
+                    ESTÁS EN PARTIDO / EN CANCHA
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    {activeMatch?.sportId?.toUpperCase() || currentSport?.name} • {activeMatch?.formatId || currentFormat?.name}
+                  </div>
+                </div>
+              </div>
+              <div style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: '#10b981',
+                boxShadow: '0 0 10px #10b981',
+                animation: 'pulse 1.5s infinite'
+              }} />
             </div>
-            <span style={{
-              background: '#f59e0b',
-              color: '#000',
-              padding: '2px 7px',
-              borderRadius: '6px',
-              fontSize: '10px',
-              fontWeight: 900,
-              letterSpacing: '0.4px'
-            }}>
-              ¡FALTA 1!
-            </span>
-          </button>
-        </div>
+
+            <p style={{ fontSize: '12px', color: '#cbd5e1', margin: 0, lineHeight: 1.45 }}>
+              No puedes buscar partidos, crear nuevas salas ni ingresar a convocatorias mientras tengas un encuentro activo en curso.
+            </p>
+
+            <button
+              onClick={onReturnToMatch}
+              style={{
+                width: '100%',
+                padding: '13px',
+                fontSize: '14px',
+                fontWeight: 800,
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.4)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <span>🏟️ Ir a Mi Partido en Cancha</span>
+              <span>➔</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
+            {mode === 'solo' ? (
+              <button
+                onClick={onProceedToRadar}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '13px',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  borderRadius: '12px'
+                }}
+              >
+                Buscar Partido
+              </button>
+            ) : (
+              <button
+                onClick={onCreateLobby}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '13px',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  borderRadius: '12px'
+                }}
+              >
+                Crear Sala
+              </button>
+            )}
+
+            <button
+              onClick={onOpenJoinLobbyModal}
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: '10px',
+                background: 'transparent',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                color: '#94a3b8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              Unirse con Código
+            </button>
+
+            {/* Acceso a Bolsa de Suplentes (Partidos incompletos o con bajas) */}
+            <button
+              onClick={onOpenReplacementMarket}
+              style={{
+                width: '100%',
+                padding: '11px 14px',
+                fontSize: '12px',
+                fontWeight: 800,
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(239, 68, 68, 0.12) 100%)',
+                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                color: '#fbbf24',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(245, 158, 11, 0.12)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '15px' }}>🚨</span>
+                <span>Bolsa de Suplentes</span>
+              </div>
+              <span style={{
+                background: '#f59e0b',
+                color: '#000',
+                padding: '2px 7px',
+                borderRadius: '6px',
+                fontSize: '10px',
+                fontWeight: 900,
+                letterSpacing: '0.4px'
+              }}>
+                ¡FALTA 1!
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal de Selección de Formato */}

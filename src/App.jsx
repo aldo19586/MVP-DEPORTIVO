@@ -655,6 +655,10 @@ export default function App() {
       setShowAuthModal(true);
       return;
     }
+    if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+      alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de iniciar otra búsqueda.');
+      return;
+    }
     socket.emit('startQueue', {
       userId: user.id,
       sportId: selectedSportId,
@@ -771,6 +775,10 @@ export default function App() {
       setShowAuthModal(true);
       return;
     }
+    if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+      alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de crear una sala.');
+      return;
+    }
     if (activeLobby) {
       alert(`⚠️ Ya estás en la sala #${activeLobby.code}. Sal de esa sala antes de crear una nueva.`);
       return;
@@ -785,6 +793,10 @@ export default function App() {
   const handleJoinLobby = (code) => {
     if (!user) {
       setShowAuthModal(true);
+      return;
+    }
+    if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+      alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de unirte a otra sala.');
       return;
     }
     if (activeLobby && activeLobby.code !== code.toUpperCase()) {
@@ -1079,10 +1091,30 @@ export default function App() {
             onOpenQuestionnaire={() => setShowQuestionnaire(true)}
             mode={mode}
             setMode={setMode}
-            onProceedToRadar={() => setCurrentView('radar')}
+            activeMatch={activeMatch}
+            onReturnToMatch={() => setCurrentView('match')}
+            onProceedToRadar={() => {
+              if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+                alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de iniciar otra búsqueda.');
+                return;
+              }
+              setCurrentView('radar');
+            }}
             onCreateLobby={handleCreateLobby}
-            onOpenJoinLobbyModal={() => setShowJoinLobbyModal(true)}
-            onOpenReplacementMarket={() => setShowReplacementModal(true)}
+            onOpenJoinLobbyModal={() => {
+              if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+                alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de unirte a otra sala.');
+                return;
+              }
+              setShowJoinLobbyModal(true);
+            }}
+            onOpenReplacementMarket={() => {
+              if (activeMatch && activeMatch.status !== 'finished' && activeMatch.status !== 'cancelled') {
+                alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de postularte a otra sala.');
+                return;
+              }
+              setShowReplacementModal(true);
+            }}
           />
         </main>
       )}
@@ -1235,66 +1267,6 @@ export default function App() {
             }}>
               <span>Abrir</span>
               <span>➔</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BARRA FLOTANTE MINI-PLAYER DE PARTIDO ACTIVO (COORDINACIÓN O EN CANCHA) */}
-      {activeMatch && currentView !== 'match' && activeMatch.status !== 'finished' && (
-        <div style={{
-          position: 'fixed',
-          bottom: activeLobby ? '78px' : '16px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9998,
-          width: '92%',
-          maxWidth: '440px'
-        }}>
-          <div
-            onClick={() => setCurrentView('match')}
-            style={{
-              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(6, 78, 59, 0.98) 100%)',
-              backdropFilter: 'blur(16px)',
-              border: '1.5px solid #10b981',
-              borderRadius: '18px',
-              padding: '10px 14px',
-              boxShadow: '0 12px 35px rgba(0, 0, 0, 0.7), 0 0 25px rgba(16, 185, 129, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              color: '#fff'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                background: '#10b981',
-                boxShadow: '0 0 10px #10b981',
-                animation: 'pulse 1.2s infinite'
-              }} />
-              <div>
-                <span style={{ fontSize: '12px', fontWeight: 900, color: '#fff', display: 'block' }}>
-                  ⚽ Partido Activo ({activeMatch.sportId?.toUpperCase()} {activeMatch.formatId})
-                </span>
-                <span style={{ fontSize: '11px', color: '#6ee7b7' }}>
-                  {activeMatch?.matchTimer?.active ? '⏱️ Tiempo en cancha activo' : '⚔️ En curso'} • Toca para volver
-                </span>
-              </div>
-            </div>
-            <div style={{
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              color: '#fff',
-              padding: '6px 12px',
-              borderRadius: '10px',
-              fontSize: '11px',
-              fontWeight: 800,
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
-            }}>
-              <span>Partido ➔</span>
             </div>
           </div>
         </div>
