@@ -69,6 +69,13 @@ app.get('/api/sports', (req, res) => {
   res.json({ sports: db.getSports() });
 });
 
+// Bolsa de Suplentes (Salas incompletas o con cancelaciones urgentes)
+app.get('/api/lobbies/replacements', (req, res) => {
+  const { sportId, district } = req.query;
+  const lobbies = db.getReplacementMarketLobbies({ sportId, district });
+  res.json({ lobbies });
+});
+
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
@@ -535,6 +542,7 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
+    socket.emit('lobbyUpdated', { lobby: res.lobby });
     io.to(`lobby_${res.lobby.code}`).emit('lobbyUpdated', { lobby: res.lobby });
     console.log(`[LOBBY] ${user.name} se unió a sala ${res.lobby.code}`);
   });
@@ -578,6 +586,80 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ==========================================
+  // EVENTOS DE LA BOLSA DE SUPLENTES (FALTA 1)
+  // ==========================================
+
+  // Obtener listado actual de salas que buscan suplentes
+  socket.on('getReplacementLobbies', ({ sportId, district } = {}) => {
+    const list = db.getReplacementMarketLobbies({ sportId, district });
+    socket.emit('replacementLobbiesList', { lobbies: list });
+  });
+
+  // Cancelar asistencia (liberar cupo a la bolsa de suplentes)
+  socket.on('cancelAttendance', ({ code, matchId, userId, reason = 'No podré asistir' }) => {
+    if (!userId) return;
+    let result = null;
+
+    if (code) {
+      result = db.markPlayerCancelledInLobby(code, userId, reason);
+      if (result && result.lobby) {
+        io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby: result.lobby });
+        socket.leave(`lobby_${code}`);
+        socket.lobbyCode = null;
+      }
+    } else if (matchId) {
+      result = db.markPlayerCancelledInMatch(matchId, userId, reason);
+      if (result && result.lobby) {
+        io.to(matchId).emit('matchCancelledAndConverted', {
+          matchId,
+          lobby: result.lobby,
+          message: 'Un jugador canceló su asistencia. El partido se convirtió en Sala de Convocatoria para encontrar suplente.'
+        });
+        socket.leave(matchId);
+      }
+    }
+
+    const entry = connectedUsers.get(userId);
+    if (entry) {
+      entry.status = 'idle';
+      entry.details = 'En Radar principal';
+      broadcastOnlineUsers();
+    }
+
+    const updatedList = db.getReplacementMarketLobbies();
+    io.emit('replacementMarketUpdated', { lobbies: updatedList });
+    socket.emit('attendanceCancelledSuccess', { ok: true });
+    console.log(`[SUPLENTES] Jugador ${userId} canceló asistencia ("${reason}").`);
+  });
+
+  // Unirse a una sala desde la Bolsa de Suplentes
+  socket.on('joinReplacementSlot', ({ code, user, targetTeam }) => {
+    if (!code || !user) return;
+    const result = db.joinReplacementSlot(code, user, targetTeam);
+    if (result.error) {
+      socket.emit('lobbyError', { message: result.error });
+      return;
+    }
+
+    socket.join(`lobby_${result.lobby.code}`);
+    socket.lobbyCode = result.lobby.code;
+
+    const entry = connectedUsers.get(user.id);
+    if (entry) {
+      entry.status = 'in_chat';
+      entry.details = `En sala de suplente #${result.lobby.code}`;
+      broadcastOnlineUsers();
+    }
+
+    socket.emit('lobbyUpdated', { lobby: result.lobby });
+    io.to(`lobby_${result.lobby.code}`).emit('lobbyUpdated', { lobby: result.lobby });
+
+    const updatedList = db.getReplacementMarketLobbies();
+    io.emit('replacementMarketUpdated', { lobbies: updatedList });
+    console.log(`[SUPLENTES] ${user.name} se unió como suplente a #${result.lobby.code}`);
+  });
+
   socket.on('switchLobbyTeam', ({ code, userId, targetTeam }) => {
     if (!code || !userId || !targetTeam) return;
     const lobby = db.switchLobbyTeam(code, userId, targetTeam);
@@ -592,6 +674,14 @@ io.on('connection', (socket) => {
     if (lobby) {
       io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
       console.log(`[SERVER] [LOBBY] Modalidad de sala ${code} cambiada a: ${formatId} (${lobby.formatName})`);
+    }
+  });
+
+  socket.on('sendLobbyChatMessage', ({ code, senderId, senderName, team, isPrivate, text }) => {
+    if (!code || !text) return;
+    const msg = db.addLobbyChatMessage(code, { senderId, senderName, team, isPrivate, text });
+    if (msg) {
+      io.to(`lobby_${code}`).emit('newLobbyChatMessage', { code, message: msg });
     }
   });
 
@@ -662,42 +752,20 @@ io.on('connection', (socket) => {
       });
     }
 
-    const match = db.createMatch({
-      sportId: lobby.sportId,
-      formatId: lobby.formatId,
-      teamA: teamAPlayers,
-      teamB
+    lobby.teamA = teamAPlayers;
+    lobby.teamB = teamB;
+    db._updateLobbyStatus(lobby);
+    lobby.status = 'ready';
+    db.addLobbyChatMessage(code, {
+      senderId: 'system',
+      senderName: 'MatchSport Bot',
+      team: 'all',
+      isPrivate: false,
+      text: '🤖 Rivales completados para la sala. ¡Todos listos para comenzar!'
     });
 
-    db.lobbies.delete(code);
-
-    // Unir sockets al match y notificar a cada jugador
-    for (const p of [...match.teamA, ...match.teamB]) {
-      const pId = p.userId || p.id;
-      const entry = connectedUsers.get(pId);
-      if (entry && entry.socketId) {
-        const sock = io.sockets.sockets.get(entry.socketId);
-        if (sock) {
-          sock.join(match.id);
-          sock.leave(`lobby_${code}`);
-        }
-        io.to(entry.socketId).emit('matchFound', {
-          matchId: match.id,
-          sportId: match.sportId,
-          formatId: match.formatId,
-          match
-        });
-      }
-    }
-
-    io.to(`lobby_${code}`).emit('matchFound', {
-      matchId: match.id,
-      sportId: match.sportId,
-      formatId: match.formatId,
-      match
-    });
-
-    console.log(`[SERVER] [LOBBY] Match oficial encontrado para squad sala ${code}: ${match.id} (${match.sportId} ${match.formatId})`);
+    io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+    console.log(`[SERVER] [LOBBY] Bots asignados a la sala ${code}: ${lobby.teamA.length} vs ${lobby.teamB.length}`);
   });
 
   socket.on('startLobbyMatch', ({ code }) => {
@@ -713,6 +781,14 @@ io.on('connection', (socket) => {
 
     const match = db.convertLobbyToMatch(code);
     if (match) {
+      match.status = 'in_progress';
+      match.matchTimer = {
+        active: true,
+        durationMinutes: 60,
+        startedAt: Date.now(),
+        endsAt: Date.now() + 60 * 60 * 1000
+      };
+
       // Unir sockets al match y notificar a cada jugador
       for (const p of [...match.teamA, ...match.teamB]) {
         const pId = p.userId || p.id;

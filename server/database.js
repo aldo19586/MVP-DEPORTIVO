@@ -147,6 +147,20 @@ function createTables() {
   `);
 
   _db.run(`
+    CREATE TABLE IF NOT EXISTS lobbies (
+      code TEXT PRIMARY KEY,
+      sport_id TEXT NOT NULL,
+      format_id TEXT NOT NULL,
+      status TEXT DEFAULT 'waiting',
+      host_user_id TEXT,
+      district TEXT,
+      data_json TEXT DEFAULT '{}',
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `);
+
+  _db.run(`
     CREATE TABLE IF NOT EXISTS reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       match_id TEXT,
@@ -183,10 +197,12 @@ function createTables() {
   _db.run('CREATE INDEX IF NOT EXISTS idx_users_name ON users(name)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_profiles_user ON user_profiles(user_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_lobbies_status ON lobbies(status)');
+  _db.run('CREATE INDEX IF NOT EXISTS idx_lobbies_sport ON lobbies(sport_id)');
   _db.run('CREATE INDEX IF NOT EXISTS idx_reviews_to ON reviews(to_user_id)');
 
   forceSave();
-  console.log('[SQLite] Tablas e índices creados/verificados');
+  console.log('[SQLite] Tablas e índices creados/verificados (incluyendo lobbies)');
 }
 
 // =============================================
@@ -350,6 +366,59 @@ export function sqlUpdateMatchStatus(matchId, status) {
 export function sqlGetMatchCount() {
   const result = _db.exec('SELECT COUNT(*) FROM matches');
   return result[0]?.values[0]?.[0] || 0;
+}
+
+// =============================================
+// CRUD DE SALAS DE CONVOCATORIA (LOBBIES / COORDINACIÓN)
+// =============================================
+
+export function sqlInsertLobby(lobby) {
+  const now = new Date().toISOString();
+  _db.run(`
+    INSERT OR REPLACE INTO lobbies (code, sport_id, format_id, status, host_user_id, district, data_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    lobby.code,
+    lobby.sportId,
+    lobby.formatId,
+    lobby.status || 'waiting',
+    lobby.hostUserId || null,
+    lobby.district || null,
+    JSON.stringify(lobby),
+    lobby.createdAt ? new Date(lobby.createdAt).toISOString() : now,
+    now
+  ]);
+  scheduleSave();
+}
+
+export function sqlGetLobby(code) {
+  const result = _db.exec('SELECT data_json FROM lobbies WHERE code = ?', [code]);
+  if (result.length === 0 || result[0].values.length === 0) return null;
+  return JSON.parse(result[0].values[0][0]);
+}
+
+export function sqlGetAllLobbies() {
+  const result = _db.exec('SELECT data_json FROM lobbies ORDER BY updated_at DESC');
+  if (result.length === 0) return [];
+  return result[0].values.map(row => JSON.parse(row[0]));
+}
+
+export function sqlGetOpenReplacementLobbies(sportId = null) {
+  let query = "SELECT data_json FROM lobbies WHERE status IN ('waiting', 'waiting_replacement')";
+  const params = [];
+  if (sportId && sportId !== 'all') {
+    query += ' AND sport_id = ?';
+    params.push(sportId);
+  }
+  query += ' ORDER BY updated_at DESC';
+  const result = _db.exec(query, params);
+  if (result.length === 0) return [];
+  return result[0].values.map(row => JSON.parse(row[0]));
+}
+
+export function sqlDeleteLobby(code) {
+  _db.run('DELETE FROM lobbies WHERE code = ?', [code]);
+  scheduleSave();
 }
 
 // =============================================

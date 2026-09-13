@@ -14,7 +14,9 @@ export default function SportSelector({
   setMode,
   onProceedToRadar,
   onCreateLobby,
-  onOpenJoinLobbyModal
+  onOpenJoinLobbyModal,
+  onOpenReplacementMarket,
+  replacementCount = 0
 }) {
   const [showFormatModal, setShowFormatModal] = useState(false);
   const currentSport = sports.find((s) => s.id === selectedSportId) || sports[0];
@@ -289,6 +291,43 @@ export default function SportSelector({
             }}
           >
             Unirse con Código
+          </button>
+
+          {/* Acceso a Bolsa de Suplentes (Partidos incompletos o con bajas) */}
+          <button
+            onClick={onOpenReplacementMarket}
+            style={{
+              width: '100%',
+              padding: '11px 14px',
+              fontSize: '12px',
+              fontWeight: 800,
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(239, 68, 68, 0.12) 100%)',
+              border: '1.5px solid rgba(245, 158, 11, 0.4)',
+              color: '#fbbf24',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(245, 158, 11, 0.12)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '15px' }}>🚨</span>
+              <span>Bolsa de Suplentes</span>
+            </div>
+            <span style={{
+              background: '#f59e0b',
+              color: '#000',
+              padding: '2px 7px',
+              borderRadius: '6px',
+              fontSize: '10px',
+              fontWeight: 900,
+              letterSpacing: '0.4px'
+            }}>
+              ¡FALTA 1!
+            </span>
           </button>
         </div>
       </div>

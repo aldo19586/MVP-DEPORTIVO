@@ -284,7 +284,7 @@ export class MatchmakingEngine {
       clearTimeout(pending.timeoutTimer);
       this.pendingMatches.delete(pendingMatchId);
 
-      const match = db.createMatch({
+      const lobby = db.createLobbyFromMatchmaking({
         sportId: pending.sportId,
         formatId: pending.formatId,
         teamA: pending.teamA,
@@ -297,29 +297,28 @@ export class MatchmakingEngine {
           const entry = this.connectedUsers.get(pId);
           if (entry) {
             entry.status = 'in_chat';
-            entry.details = `En Sala de Partido (${pending.sportId?.toUpperCase()} ${pending.formatId?.toUpperCase()})`;
+            entry.details = `En Sala de Convocatoria #${lobby.code} (${pending.sportId?.toUpperCase()} ${pending.formatId?.toUpperCase()})`;
           }
         }
         if (player.socketId) {
           const sock = this.io.sockets.sockets.get(player.socketId);
           if (sock) {
-            sock.join(match.id);
+            sock.join(`lobby_${lobby.code}`);
+            sock.lobbyCode = lobby.code;
           }
-          this.io.to(player.socketId).emit('matchFound', {
-            matchId: match.id,
-            sportId: pending.sportId,
-            formatId: pending.formatId,
-            match
-          });
+          this.io.to(player.socketId).emit('lobbyCreated', { lobby });
+          this.io.to(player.socketId).emit('lobbyUpdated', { lobby });
         }
       }
+
+      this.io.to(`lobby_${lobby.code}`).emit('lobbyUpdated', { lobby });
 
       if (this.broadcastOnlineUsers) {
         this.broadcastOnlineUsers();
       }
 
-      console.log(`[MATCHMAKING] ¡Todos aceptaron! Partido oficial ${match.id} creado con éxito.`);
-      logger.info(`[CONFIRMADO] Todos los jugadores aceptaron. Partido oficial ${match.id} (${pending.sportId} ${pending.formatId}) creado con éxito.`);
+      console.log(`[MATCHMAKING] ¡Todos aceptaron! Sala llena #${lobby.code} creada con éxito.`);
+      logger.info(`[CONFIRMADO] Todos los jugadores aceptaron. Sala llena #${lobby.code} (${pending.sportId} ${pending.formatId}) lista para iniciar.`);
     }
   }
 

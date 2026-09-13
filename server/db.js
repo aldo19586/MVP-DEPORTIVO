@@ -8,6 +8,7 @@ import {
   sqlGetUser, sqlGetUserByEmail, sqlGetUserByName, sqlGetAllUsers, sqlInsertUser, sqlUpdateUser, sqlGetUserCount,
   sqlGetProfile, sqlGetProfilesByUser, sqlGetProfilesBySportFormat, sqlInsertProfile,
   sqlInsertMatch, sqlGetMatch, sqlGetAllMatches, sqlUpdateMatchStatus, sqlGetMatchCount,
+  sqlInsertLobby, sqlGetLobby, sqlGetAllLobbies, sqlDeleteLobby, sqlGetOpenReplacementLobbies,
   sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
   sqlGetConfig, sqlSetConfig,
   sqlHasSeedData, forceSave
@@ -452,6 +453,14 @@ class Database {
       this.matches.set(m.id, m);
     }
 
+    // Cargar salas de convocatoria persistentes (Lobbies de coordinación)
+    const allLobbies = sqlGetAllLobbies();
+    for (const l of allLobbies) {
+      if (l.status !== 'closed' && l.status !== 'cancelled') {
+        this.lobbies.set(l.code, l);
+      }
+    }
+
     // Cargar reseñas
     // Las reseñas se almacenan serializado en SQLite, las cargamos al array
     const allUserIds = allUsers.map(u => u.id);
@@ -579,6 +588,18 @@ class Database {
   _persistMatch(match) {
     if (this._sqliteReady) {
       sqlInsertMatch(match);
+    }
+  }
+
+  _persistLobby(lobby) {
+    if (this._sqliteReady && lobby) {
+      sqlInsertLobby(lobby);
+    }
+  }
+
+  _deleteLobbyPersisted(code) {
+    if (this._sqliteReady && code) {
+      sqlDeleteLobby(code);
     }
   }
 
@@ -1261,11 +1282,96 @@ class Database {
         }
       ],
       teamB: [],
+      chatMessages: [
+        {
+          id: `msg_welcome_${Date.now()}`,
+          senderId: 'system',
+          senderName: 'MatchSport Bot',
+          text: `🎮 Sala de Convocatoria #${code} creada. Invita amigos o inicia búsqueda de rivales.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isPrivate: false
+        }
+      ],
       createdAt: Date.now()
     };
 
     this.lobbies.set(code, lobby);
     return lobby;
+  }
+
+  createLobbyFromMatchmaking({ sportId = 'futbol', formatId = '2v2', teamA = [], teamB = [] }) {
+    const sport = this.sports.find(s => s.id === sportId) || this.sports[0];
+    const format = sport?.formats?.find(f => f.id === formatId) || sport?.formats?.[0] || { playersPerTeam: 2 };
+    const playersPerTeam = format.playersPerTeam || 2;
+
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const code = `${sportId.substring(0, 3).toUpperCase()}-${randomSuffix}`;
+    const hostUser = teamA[0] || { id: 'host', name: 'Capitán' };
+
+    const formatPlayer = (p, isHost = false) => ({
+      id: p.userId || p.id,
+      userId: p.userId || p.id,
+      name: p.name || 'Jugador',
+      avatar: p.avatar || '',
+      district: p.district || 'Lima',
+      position: p.position || 'MED',
+      rating: p.rating || 1400,
+      rd: p.rd || 300,
+      isReady: true,
+      isHost,
+      isDemo: Boolean(p.isDemo || String(p.userId || p.id).startsWith('demo_user_'))
+    });
+
+    const lobby = {
+      code,
+      sportId,
+      formatId,
+      formatName: format.name || formatId,
+      playersPerTeam,
+      totalSlots: playersPerTeam * 2,
+      hostUserId: hostUser.userId || hostUser.id,
+      hostName: hostUser.name,
+      status: 'ready',
+      fromMatchmaking: true,
+      teamA: teamA.map((p, idx) => formatPlayer(p, idx === 0)),
+      teamB: teamB.map(p => formatPlayer(p, false)),
+      chatMessages: [
+        {
+          id: `msg_welcome_${Date.now()}`,
+          senderId: 'system',
+          senderName: 'MatchSport Bot',
+          text: `⚡ ¡Equipos emparejados con éxito! La sala está completa (${playersPerTeam} vs ${playersPerTeam}). Hablen por el chat y comiencen la partida.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isPrivate: false
+        }
+      ],
+      createdAt: Date.now()
+    };
+
+    this.lobbies.set(code, lobby);
+    return lobby;
+  }
+
+  addLobbyChatMessage(code, { senderId, senderName, team, isPrivate = false, text }) {
+    const lobby = this.getLobby(code);
+    if (!lobby) return null;
+    if (!lobby.chatMessages) lobby.chatMessages = [];
+
+    const message = {
+      id: `lmsg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      senderId,
+      senderName,
+      team,
+      isPrivate: Boolean(isPrivate),
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    lobby.chatMessages.push(message);
+    if (lobby.chatMessages.length > 100) {
+      lobby.chatMessages.shift();
+    }
+    return message;
   }
 
   getLobby(code) {
@@ -1367,8 +1473,8 @@ class Database {
     if (!userId) return [];
     const modifiedLobbies = [];
     for (const lobby of Array.from(this.lobbies.values())) {
-      const inTeamA = lobby.teamA.some(p => (p.userId || p.id) === userId);
-      const inTeamB = lobby.teamB.some(p => (p.userId || p.id) === userId);
+      const inTeamA = lobby.teamA?.some(p => (p.userId || p.id) === userId);
+      const inTeamB = lobby.teamB?.some(p => (p.userId || p.id) === userId);
       if (inTeamA || inTeamB) {
         const updated = this.leaveLobby(lobby.code, userId);
         modifiedLobbies.push({ code: lobby.code, updatedLobby: updated });
@@ -1513,13 +1619,159 @@ class Database {
   _updateLobbyStatus(lobby) {
     const total = lobby.teamA.length + lobby.teamB.length;
     const isFull = total === lobby.totalSlots;
-    const allReady = [...lobby.teamA, ...lobby.teamB].every(p => p.isReady);
+    const allReady = isFull && [...lobby.teamA, ...lobby.teamB].every(p => p.isReady);
 
     if (isFull && allReady) {
       lobby.status = 'ready';
+    } else if (lobby.hadCancellation || total < lobby.totalSlots) {
+      lobby.status = lobby.hadCancellation ? 'waiting_replacement' : 'waiting';
     } else {
       lobby.status = 'waiting';
     }
+    this._persistLobby(lobby);
+  }
+
+  // Cancelación de jugador en sala de convocatoria (Pasa a Bolsa de Suplentes)
+  markPlayerCancelledInLobby(code, userId, reason = 'No podré asistir') {
+    const lobby = this.getLobby(code);
+    if (!lobby) return null;
+
+    let removedPlayer = null;
+    const idxA = lobby.teamA.findIndex(p => (p.userId || p.id) === userId);
+    if (idxA !== -1) {
+      removedPlayer = lobby.teamA.splice(idxA, 1)[0];
+    } else {
+      const idxB = lobby.teamB.findIndex(p => (p.userId || p.id) === userId);
+      if (idxB !== -1) {
+        removedPlayer = lobby.teamB.splice(idxB, 1)[0];
+      }
+    }
+
+    if (!removedPlayer) return { lobby, removedPlayer: null };
+
+    // Si la sala quedó completamente vacía, eliminarla
+    if (lobby.teamA.length === 0 && lobby.teamB.length === 0) {
+      this.lobbies.delete(lobby.code);
+      this._deleteLobbyPersisted(lobby.code);
+      return { lobby: null, removedPlayer };
+    }
+
+    // Si el capitán salió, ceder la capitanía
+    if (lobby.hostUserId === userId) {
+      const nextHost = lobby.teamA[0] || lobby.teamB[0];
+      if (nextHost) {
+        nextHost.isHost = true;
+        lobby.hostUserId = nextHost.userId || nextHost.id;
+        lobby.hostName = nextHost.name;
+      }
+    }
+
+    lobby.hadCancellation = true;
+    lobby.status = 'waiting_replacement';
+    this.addLobbyChatMessage(lobby.code, {
+      senderId: 'system',
+      senderName: 'Radar de Suplentes 🚨',
+      team: 'all',
+      isPrivate: false,
+      text: `⚠️ [BAJA DE JUGADOR] ${removedPlayer.name} canceló su asistencia ("${reason}"). La sala se ha publicado en la Bolsa de Suplentes para completar el cupo.`
+    });
+
+    this._updateLobbyStatus(lobby);
+    return { lobby, removedPlayer };
+  }
+
+  // Cancelación de jugador en Partido Activo (Convierte a Sala de Convocatoria en Bolsa de Suplentes)
+  markPlayerCancelledInMatch(matchId, userId, reason = 'No podré asistir') {
+    const match = this.getMatch(matchId);
+    if (!match) return null;
+
+    // Convertir el partido a una sala de convocatoria para buscar el suplente
+    const converted = this.convertMatchToLobby(matchId, userId);
+    if (converted.error) return { error: converted.error };
+
+    const lobby = converted.lobby;
+    // Remover al usuario que canceló
+    lobby.teamA = lobby.teamA.filter(p => (p.userId || p.id) !== userId);
+    lobby.teamB = lobby.teamB.filter(p => (p.userId || p.id) !== userId);
+
+    lobby.hadCancellation = true;
+    lobby.status = 'waiting_replacement';
+
+    this.addLobbyChatMessage(lobby.code, {
+      senderId: 'system',
+      senderName: 'Radar de Suplentes 🚨',
+      team: 'all',
+      isPrivate: false,
+      text: `🚨 ¡ALERTA DE SUPLENTE! Se canceló un puesto del partido anterior. La sala #${lobby.code} busca jugador urgente en la Bolsa de Suplentes.`
+    });
+
+    this._updateLobbyStatus(lobby);
+    return { lobby, match: converted.match };
+  }
+
+  // Obtener salas abiertas en la Bolsa de Suplentes
+  getReplacementMarketLobbies({ sportId = null, district = null } = {}) {
+    const list = [];
+    for (const lobby of this.lobbies.values()) {
+      const total = (lobby.teamA?.length || 0) + (lobby.teamB?.length || 0);
+      const isMissingPlayers = total < lobby.totalSlots;
+      const isWaitingOrReplacement = lobby.status === 'waiting_replacement' || lobby.status === 'waiting';
+
+      if (isWaitingOrReplacement && isMissingPlayers) {
+        if (sportId && sportId !== 'all' && lobby.sportId !== sportId) {
+          continue;
+        }
+        const neededSlots = lobby.totalSlots - total;
+        list.push({
+          code: lobby.code,
+          sportId: lobby.sportId,
+          formatId: lobby.formatId,
+          formatName: lobby.formatName,
+          playersPerTeam: lobby.playersPerTeam,
+          totalSlots: lobby.totalSlots,
+          currentPlayersCount: total,
+          neededSlots,
+          status: lobby.status,
+          hostName: lobby.hostName,
+          district: lobby.district || lobby.teamA[0]?.district || 'Surco, Lima',
+          hadCancellation: Boolean(lobby.hadCancellation),
+          teamA: lobby.teamA,
+          teamB: lobby.teamB,
+          createdAt: lobby.createdAt
+        });
+      }
+    }
+
+    // Ordenar: primero las que tuvieron cancelación urgente (hadCancellation = true), luego las más recientes
+    return list.sort((a, b) => {
+      if (a.hadCancellation && !b.hadCancellation) return -1;
+      if (!a.hadCancellation && b.hadCancellation) return 1;
+      return b.createdAt - a.createdAt;
+    });
+  }
+
+  // Unirse como Suplente a una sala incompleta
+  joinReplacementSlot(code, user, targetTeam = null) {
+    const result = this.joinLobby(code, user, targetTeam);
+    if (result.error) return result;
+
+    const lobby = result.lobby;
+    const total = (lobby.teamA?.length || 0) + (lobby.teamB?.length || 0);
+
+    this.addLobbyChatMessage(lobby.code, {
+      senderId: 'system',
+      senderName: 'Radar de Suplentes 🚨',
+      team: 'all',
+      isPrivate: false,
+      text: `🎉 ¡Llegó el refuerzo! ${user.name} se unió a la sala para completar la plantilla.`
+    });
+
+    if (total === lobby.totalSlots) {
+      lobby.hadCancellation = false;
+    }
+
+    this._updateLobbyStatus(lobby);
+    return { lobby };
   }
 
   convertLobbyToMatch(code) {
@@ -1534,6 +1786,7 @@ class Database {
     });
 
     this.lobbies.delete(code);
+    this._deleteLobbyPersisted(code);
     return match;
   }
 }

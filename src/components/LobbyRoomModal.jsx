@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Users, Copy, Share2, Check, ArrowLeft, Play, Bot, ShieldCheck, Zap, UserCheck, Clock, Globe, MapPin, Target, ChevronDown, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Users, Copy, Share2, Check, ArrowLeft, Play, Bot, ShieldCheck, Zap, UserCheck, Clock, Globe, MapPin, Target, ChevronDown, ChevronUp, X, MessageSquare, Lock, Send } from 'lucide-react';
 import { soundFX, showBackgroundNotification } from '../utils/audio.js';
+import { socket } from '../services/socket.js';
 
 export default function LobbyRoomModal({
   lobby,
@@ -16,12 +17,18 @@ export default function LobbyRoomModal({
   onStartRadarSearch,
   onStartMatchWithBots,
   onMinimize,
-  onLeaveLobby
+  onLeaveLobby,
+  onCancelAttendance,
+  onSendLobbyMessage
 }) {
   const [copied, setCopied] = useState(false);
   const [playWithBots, setPlayWithBots] = useState(false);
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [showConfirmLeaveModal, setShowConfirmLeaveModal] = useState(false);
+  const [chatChannel, setChatChannel] = useState('all'); // 'all' (sala público) | 'team' (privado equipo)
+  const [chatText, setChatText] = useState('');
+  const [isChatExpanded, setIsChatExpanded] = useState(true);
+  const chatMessagesEndRef = useRef(null);
 
   if (!lobby) return null;
 
@@ -67,6 +74,33 @@ export default function LobbyRoomModal({
       `⚽ ¡Únete a mi partido en MATCHSPORT!\nModo: ${lobby.sportId.toUpperCase()} ${lobby.formatId} (${lobby.formatName})\nEntra con este enlace para jugar y sumar puntos al ranking:\n${shareUrl}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  };
+
+  useEffect(() => {
+    if (isChatExpanded) {
+      chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [lobby?.chatMessages, isChatExpanded]);
+
+  const handleSendChat = (e) => {
+    e?.preventDefault();
+    if (!chatText.trim()) return;
+    const isPrivate = chatChannel === 'team';
+    const payload = {
+      code: lobby.code,
+      senderId: currentUserId,
+      senderName: myPlayer?.name || 'Jugador',
+      team: inTeamA ? 'teamA' : 'teamB',
+      isPrivate,
+      text: chatText.trim()
+    };
+    if (onSendLobbyMessage) {
+      onSendLobbyMessage(payload);
+    } else {
+      socket.emit('sendLobbyChatMessage', payload);
+    }
+    setChatText('');
+    soundFX.playMessage();
   };
 
   // Crear slots vacíos para visualizar la capacidad
@@ -324,6 +358,59 @@ export default function LobbyRoomModal({
         </div>
       </div>
 
+      {/* BANNER DE ALERTA: BOLSA DE SUPLENTES ACTIVA */}
+      {(lobby.status === 'waiting_replacement' || lobby.hadCancellation) && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(239, 68, 68, 0.15) 100%)',
+          border: '1.5px solid #f59e0b',
+          borderRadius: '16px',
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.2)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '10px',
+              background: '#f59e0b',
+              color: '#000',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+              fontWeight: 900,
+              flexShrink: 0
+            }}>
+              🚨
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 900, color: '#fbbf24' }}>
+                Buscando Suplente en Bolsa Pública
+              </div>
+              <div style={{ fontSize: '11px', color: '#e2e8f0', marginTop: '1px' }}>
+                Falta {lobby.totalSlots - (lobby.teamA.length + lobby.teamB.length)} jugador(es). Esta sala está visible para futbolistas cercanos.
+              </div>
+            </div>
+          </div>
+          <span style={{
+            background: 'rgba(245, 158, 11, 0.25)',
+            border: '1px solid #f59e0b',
+            color: '#fbbf24',
+            fontSize: '10px',
+            fontWeight: 800,
+            padding: '3px 8px',
+            borderRadius: '6px',
+            whiteSpace: 'nowrap'
+          }}>
+            EN VIVO
+          </span>
+        </div>
+      )}
+
       {/* Tarjeta de Información de la Sala */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))',
@@ -533,6 +620,302 @@ export default function LobbyRoomModal({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {renderTeamSlots(lobby.teamA, 'teamA', 'Equipo 1 (Azul)', '#3b82f6')}
         {renderTeamSlots(lobby.teamB, 'teamB', 'Equipo 2 (Rojo)', '#ef4444')}
+      </div>
+
+      {/* CHAT DE SALA ESTILO DRAGONBOUND / GUNBOUND */}
+      <div style={{
+        background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9))',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
+      }}>
+        {/* Cabecera del Chat con pestañas de canal */}
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.35)',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: isChatExpanded ? '1px solid rgba(255, 255, 255, 0.08)' : 'none'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => setChatChannel('all')}
+              style={{
+                background: chatChannel === 'all' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                border: chatChannel === 'all' ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: chatChannel === 'all' ? '#34d399' : '#94a3b8',
+                borderRadius: '8px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Globe size={12} />
+              <span>Sala (Público)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setChatChannel('team')}
+              style={{
+                background: chatChannel === 'team' ? (inTeamA ? 'rgba(59, 130, 246, 0.25)' : 'rgba(239, 68, 68, 0.25)') : 'rgba(255, 255, 255, 0.05)',
+                border: chatChannel === 'team' ? (inTeamA ? '1px solid #3b82f6' : '1px solid #ef4444') : '1px solid rgba(255, 255, 255, 0.1)',
+                color: chatChannel === 'team' ? (inTeamA ? '#60a5fa' : '#f87171') : '#94a3b8',
+                borderRadius: '8px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Lock size={12} />
+              <span>{inTeamA ? 'Mi Equipo Azul' : 'Mi Equipo Rojo'} (Privado)</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsChatExpanded(!isChatExpanded)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              padding: '4px'
+            }}
+          >
+            <MessageSquare size={13} color="#10b981" />
+            <span style={{ fontWeight: 700 }}>{isChatExpanded ? 'Ocultar' : `Abrir Chat (${lobby.chatMessages?.length || 0})`}</span>
+            {isChatExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+
+        {isChatExpanded && (
+          <>
+            {/* Scroll de mensajes estilo GunBound / DragonBound */}
+            <div
+              className="chat-scroll"
+              style={{
+                height: '140px',
+                overflowY: 'auto',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                background: 'rgba(5, 10, 20, 0.5)'
+              }}
+            >
+              {(!lobby.chatMessages || lobby.chatMessages.length === 0) && (
+                <div style={{ textAlign: 'center', color: '#64748b', fontSize: '11px', margin: 'auto' }}>
+                  💬 Escribe para coordinar estrategia o saludar a la sala.
+                </div>
+              )}
+
+              {lobby.chatMessages?.filter((msg) => {
+                if (msg.senderId === 'system') return true;
+                if (!msg.isPrivate) return true;
+                // Mensaje privado de equipo: solo si es del mismo equipo
+                const myTeamKey = inTeamA ? 'teamA' : 'teamB';
+                return msg.team === myTeamKey;
+              }).map((msg) => {
+                const isMine = msg.senderId === currentUserId;
+                const isSystem = msg.senderId === 'system';
+
+                if (isSystem) {
+                  return (
+                    <div
+                      key={msg.id}
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                        borderRadius: '8px',
+                        padding: '4px 8px',
+                        fontSize: '10px',
+                        color: '#fbbf24',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>📢</span>
+                      <span>{msg.text}</span>
+                    </div>
+                  );
+                }
+
+                const senderIsTeamA = msg.team === 'teamA';
+                const teamColor = senderIsTeamA ? '#60a5fa' : '#f87171';
+
+                return (
+                  <div
+                    key={msg.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: '6px',
+                      fontSize: '11px',
+                      lineHeight: '1.4',
+                      padding: '2px 0'
+                    }}
+                  >
+                    <span style={{ fontSize: '9px', color: '#64748b', flexShrink: 0 }}>
+                      {msg.timestamp || ''}
+                    </span>
+
+                    {msg.isPrivate ? (
+                      <span style={{
+                        fontSize: '9px',
+                        background: senderIsTeamA ? 'rgba(59, 130, 246, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                        color: teamColor,
+                        padding: '1px 4px',
+                        borderRadius: '4px',
+                        fontWeight: 800,
+                        flexShrink: 0
+                      }}>
+                        [EQUIPO]
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: '9px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: '#34d399',
+                        padding: '1px 4px',
+                        borderRadius: '4px',
+                        fontWeight: 800,
+                        flexShrink: 0
+                      }}>
+                        [SALA]
+                      </span>
+                    )}
+
+                    <span style={{ fontWeight: 800, color: teamColor, flexShrink: 0 }}>
+                      {msg.senderName} {isMine && '(Tú)'}:
+                    </span>
+
+                    <span style={{ color: '#e2e8f0', wordBreak: 'break-word' }}>
+                      {msg.text}
+                    </span>
+                  </div>
+                );
+              })}
+              <div ref={chatMessagesEndRef} />
+            </div>
+
+            {/* Chips rápidos de texto */}
+            <div
+              className="hide-scrollbar"
+              style={{
+                display: 'flex',
+                gap: '5px',
+                padding: '6px 10px',
+                background: 'rgba(0, 0, 0, 0.3)',
+                overflowX: 'auto',
+                borderTop: '1px solid rgba(255, 255, 255, 0.05)'
+              }}
+            >
+              {[
+                '¡Todos listos! ⚽',
+                '¡Vamos con todo! 🔥',
+                '¿Quién va al arco? 🧤',
+                'Cámbiate a mi equipo 🔄',
+                '¡Buen partido a todos! 🤝'
+              ].map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    const isPrivate = chatChannel === 'team';
+                    const payload = {
+                      code: lobby.code,
+                      senderId: currentUserId,
+                      senderName: myPlayer?.name || 'Jugador',
+                      team: inTeamA ? 'teamA' : 'teamB',
+                      isPrivate,
+                      text: chip
+                    };
+                    if (onSendLobbyMessage) onSendLobbyMessage(payload);
+                    else socket.emit('sendLobbyChatMessage', payload);
+                    soundFX.playMessage();
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#94a3b8',
+                    fontSize: '10px',
+                    padding: '3px 8px',
+                    borderRadius: '12px',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            {/* Input y botón enviar */}
+            <form
+              onSubmit={handleSendChat}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 10px',
+                background: 'rgba(15, 23, 42, 0.95)',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+              }}
+            >
+              <input
+                type="text"
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                placeholder={chatChannel === 'team' ? `Escribe solo a ${inTeamA ? 'Equipo Azul' : 'Equipo Rojo'}...` : 'Escribe a toda la sala...'}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  padding: '7px 12px',
+                  fontSize: '12px',
+                  color: '#fff',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: '#fff',
+                  width: '34px',
+                  height: '34px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+              >
+                <Send size={14} />
+              </button>
+            </form>
+          </>
+        )}
       </div>
 
       {/* Barra Inferior de Acción y Estado LISTO */}
@@ -893,36 +1276,25 @@ export default function LobbyRoomModal({
             </div>
 
             <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', marginBottom: '8px' }}>
-              ¿Abandonar la Sala #{lobby.code}?
+              Gestión de Asistencia
             </h3>
-            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '22px' }}>
-              Si sales de la sala, se liberará tu puesto en el equipo y tu squad quedará incompleto. ¿Confirmas tu salida?
+            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '20px' }}>
+              ¿Qué deseas hacer con tu lugar en la Sala #{lobby.code}?
             </p>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
-                onClick={() => setShowConfirmLeaveModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#cbd5e1',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
+                type="button"
                 onClick={() => {
                   setShowConfirmLeaveModal(false);
-                  onLeaveLobby();
+                  if (onCancelAttendance) {
+                    onCancelAttendance(lobby.code);
+                  } else {
+                    socket.emit('cancelAttendance', { code: lobby.code, userId: currentUserId });
+                  }
+                  onLeaveLobby?.();
                 }}
                 style={{
-                  flex: 1,
                   padding: '12px',
                   borderRadius: '12px',
                   background: 'linear-gradient(135deg, #ef4444, #dc2626)',
@@ -931,10 +1303,77 @@ export default function LobbyRoomModal({
                   fontWeight: 800,
                   fontSize: '13px',
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
                   boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
                 }}
               >
-                Sí, Salir
+                <span>🚨</span>
+                <span>No podré asistir (Bolsa de Suplentes)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmLeaveModal(false);
+                  onLeaveLobby?.();
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#f87171',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <X size={14} />
+                <span>Abandonar sala definitivamente</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmLeaveModal(false);
+                  onMinimize?.();
+                }}
+                style={{
+                  padding: '11px',
+                  borderRadius: '12px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  color: '#60a5fa',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                📱 Solo deseo explorar la app (Conservar mi cupo)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowConfirmLeaveModal(false)}
+                style={{
+                  padding: '10px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#94a3b8',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Volver a la sala
               </button>
             </div>
           </div>

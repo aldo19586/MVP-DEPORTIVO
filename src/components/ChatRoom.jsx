@@ -716,6 +716,74 @@ export default function ChatRoom({
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmación de Asistencia / Baja */}
+      {showConfirmLeaveModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="modal-content" style={{ maxWidth: '380px', textAlign: 'center', padding: '24px' }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '2px solid #ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#f87171'
+            }}>
+              <AlertCircle size={28} />
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', marginBottom: '8px' }}>
+              ¿No podrás asistir al partido?
+            </h3>
+            <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '20px' }}>
+              Al cancelar, tu lugar se publicará inmediatamente en la <strong>Bolsa de Suplentes</strong> para que otro jugador de la zona complete el equipo sin disolver el partido.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  setShowConfirmLeaveModal(false);
+                  socket.emit('cancelAttendance', { matchId: match?.id, userId: currentUserId, reason: 'No podré asistir' });
+                  onLeaveMatch?.();
+                }}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                🚨 Liberar mi cupo a Bolsa de Suplentes
+              </button>
+
+              <button
+                onClick={() => setShowConfirmLeaveModal(false)}
+                style={{
+                  padding: '10px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#cbd5e1',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Volver a la coordinación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -18,6 +18,8 @@ import LobbyRoomModal from './components/LobbyRoomModal.jsx';
 import JoinLobbyModal from './components/JoinLobbyModal.jsx';
 import UserProfileModal from './components/UserProfileModal.jsx';
 import MatchAcceptModal from './components/MatchAcceptModal.jsx';
+import LiveMatchScreen from './components/LiveMatchScreen.jsx';
+import ReplacementMarketModal from './components/ReplacementMarketModal.jsx';
 import { Zap, Wifi, LogOut, ShieldCheck, Trophy, Sparkles, User } from 'lucide-react';
 
 export default function App() {
@@ -134,6 +136,7 @@ export default function App() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showMyFutCard, setShowMyFutCard] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [showReplacementModal, setShowReplacementModal] = useState(false);
   const [ratingUpdateInfo, setRatingUpdateInfo] = useState(null);
 
 
@@ -285,11 +288,12 @@ export default function App() {
       if (match?.id) {
         socket.emit('joinMatchRoom', { matchId: match.id });
       }
-      setShowMatchFoundModal(true);
+      setShowMatchFoundModal(false);
+      setCurrentView('match');
       soundFX.playMatchFound();
 
-      showBackgroundNotification('🏆 ¡DESAFÍO CONFIRMADO!', {
-        body: `Tu rival está listo en ${match.sportId} (${match.formatId}). Toca para abrir la sala de coordinación.`
+      showBackgroundNotification('🏆 ¡PARTIDO INICIADO!', {
+        body: `Tu partido de ${match.sportId} (${match.formatId}) ha comenzado. Cronómetro en vivo activo.`
       });
     });
 
@@ -323,12 +327,49 @@ export default function App() {
           (p) => (p.userId || p.id) === user.id
         );
         if (inLobby) {
-          setCurrentView((prev) => (prev === 'chat' || prev === 'searching' ? prev : 'lobby'));
+          setCurrentView((prev) => (prev === 'match' || prev === 'chat' || prev === 'searching' ? prev : 'lobby'));
         } else {
           setActiveLobby((prev) => (prev?.code === lobby.code ? null : prev));
           setCurrentView((prev) => (prev === 'lobby' ? 'sport_select' : prev));
         }
       }
+    });
+
+    // Mensajes de Chat de Sala de Convocatoria (Estilo DragonBound)
+    socket.on('newLobbyChatMessage', ({ code, message }) => {
+      setActiveLobby((prev) => {
+        if (!prev || prev.code !== code) return prev;
+        const exists = prev.chatMessages?.some((m) => m.id === message.id);
+        if (exists) return prev;
+        return {
+          ...prev,
+          chatMessages: [...(prev.chatMessages || []), message]
+        };
+      });
+      soundFX.playMessage();
+    });
+
+    // Cuando un partido o sala se convierte por baja de jugador a Bolsa de Suplentes
+    socket.on('matchCancelledAndConverted', ({ matchId, lobby, message }) => {
+      setActiveMatch(null);
+      localStorage.removeItem('matchsport_active_match');
+      if (lobby) {
+        setActiveLobby(lobby);
+        setCurrentView('lobby');
+      } else {
+        setCurrentView('sport_select');
+      }
+      soundFX.playMessage();
+      showBackgroundNotification('🚨 ALERTA DE SUPLENTE', {
+        body: message || 'Un jugador canceló su asistencia. La sala pasó a la Bolsa de Suplentes.'
+      });
+    });
+
+    socket.on('attendanceCancelledSuccess', () => {
+      setActiveLobby(null);
+      setActiveMatch(null);
+      localStorage.removeItem('matchsport_active_match');
+      setCurrentView('sport_select');
     });
 
     socket.on('session_replaced', ({ message }) => {
@@ -345,7 +386,7 @@ export default function App() {
     socket.on('activeMatch', ({ match, autoReconnected }) => {
       if (match) {
         setActiveMatch(match);
-        setCurrentView('chat');
+        setCurrentView('match');
         if (autoReconnected) {
           console.log('[MATCH] Reconectado automáticamente a tu partida en curso:', match.id);
         }
@@ -493,6 +534,7 @@ export default function App() {
       socket.off('matchFound');
       socket.off('lobbyCreated');
       socket.off('lobbyUpdated');
+      socket.off('newLobbyChatMessage');
       socket.off('lobbyError');
       socket.off('newChatMessage');
       socket.off('matchTimerStarted');
@@ -808,6 +850,18 @@ export default function App() {
     setCurrentView('sport_select');
   };
 
+  const handleCancelAttendance = (code) => {
+    const targetCode = code || activeLobby?.code;
+    if (targetCode && user) {
+      socket.emit('cancelAttendance', { code: targetCode, userId: user.id, reason: 'No podré asistir' });
+      socket.emit('leaveLobby', { code: targetCode, userId: user.id });
+    }
+    setActiveLobby(null);
+    setActiveMatch(null);
+    localStorage.removeItem('matchsport_active_match');
+    setCurrentView('sport_select');
+  };
+
   const handleSaveQuestionnaire = async (declaredLevel) => {
     try {
       const res = await fetch('/api/profile/questionnaire', {
@@ -888,11 +942,14 @@ export default function App() {
       )}
 
       {/* Toast Flotante estilo Isla Dinámica para Tiempo en Cancha */}
-      <LiveMatchToast
-        match={activeMatch}
-        onOpenReport={() => setShowReportModal(true)}
-        onOpenChat={() => setCurrentView('chat')}
-      />
+      {activeMatch && currentView !== 'match' && activeMatch.status !== 'finished' && (
+        <LiveMatchToast
+          match={activeMatch}
+          onOpenReport={() => setShowReportModal(true)}
+          onOpenChat={() => setCurrentView('match')}
+          onOpenMatch={() => setCurrentView('match')}
+        />
+      )}
 
       {/* Header Principal Minimalista */}
       <header className="app-header">
@@ -930,16 +987,16 @@ export default function App() {
             </span>
           </div>
 
-          {/* Botón Acceso Rápido al Chat de Partido Activo */}
-          {activeMatch && currentView !== 'chat' && (
+          {/* Botón Acceso Rápido al Partido Activo */}
+          {activeMatch && currentView !== 'match' && activeMatch.status !== 'finished' && (
             <button
-              onClick={() => setCurrentView('chat')}
+              onClick={() => setCurrentView('match')}
               style={{
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '12px',
-                padding: '5px 9px',
+                padding: '5px 10px',
                 fontSize: '11px',
                 fontWeight: 800,
                 display: 'flex',
@@ -949,9 +1006,9 @@ export default function App() {
                 boxShadow: '0 0 12px rgba(16, 185, 129, 0.45)',
                 animation: 'pulse 2s infinite'
               }}
-              title="Volver a la sala de chat del partido activo"
+              title="Volver a la pantalla de partido en curso"
             >
-              <span>💬 Volver al Chat</span>
+              <span>⏱️ Partido</span>
             </button>
           )}
 
@@ -1025,6 +1082,7 @@ export default function App() {
             onProceedToRadar={() => setCurrentView('radar')}
             onCreateLobby={handleCreateLobby}
             onOpenJoinLobbyModal={() => setShowJoinLobbyModal(true)}
+            onOpenReplacementMarket={() => setShowReplacementModal(true)}
           />
         </main>
       )}
@@ -1076,12 +1134,30 @@ export default function App() {
             onStartMatchWithBots={handleStartLobbyMatchWithBots}
             onMinimize={() => setCurrentView('sport_select')}
             onLeaveLobby={handleLeaveLobby}
+            onCancelAttendance={handleCancelAttendance}
+            onSendLobbyMessage={(payload) => socket.emit('sendLobbyChatMessage', payload)}
           />
         </main>
       )}
 
-      {/* PANTALLA 4: Sala Privada de Coordinación del Partido */}
-      {currentView === 'chat' && (
+      {/* PANTALLA 4: Partido en Curso (Versus con Cronómetro Activo) */}
+      {currentView === 'match' && activeMatch && (
+        <main style={{ flex: 1, paddingBottom: '30px' }}>
+          <LiveMatchScreen
+            match={activeMatch}
+            currentUserId={user?.id}
+            currentUserName={user?.name}
+            onOpenReportModal={() => setShowReportModal(true)}
+            onMinimize={() => setCurrentView('sport_select')}
+            onLeaveMatch={handleLeaveMatch}
+            onSendMessage={handleSendMessage}
+            onStartTimer={handleStartTimer}
+          />
+        </main>
+      )}
+
+      {/* PANTALLA 4.5: Sala Privada de Coordinación del Partido (Chat Secundario) */}
+      {currentView === 'chat' && activeMatch && (
         <ChatRoom
           match={activeMatch}
           currentUserId={user?.id}
@@ -1165,7 +1241,7 @@ export default function App() {
       )}
 
       {/* BARRA FLOTANTE MINI-PLAYER DE PARTIDO ACTIVO (COORDINACIÓN O EN CANCHA) */}
-      {activeMatch && currentView !== 'chat' && activeMatch.status !== 'finished' && (
+      {activeMatch && currentView !== 'match' && activeMatch.status !== 'finished' && (
         <div style={{
           position: 'fixed',
           bottom: activeLobby ? '78px' : '16px',
@@ -1176,7 +1252,7 @@ export default function App() {
           maxWidth: '440px'
         }}>
           <div
-            onClick={() => setCurrentView('chat')}
+            onClick={() => setCurrentView('match')}
             style={{
               background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(6, 78, 59, 0.98) 100%)',
               backdropFilter: 'blur(16px)',
@@ -1205,7 +1281,7 @@ export default function App() {
                   ⚽ Partido Activo ({activeMatch.sportId?.toUpperCase()} {activeMatch.formatId})
                 </span>
                 <span style={{ fontSize: '11px', color: '#6ee7b7' }}>
-                  {activeMatch?.matchTimer?.active ? '⏱️ Tiempo en cancha activo' : '💬 En sala de coordinación'} • Toca para volver
+                  {activeMatch?.matchTimer?.active ? '⏱️ Tiempo en cancha activo' : '⚔️ En curso'} • Toca para volver
                 </span>
               </div>
             </div>
@@ -1218,7 +1294,7 @@ export default function App() {
               fontWeight: 800,
               boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
             }}>
-              <span>Chat ➔</span>
+              <span>Partido ➔</span>
             </div>
           </div>
         </div>
@@ -1313,6 +1389,29 @@ export default function App() {
         <JoinLobbyModal
           onJoin={handleJoinLobby}
           onClose={() => setShowJoinLobbyModal(false)}
+        />
+      )}
+
+      {/* MODAL 4.8: Bolsa de Suplentes / Convocatorias de Emergencia */}
+      {showReplacementModal && (
+        <ReplacementMarketModal
+          user={user}
+          sports={sports}
+          location={location}
+          onJoinLobby={(code) => {
+            socket.emit('joinReplacementSlot', {
+              code,
+              user: {
+                id: user.id,
+                name: user.name,
+                avatar: user.avatar,
+                district: user.district || location?.district,
+                position: user.position || 'MED'
+              }
+            });
+            setShowReplacementModal(false);
+          }}
+          onClose={() => setShowReplacementModal(false)}
         />
       )}
 

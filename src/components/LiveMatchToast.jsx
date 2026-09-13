@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Trophy, ChevronDown, ChevronUp, Bell, Volume2, AlertCircle } from 'lucide-react';
 import { soundFX, showBackgroundNotification } from '../utils/audio.js';
 
-export default function LiveMatchToast({ match, onOpenReport, onOpenChat }) {
+export default function LiveMatchToast({ match, onOpenReport, onOpenChat, onOpenMatch }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isExpired, setIsExpired] = useState(false);
   const [hasWhistled, setHasWhistled] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const timer = match?.matchTimer;
-  const isMatchFinished = !match || match.status === 'finished' || !timer || !timer.active || !timer.endsAt;
+  const isMatchFinished = !match || match.status === 'finished';
 
   useEffect(() => {
     if (isMatchFinished) {
@@ -78,10 +78,12 @@ export default function LiveMatchToast({ match, onOpenReport, onOpenChat }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '10px',
-          cursor: 'pointer'
-        }} onClick={() => setExpanded(!expanded)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          gap: '10px'
+        }}>
+          <div
+            onClick={() => onOpenMatch ? onOpenMatch() : setExpanded(!expanded)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1 }}
+          >
             <div style={{
               width: '10px',
               height: '10px',
@@ -90,9 +92,14 @@ export default function LiveMatchToast({ match, onOpenReport, onOpenChat }) {
               boxShadow: isExpired ? '0 0 8px #fee2e2' : '0 0 8px #10b981',
               animation: 'pulse 1.5s infinite'
             }} />
-            <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px' }}>
-              {isExpired ? '🏁 PITAZO FINAL' : '⏱️ PARTIDO EN CANCHA'}
-            </span>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 900, letterSpacing: '0.3px', color: '#fff' }}>
+                {isExpired ? '🏁 PITAZO FINAL' : '⏱️ PARTIDO EN CURSO'}
+              </div>
+              <div style={{ fontSize: '10px', color: '#6ee7b7' }}>
+                {match?.sportId?.toUpperCase()} {match?.formatId?.toUpperCase()} • Toca para volver
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -105,11 +112,41 @@ export default function LiveMatchToast({ match, onOpenReport, onOpenChat }) {
             }}>
               {isExpired ? '00:00' : timeFormatted}
             </span>
+
+            {onOpenMatch && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenMatch();
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  border: 'none',
+                  color: '#fff',
+                  borderRadius: '10px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
+                }}
+              >
+                <span>Volver</span>
+                <span>➔</span>
+              </button>
+            )}
+
             <button
+              onClick={() => setExpanded(!expanded)}
               style={{
-                background: 'transparent',
+                background: 'rgba(255, 255, 255, 0.06)',
                 border: 'none',
                 color: '#94a3b8',
+                borderRadius: '8px',
+                padding: '4px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center'
