@@ -411,7 +411,7 @@ export default function LobbyRoomModal({
         </div>
       )}
 
-      {/* Tarjeta de Información de la Sala */}
+      {/* Tarjeta de Información de la Sala / Vestuario */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))',
         border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -420,17 +420,17 @@ export default function LobbyRoomModal({
         textAlign: 'center',
         position: 'relative'
       }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.06)', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
-          <span>{lobby.sportId?.toUpperCase()}</span>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 10px', borderRadius: '8px', fontSize: '11px', color: '#34d399', marginBottom: '8px' }}>
+          <span>🚪 VESTUARIO DE EQUIPO</span>
           <span>•</span>
-          <span style={{ color: '#10b981', fontWeight: 800 }}>{lobby.formatId} ({lobby.formatName})</span>
+          <span style={{ color: '#fff', fontWeight: 800 }}>{lobby.sportId?.toUpperCase()} {lobby.formatId} ({lobby.formatName})</span>
         </div>
 
         <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
-          Sala de Convocatoria de Equipos
+          Vestuario Privado #{lobby.code}
         </h3>
         <p style={{ fontSize: '12px', color: '#94a3b8' }}>
-          Invita a tus amigos con el enlace o código. Todos los que jueguen sumarán puntos al ranking oficial de {lobby.formatId}.
+          Reúne a tu squad, calienten posiciones y busquen rival en el radar. Al encontrar contrincantes, pasarán juntos a la Cancha Oficial.
         </p>
 
         {/* Cápsula interactiva de Modalidad (encapsulada en un botón) */}
@@ -616,10 +616,10 @@ export default function LobbyRoomModal({
         </button>
       </div>
 
-      {/* Sección de Equipos (Local vs Visitante) */}
+      {/* Sección de Equipos (Mi Escuadra en Vestuario vs Equipo Rival) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {renderTeamSlots(lobby.teamA, 'teamA', 'Equipo 1 (Azul)', '#3b82f6')}
-        {renderTeamSlots(lobby.teamB, 'teamB', 'Equipo 2 (Rojo)', '#ef4444')}
+        {renderTeamSlots(lobby.teamA, 'teamA', '🔵 Mi Escuadra (Vestuario Local)', '#3b82f6')}
+        {renderTeamSlots(lobby.teamB, 'teamB', '🔴 Equipo Rival (Contrincantes)', '#ef4444')}
       </div>
 
       {/* CHAT DE SALA ESTILO DRAGONBOUND / GUNBOUND */}
@@ -990,7 +990,7 @@ export default function LobbyRoomModal({
                 }}
               >
                 <Play size={16} />
-                <span>Iniciar Partido ({lobby.formatId.toUpperCase()})</span>
+                <span>⚽ Pasar a la Cancha (Iniciar Partido Oficial)</span>
               </button>
             ) : (
               <>
@@ -1101,7 +1101,7 @@ export default function LobbyRoomModal({
                     }}
                   >
                     <Globe size={16} />
-                    <span>Buscar en Radar ({lobby.formatId.toUpperCase()} • {location?.radiusKm || 6} km)</span>
+                    <span>📡 Buscar Rival en Radar ({lobby.formatId.toUpperCase()} • {location?.radiusKm || 6} km)</span>
                   </button>
                 )}
 

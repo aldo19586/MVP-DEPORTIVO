@@ -426,6 +426,10 @@ class Database {
     }
 
     console.log(`[DB] Inicialización completa: ${this.users.size} usuarios, ${this.profiles.size} perfiles, ${this.matches.size} partidos cargados.`);
+
+    // Limpieza periódica de vestuarios y salas obsoletas (Garbage Collector automático)
+    this.purgeOldLobbies(6);
+    setInterval(() => this.purgeOldLobbies(6), 30 * 60 * 1000);
   }
 
   /**
@@ -1788,6 +1792,37 @@ class Database {
     this.lobbies.delete(code);
     this._deleteLobbyPersisted(code);
     return match;
+  }
+
+  deleteLobby(code) {
+    if (!code) return false;
+    const upper = code.toUpperCase();
+    this.lobbies.delete(upper);
+    this._deleteLobbyPersisted(upper);
+    return true;
+  }
+
+  // Recolector de Basura / TTL para vestuarios y salas inactivas
+  purgeOldLobbies(maxAgeHours = 6) {
+    const now = Date.now();
+    const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+    let purgedCount = 0;
+
+    for (const [code, lobby] of Array.from(this.lobbies.entries())) {
+      const age = now - (lobby.createdAt || now);
+      const totalPlayers = (lobby.teamA?.length || 0) + (lobby.teamB?.length || 0);
+
+      // Eliminar vestuarios vacíos o con más de maxAgeHours sin empezar
+      if (totalPlayers === 0 || age > maxAgeMs) {
+        this.deleteLobby(code);
+        purgedCount++;
+      }
+    }
+
+    if (purgedCount > 0) {
+      console.log(`[GARBAGE COLLECTOR] ${purgedCount} vestuarios/salas inactivas o vacías eliminadas.`);
+    }
+    return purgedCount;
   }
 }
 
