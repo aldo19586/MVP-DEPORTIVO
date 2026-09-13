@@ -3,10 +3,16 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { MatchmakingEngine } from './matchmakingEngine.js';
 import { calculateGlicko2Match, getInitialGlicko } from './glicko2.js';
 import { logger } from './logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, '../dist');
 
 const app = express();
 const server = http.createServer(app);
@@ -23,6 +29,7 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(distPath));
 
 const matchmakingEngine = new MatchmakingEngine(io);
 matchmakingEngine.start();
@@ -1426,6 +1433,13 @@ io.on('connection', (socket) => {
   });
 });
 
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
 const PORT = process.env.PORT || 3001;
 
 // Inicialización asíncrona: cargar SQLite antes de aceptar conexiones
@@ -1443,10 +1457,11 @@ async function startServer() {
     console.log(`\n============================================================`);
     console.log(`🏆 MATCHMAKING DEPORTIVO - SERVIDOR ACTIVO (con SQLite)`);
     console.log(`📡 Backend Socket.IO: http://localhost:${PORT}`);
-    console.log(`📱 En tu PC:          http://localhost:3000`);
-    console.log(`📲 En tu Celular/LAN: http://${localIp}:3000`);
+    console.log(`📱 En tu PC (Web):    http://localhost:${PORT}`);
+    console.log(`📲 En tu Celular/LAN: http://${localIp}:${PORT}`);
     console.log(`============================================================\n`);
   });
 }
 
 startServer();
+

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { socket } from './services/socket.js';
-import { soundFX, showBackgroundNotification } from './utils/audio.js';
+import { soundFX, showBackgroundNotification, requestNotificationPermission } from './utils/audio.js';
 import AuthModal from './components/AuthModal.jsx';
 import SportSelector from './components/SportSelector.jsx';
 import PersistentQueueBar from './components/PersistentQueueBar.jsx';
@@ -258,6 +258,9 @@ export default function App() {
       setPendingMatch(payload);
       setIsSearching(false);
       soundFX.playMatchFound();
+      showBackgroundNotification('⚡ ¡RIVAL ENCONTRADO!', {
+        body: `Se encontró un partido de ${payload.sportId} (${payload.formatId}). Confirma tu asistencia en pantalla.`
+      });
     });
 
     socket.on('pendingMatchUpdated', ({ pendingMatchId, acceptedUserIds }) => {
@@ -659,6 +662,7 @@ export default function App() {
       alert('⚠️ Ya tienes un partido en curso en la cancha. Debes reportar o finalizar el partido actual antes de iniciar otra búsqueda.');
       return;
     }
+    requestNotificationPermission().catch(() => {});
     socket.emit('startQueue', {
       userId: user.id,
       sportId: selectedSportId,

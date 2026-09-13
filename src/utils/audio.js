@@ -150,9 +150,23 @@ class SoundFX {
 
 export const soundFX = new SoundFX();
 
-// Sistema de Notificaciones Web (Estilo PedidosYa en segundo plano)
+// Sistema de Notificaciones Dual: Nativo Android (LocalNotifications) y Web (Notification API)
 export async function requestNotificationPermission() {
-  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (typeof window === 'undefined') return false;
+
+  // 1. Android Nativo (Capacitor)
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    const status = await LocalNotifications.checkPermissions();
+    if (status.display === 'granted') return true;
+    const request = await LocalNotifications.requestPermissions();
+    return request.display === 'granted';
+  } catch (e) {
+    // Si no es nativo o falla, continuar a Web
+  }
+
+  // 2. Navegador Web (Chrome, Edge, Firefox, Safari)
+  if (!('Notification' in window)) return false;
   if (Notification.permission === 'granted') return true;
   if (Notification.permission !== 'denied') {
     const perm = await Notification.requestPermission();
@@ -161,8 +175,32 @@ export async function requestNotificationPermission() {
   return false;
 }
 
-export function showBackgroundNotification(title, options = {}) {
-  if (typeof window === 'undefined' || !('Notification' in window)) return;
+export async function showBackgroundNotification(title, options = {}) {
+  if (typeof window === 'undefined') return;
+
+  // 1. Intentar notificación nativa de Android si corre en la APK
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          title: title,
+          body: options.body || '¡Tu evento deportivo está listo!',
+          id: Math.floor(Date.now() % 100000) + Math.floor(Math.random() * 1000),
+          schedule: { at: new Date(Date.now() + 50) },
+          sound: undefined,
+          actionTypeId: '',
+          extra: null
+        }
+      ]
+    });
+    return;
+  } catch (e) {
+    // No estamos en entorno nativo Capacitor, fallback a Web Notification API
+  }
+
+  // 2. Notificación en Navegador Web
+  if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
     try {
       const notif = new Notification(title, {
@@ -176,7 +214,8 @@ export function showBackgroundNotification(title, options = {}) {
         notif.close();
       };
     } catch (e) {
-      console.warn('Error displaying native notification:', e);
+      console.warn('Error displaying web notification:', e);
     }
   }
 }
+
