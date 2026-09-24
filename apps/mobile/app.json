@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "MatchSport Mobile",
+    "slug": "matchsport-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0f172a",
+    "scheme": "matchsport",
+    "splash": {
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.matchsport.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MatchSport necesita tu ubicación para calcular distancias a canchas y encontrar rivales cercanos en tu distrito.",
+        "NSCameraUsageDescription": "MatchSport necesita acceso a la cámara para tomar tu foto de perfil para la Carta FUT.",
+        "NSPhotoLibraryUsageDescription": "MatchSport necesita acceso a tu galería para elegir la foto de tu Carta FUT."
+      }
+    },
+    "android": {
+      "package": "com.matchsport.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MatchSport utiliza tu ubicación para encontrar rivales cercanos en tu distrito."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MatchSport necesita acceder a tus fotos para tu Carta FUT deportiva."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#10b981"
+        }
+      ]
+    ]
+  }
+}

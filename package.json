@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "server",
+    "apps/*"
+  ],
   "scripts": {
     "dev:server": "node --watch server/server.js",
+    "dev:admin": "npm --workspace=@matchsport/admin-web run dev",
+    "build:admin": "npm --workspace=@matchsport/admin-web run build",
+    "dev:mobile": "npm --workspace=@matchsport/mobile run start",
     "dev:client": "vite --host 0.0.0.0 --port 5173",
     "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
