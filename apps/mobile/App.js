@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, SafeAreaView, ActivityIndicator } from 'react-native';
+import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { storage } from './src/services/storage';
@@ -348,3 +349,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+registerRootComponent(App);
