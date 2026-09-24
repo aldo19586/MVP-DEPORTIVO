@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import AdminLogin from './components/AdminLogin';
 import MetricsOverviewView from './views/MetricsOverviewView';
 import LiveMonitorView from './views/LiveMonitorView';
+import VenuesScheduleView from './views/VenuesScheduleView';
 import DisputeResolutionView from './views/DisputeResolutionView';
 import PlayerAuditView from './views/PlayerAuditView';
 import SportsConfigView from './views/SportsConfigView';
 import { adminSocket } from './services/socket';
-import { fetchAdminMetrics, fetchLiveActivity } from './services/api';
+import { fetchAdminMetrics, fetchLiveActivity, getStoredAdmin, logoutAdmin } from './services/api';
 
 export default function App() {
+  const [adminUser, setAdminUser] = useState(() => getStoredAdmin());
   const [currentView, setView] = useState('metrics');
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
   const [metrics, setMetrics] = useState({ totalUsers: 0, totalMatches: 0, activeMatches: 0, activeSearches: 0, disputes: 0, sportsCount: 4 });
 
   useEffect(() => {
+    if (!adminUser) return;
+
     // 1. Cargar datos iniciales
     fetchAdminMetrics().then((res) => {
       if (res.metrics) setMetrics(res.metrics);
@@ -49,7 +54,17 @@ export default function App() {
       adminSocket.off('onlineUsersUpdate', onOnlineUsersUpdate);
       adminSocket.off('matchDisputed', onMatchDisputed);
     };
-  }, []);
+  }, [adminUser]);
+
+  const handleLogout = () => {
+    logoutAdmin();
+    setAdminUser(null);
+  };
+
+  // Si no está autenticado como administrador, mostrar pantalla de Login
+  if (!adminUser) {
+    return <AdminLogin onLoginSuccess={(user) => setAdminUser(user)} />;
+  }
 
   return (
     <div className="admin-shell">
@@ -58,6 +73,7 @@ export default function App() {
         setView={setView}
         onlineCount={onlineUsers.length}
         disputesCount={metrics.disputes || 0}
+        onLogout={handleLogout}
       />
       <div className="admin-main">
         <Header
@@ -79,6 +95,7 @@ export default function App() {
               activeMatches={activeMatches}
             />
           )}
+          {currentView === 'venues' && <VenuesScheduleView />}
           {currentView === 'disputes' && (
             <DisputeResolutionView
               activeMatches={activeMatches}

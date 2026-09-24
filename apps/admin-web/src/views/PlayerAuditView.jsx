@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Ban, KeyRound, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
-import { fetchAdminUsers } from '../services/api';
+import { fetchAdminUsers, banUser, resetUserPin, toggleUserDni } from '../services/api';
 
 export default function PlayerAuditView() {
   const [users, setUsers] = useState([]);
@@ -22,18 +22,46 @@ export default function PlayerAuditView() {
     return matchesSearch && matchesDistrict;
   });
 
-  const handleBan = (user) => {
+  const handleBan = async (user) => {
     const hours = prompt(`¿Cuántas horas suspender a ${user.name}? (Ej: 24, 72, 720)`, '24');
     if (hours) {
-      setActionSuccess(`Jugador ${user.name} suspendido por ${hours} horas por infracción al código de conducta deportiva.`);
-      setTimeout(() => setActionSuccess(''), 5000);
+      try {
+        const res = await banUser(user.id, Number(hours), 'Infracción al código de conducta deportiva');
+        if (res.success) {
+          setActionSuccess(`Jugador ${user.name} suspendido por ${hours} horas.`);
+          setUsers(prev => prev.map(u => u.id === user.id ? { ...u, isBanned: true, bannedUntil: res.user.bannedUntil } : u));
+          setTimeout(() => setActionSuccess(''), 5000);
+        }
+      } catch (e) {
+        alert('Error al suspender: ' + e.message);
+      }
     }
   };
 
-  const handleResetPin = (user) => {
-    if (confirm(`¿Restablecer el PIN y contraseña temporal de acceso para ${user.name}?`)) {
-      setActionSuccess(`PIN de ${user.name} restablecido a "1234". Se ha enviado SMS de verificación.`);
-      setTimeout(() => setActionSuccess(''), 5000);
+  const handleResetPin = async (user) => {
+    if (confirm(`¿Restablecer el PIN de acceso a "1234" para ${user.name}?`)) {
+      try {
+        const res = await resetUserPin(user.id, '1234');
+        if (res.success) {
+          setActionSuccess(`PIN de ${user.name} restablecido a "1234" exitosamente.`);
+          setTimeout(() => setActionSuccess(''), 5000);
+        }
+      } catch (e) {
+        alert('Error al restablecer PIN: ' + e.message);
+      }
+    }
+  };
+
+  const handleToggleDni = async (user) => {
+    try {
+      const res = await toggleUserDni(user.id);
+      if (res.success) {
+        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, verifiedDni: res.verifiedDni } : u));
+        setActionSuccess(`DNI de ${user.name} marcado como ${res.verifiedDni ? 'Verificado' : 'Pendiente'}.`);
+        setTimeout(() => setActionSuccess(''), 4000);
+      }
+    } catch (e) {
+      alert('Error al cambiar verificación DNI: ' + e.message);
     }
   };
 
@@ -160,13 +188,21 @@ export default function PlayerAuditView() {
                   )}
                 </td>
                 <td>
-                  {u.verifiedDni ? (
-                    <span className="badge badge-lime" style={{ gap: '4px' }}>
-                      <CheckCircle2 size={12} /> Verificado
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span
+                      onClick={() => handleToggleDni(u)}
+                      className={`badge ${u.verifiedDni ? 'badge-lime' : 'badge-amber'}`}
+                      style={{ gap: '4px', cursor: 'pointer' }}
+                      title="Haz clic para alternar verificación"
+                    >
+                      {u.verifiedDni ? <><CheckCircle2 size={12} /> Verificado</> : 'Pendiente'}
                     </span>
-                  ) : (
-                    <span className="badge badge-amber">Pendiente</span>
-                  )}
+                    {u.isBanned && u.bannedUntil > Date.now() && (
+                      <span className="badge badge-red" style={{ fontSize: '10px' }}>
+                        🚫 Suspendido
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>

@@ -1,10 +1,11 @@
 import React from 'react';
-import { LayoutDashboard, Radio, Scale, Users, SlidersHorizontal } from 'lucide-react';
+import { LayoutDashboard, Radio, Scale, Users, SlidersHorizontal, Calendar, LogOut } from 'lucide-react';
 
-export default function Sidebar({ currentView, setView, onlineCount = 0, disputesCount = 0 }) {
+export default function Sidebar({ currentView, setView, onlineCount = 0, disputesCount = 0, onLogout }) {
   const menuItems = [
     { id: 'metrics', label: 'Resumen General', icon: LayoutDashboard, badge: null },
     { id: 'live-monitor', label: 'Live Socket Monitor', icon: Radio, badge: onlineCount > 0 ? `${onlineCount} en vivo` : null, badgeColor: 'badge-lime' },
+    { id: 'venues', label: 'Canchas y Turnos B2B', icon: Calendar, badge: 'B2B', badgeColor: 'badge-purple' },
     { id: 'disputes', label: 'Sala de Disputas', icon: Scale, badge: disputesCount > 0 ? `${disputesCount} alerta` : null, badgeColor: 'badge-red' },
     { id: 'players', label: 'Auditoría de Jugadores', icon: Users, badge: null },
     { id: 'sports', label: 'Deportes y Formatos', icon: SlidersHorizontal, badge: null }
@@ -57,7 +58,7 @@ export default function Sidebar({ currentView, setView, onlineCount = 0, dispute
       </nav>
 
       {/* Admin Foot Status */}
-      <div style={{ padding: '16px 20px', borderTop: '1px solid #1e293b', backgroundColor: '#090d16' }}>
+      <div style={{ padding: '16px 20px', borderTop: '1px solid #1e293b', backgroundColor: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img
             src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100"
@@ -69,6 +70,26 @@ export default function Sidebar({ currentView, setView, onlineCount = 0, dispute
             <div style={{ fontSize: '10px', color: '#10b981', fontWeight: '600' }}>SuperAdmin Root</div>
           </div>
         </div>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            title="Cerrar sesión"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '6px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <LogOut size={16} />
+          </button>
+        )}
       </div>
     </aside>
   );
