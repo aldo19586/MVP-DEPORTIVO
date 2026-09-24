@@ -19,6 +19,10 @@ import PeerReviewScreen from './src/screens/PeerReviewScreen';
 import MatchSummaryScreen from './src/screens/MatchSummaryScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
+import CalibrationScreen from './src/screens/CalibrationScreen';
+import LocationSettingsScreen from './src/screens/LocationSettingsScreen';
+import JoinCodeScreen from './src/screens/JoinCodeScreen';
 
 // Componentes
 import BottomNavBar from './src/components/BottomNavBar';
@@ -42,6 +46,12 @@ export default function App() {
   // Pestañas Principales
   const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'SALAS' | 'RANKING' | 'PERFIL'
   
+  // Sub-pantallas Nativas (Navegación Stack sin modales)
+  const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE'
+  const [currentRadius, setCurrentRadius] = useState(8);
+  const [currentDistrict, setCurrentDistrict] = useState('SURCO, LIMA');
+  const [userDeclaredLevel, setUserDeclaredLevel] = useState('Intermedio');
+
   // Pantallas Nativas de Flujo (Pushed Screens)
   const [selectedLobby, setSelectedLobby] = useState(null);
   const [acceptanceData, setAcceptanceData] = useState(null);
@@ -306,6 +316,60 @@ export default function App() {
     );
   }
 
+  // 6. Sub-pantallas Nativas de Flujo (Navegación Stack sin Modales)
+  if (activeSubScreen === 'NOTIFICATIONS') {
+    return (
+      <NotificationsScreen
+        user={currentUser}
+        onBack={() => setActiveSubScreen(null)}
+        onEnterLobby={(lobby) => {
+          setActiveSubScreen(null);
+          setSelectedLobby(lobby);
+        }}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'CALIBRATION') {
+    return (
+      <CalibrationScreen
+        user={currentUser}
+        currentLevel={userDeclaredLevel}
+        onSaveLevel={(lvl) => setUserDeclaredLevel(lvl)}
+        onBack={() => setActiveSubScreen(null)}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'LOCATION_SETTINGS') {
+    return (
+      <LocationSettingsScreen
+        currentRadius={currentRadius}
+        currentDistrict={currentDistrict}
+        onSave={({ radiusKm, district }) => {
+          setCurrentRadius(radiusKm);
+          setCurrentDistrict(district);
+        }}
+        onBack={() => setActiveSubScreen(null)}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'JOIN_CODE') {
+    return (
+      <JoinCodeScreen
+        onJoinCode={(code) => {
+          setActiveSubScreen(null);
+          const socket = socketService.getSocket();
+          if (socket && currentUser) {
+            socket.emit('joinLobby', { code, user: currentUser });
+          }
+        }}
+        onBack={() => setActiveSubScreen(null)}
+      />
+    );
+  }
+
   // ==========================================
   // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (4 TABS)
   // ==========================================
@@ -317,6 +381,13 @@ export default function App() {
         {activeTab === 'JUGAR' && (
           <RadarScreen
             user={currentUser}
+            radiusKm={currentRadius}
+            districtName={currentDistrict}
+            userLevel={userDeclaredLevel}
+            onOpenNotifications={() => setActiveSubScreen('NOTIFICATIONS')}
+            onOpenCalibration={() => setActiveSubScreen('CALIBRATION')}
+            onOpenLocationSettings={() => setActiveSubScreen('LOCATION_SETTINGS')}
+            onOpenJoinCode={() => setActiveSubScreen('JOIN_CODE')}
             onNavigateToLobbies={() => setActiveTab('SALAS')}
             onSelectLobby={(lobby) => setSelectedLobby(lobby)}
             onLogout={handleLogout}

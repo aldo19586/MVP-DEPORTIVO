@@ -7,11 +7,8 @@ import {
   ScrollView,
   Animated,
   Easing,
-  Alert,
   Image,
-  SafeAreaView,
-  Modal,
-  TextInput
+  SafeAreaView
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -31,54 +28,20 @@ const FORMATS = [
   { id: '5v5', label: '5v5', sub: 'CONVOCATORIA', hasDot: true }
 ];
 
-const RADIUS_OPTIONS = [4, 8, 12, 20];
-
-const LEVEL_OPTIONS = [
-  { label: 'Principiante', rating: 1200, desc: 'Juego recreativo ocasional' },
-  { label: 'Intermedio', rating: 1450, desc: 'Ritmo constante y dominio básico' },
-  { label: 'Avanzado', rating: 1700, desc: 'Buen nivel técnico y táctico' },
-  { label: 'Competitivo', rating: 1950, desc: 'Torneos y alta exigencia' }
-];
-
-const MOCK_SUPLENTES = [
-  {
-    id: 'sup_1',
-    code: 'BON5',
-    title: 'Fútbol 5v5 Convocatoria',
-    venue: 'Manuel Bonilla, Miraflores',
-    time: 'Hoy 08:30 PM',
-    missing: '¡FALTA 1!',
-    positionNeeded: 'MED / DEL',
-    ratingAvg: '1450 pts'
-  },
-  {
-    id: 'sup_2',
-    code: 'GOL7',
-    title: 'Pichanga El Golazo',
-    venue: 'Cancha El Golazo, Surco',
-    time: 'Hoy 09:00 PM',
-    missing: '¡FALTA 1!',
-    positionNeeded: 'DEFENSA',
-    ratingAvg: '1600 pts'
-  },
-  {
-    id: 'sup_3',
-    code: 'PAD2',
-    title: 'Pádel Dobles Oro',
-    venue: 'Club Pádel Surco',
-    time: 'Hoy 07:45 PM',
-    missing: '¡FALTA 1!',
-    positionNeeded: 'CUALQUIERA',
-    ratingAvg: '1400 pts'
-  }
-];
-
-export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, onLogout }) {
+export default function RadarScreen({
+  user,
+  onNavigateToLobbies,
+  onOpenNotifications,
+  onOpenCalibration,
+  onOpenLocationSettings,
+  onOpenJoinCode,
+  radiusKm = 8,
+  districtName = 'SURCO, LIMA',
+  userLevel = 'Intermedio'
+}) {
   // Configuración deportiva
   const [selectedSport, setSelectedSport] = useState('futbol');
   const [selectedFormat, setSelectedFormat] = useState('5v5');
-  const [radiusKm, setRadiusKm] = useState(8);
-  const [districtName, setDistrictName] = useState('SURCO, LIMA');
 
   // Modo de juego: Buscar Solo vs Crear Equipo
   const [mode, setMode] = useState('solo'); // 'solo' | 'squad'
@@ -87,19 +50,6 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
   const [isSearching, setIsSearching] = useState(false);
   const [searchSeconds, setSearchSeconds] = useState(0);
   const [onlineCount, setOnlineCount] = useState(18);
-
-  // Nivel y calibración
-  const [userRating, setUserRating] = useState(user?.futStats?.ovr ? user.futStats.ovr * 20 : 1450);
-  const [userLevel, setUserLevel] = useState('Intermedio');
-  const [userWins, setUserWins] = useState(3);
-  const [userLosses, setUserLosses] = useState(1);
-
-  // Modales
-  const [showRadiusModal, setShowRadiusModal] = useState(false);
-  const [showCalibrateModal, setShowCalibrateModal] = useState(false);
-  const [showCodeModal, setShowCodeModal] = useState(false);
-  const [codeInputValue, setCodeInputValue] = useState('');
-  const [showSuplentesModal, setShowSuplentesModal] = useState(false);
 
   // Animaciones del radar: Pulso concéntrico y cono de barrido 360°
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -244,37 +194,6 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
     }
   };
 
-  const handleJoinWithCode = () => {
-    if (!codeInputValue.trim() || codeInputValue.trim().length < 4) {
-      Alert.alert('Código Requerido', 'Ingresa los 4 caracteres de la sala.');
-      return;
-    }
-    const code = codeInputValue.trim().toUpperCase();
-    setShowCodeModal(false);
-    setCodeInputValue('');
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (e) {}
-
-    const socket = socketService.getSocket();
-    if (socket && user) {
-      socket.emit('joinLobby', { code, user });
-    }
-  };
-
-  const handleApplySuplente = (item) => {
-    setShowSuplentesModal(false);
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } catch (e) {}
-
-    const socket = socketService.getSocket();
-    if (socket && user) {
-      socket.emit('joinReplacementLobby', { code: item.code, user });
-    }
-    Alert.alert('¡Postulación Enviada!', `Te has unido como suplente urgente a ${item.title} en #${item.code}.`);
-  };
-
   const formatTimer = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -283,7 +202,7 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 1. TOP BAR: Brand + 🟢 Activos en Toolbar + Avatar */}
+      {/* 1. TOP BAR: Brand + 🟢 Activos en Toolbar + Campana con Badge + Avatar */}
       <View style={styles.topBar}>
         <View style={styles.topBrandRow}>
           <View style={styles.shieldIconWrapper}>
@@ -301,11 +220,20 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
           <Text style={styles.onlineToolbarText}>{onlineCount} activos</Text>
         </View>
 
-        {/* Acciones Derecha: Notificación y Avatar */}
+        {/* Acciones Derecha: Campana con Badge de Bolsa de Suplentes y Avatar */}
         <View style={styles.topRightActions}>
-          <TouchableOpacity style={styles.bellButton} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={onOpenNotifications}
+            activeOpacity={0.7}
+          >
             <Text style={styles.bellIcon}>🔔</Text>
+            {/* Badge de alertas de suplentes / avisos urgentes */}
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>2</Text>
+            </View>
           </TouchableOpacity>
+
           <View style={styles.userAvatarWrapper}>
             <Image
               source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' }}
@@ -317,11 +245,11 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* 2. CHIP DE UBICACIÓN Y RADIO (Ancho Completo, Sin tarjeta duplicada) */}
+        {/* 2. CHIP DE UBICACIÓN Y RADIO (Navegación nativa a LocationSettingsScreen) */}
         <TouchableOpacity
           style={styles.locationBanner}
           activeOpacity={0.8}
-          onPress={() => setShowRadiusModal(true)}
+          onPress={onOpenLocationSettings}
         >
           <View style={styles.locationBannerLeft}>
             <Text style={styles.locationPinIcon}>📍</Text>
@@ -440,23 +368,29 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
           </View>
         </View>
 
-        {/* 6. TARJETA DE NIVEL, PUNTOS & CALIBRAR (De Pantalla 1 del Prototipo) */}
+        {/* 6. TARJETA DE ESTADO DE RATING: "CALIBRANDO" (Sin puntaje por defecto) */}
         <View style={styles.ratingCard}>
           <View style={styles.ratingInfo}>
             <View style={styles.ratingScoreRow}>
-              <Text style={styles.ratingScoreText}>{userRating} pts</Text>
+              <View style={styles.calibratingBadge}>
+                <Text style={styles.calibratingBadgeText}>🎯 CALIBRANDO</Text>
+              </View>
               <View style={styles.levelTag}>
                 <Text style={styles.levelTagText}>{userLevel}</Text>
               </View>
             </View>
-            <Text style={styles.recordText}>{userWins}V - {userLosses}D • Rating Competitivo</Text>
+            <Text style={styles.calibratingDescText}>
+              Juega tus primeros 3 partidos para asignar tu Elo oficial
+            </Text>
+            <Text style={styles.recordText}>0V - 0D • Calibración (3 restantes)</Text>
           </View>
+
           <TouchableOpacity
             style={styles.calibrateBtn}
-            onPress={() => setShowCalibrateModal(true)}
+            onPress={onOpenCalibration}
             activeOpacity={0.8}
           >
-            <Text style={styles.calibrateBtnText}>⚙️ Calibrar</Text>
+            <Text style={styles.calibrateBtnText}>Calibrar ➔</Text>
           </TouchableOpacity>
         </View>
 
@@ -489,35 +423,7 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
           </TouchableOpacity>
         </View>
 
-        {/* 8. BOLSA DE SUPLENTES (¡FALTA 1!) - Banner de Emergencia */}
-        <TouchableOpacity
-          style={styles.suplentesBanner}
-          activeOpacity={0.85}
-          onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-            setShowSuplentesModal(true);
-          }}
-        >
-          <View style={styles.suplentesLeft}>
-            <View style={styles.suplentesAlertBadge}>
-              <Text style={styles.suplentesAlertIcon}>🚨</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.suplentesTitleRow}>
-                <Text style={styles.suplentesTitle}>Bolsa de Suplentes</Text>
-                <View style={styles.falta1Badge}>
-                  <Text style={styles.falta1Text}>¡FALTA 1!</Text>
-                </View>
-              </View>
-              <Text style={styles.suplentesSubtitle}>Partidos con bajas urgentes en tu zona</Text>
-            </View>
-          </View>
-          <View style={styles.suplentesActionArrow}>
-            <Text style={styles.suplentesArrowText}>3 CUPOS ➔</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* 9. BOTONES DE ACCIÓN PRINCIPALES */}
+        {/* 8. BOTONES DE ACCIÓN PRINCIPALES */}
         <View style={styles.actionButtonsCol}>
           {mode === 'solo' ? (
             <TouchableOpacity
@@ -541,7 +447,7 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
             </TouchableOpacity>
           )}
 
-          {/* Botones de acción secundaria: Bot de prueba y Unirse con código */}
+          {/* Botones de acción secundaria: Bot de prueba y Unirse con código (Navegación nativa) */}
           <View style={styles.secondaryActionsRow}>
             <TouchableOpacity
               style={styles.botDemoBtn}
@@ -554,7 +460,7 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
 
             <TouchableOpacity
               style={styles.joinCodeBtn}
-              onPress={() => setShowCodeModal(true)}
+              onPress={onOpenJoinCode}
               activeOpacity={0.8}
             >
               <Text style={styles.joinCodeIcon}>🔑</Text>
@@ -563,150 +469,6 @@ export default function RadarScreen({ user, onNavigateToLobbies, onSelectLobby, 
           </View>
         </View>
       </ScrollView>
-
-      {/* ========================================================
-          MODALES NATIVOS DE SOPORTE
-          ======================================================== */}
-
-      {/* 1. Modal Ajustar Radio */}
-      <Modal visible={showRadiusModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>📍 Ajustar Radio de Búsqueda</Text>
-            <Text style={styles.modalSub}>Selecciona la distancia máxima para emparejamiento:</Text>
-            <View style={styles.modalOptionsGrid}>
-              {RADIUS_OPTIONS.map((km) => (
-                <TouchableOpacity
-                  key={km}
-                  style={[styles.modalOptionCard, radiusKm === km && styles.modalOptionActive]}
-                  onPress={() => {
-                    setRadiusKm(km);
-                    setShowRadiusModal(false);
-                    try { Haptics.selectionAsync(); } catch (e) {}
-                  }}
-                >
-                  <Text style={[styles.modalOptionTitle, radiusKm === km && styles.modalOptionTitleActive]}>
-                    {km} km
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowRadiusModal(false)}>
-              <Text style={styles.modalCloseBtnText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 2. Modal Calibrar Nivel */}
-      <Modal visible={showCalibrateModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>⚙️ Calibrar Nivel Declarado</Text>
-            <Text style={styles.modalSub}>Ajusta tu categoría para rivales equitativos:</Text>
-            <View style={styles.levelOptionsCol}>
-              {LEVEL_OPTIONS.map((lvl) => (
-                <TouchableOpacity
-                  key={lvl.label}
-                  style={[styles.levelOptionRow, userLevel === lvl.label && styles.levelOptionRowActive]}
-                  onPress={() => {
-                    setUserLevel(lvl.label);
-                    setUserRating(lvl.rating);
-                    setShowCalibrateModal(false);
-                    try { Haptics.selectionAsync(); } catch (e) {}
-                  }}
-                >
-                  <View>
-                    <Text style={[styles.levelOptionName, userLevel === lvl.label && styles.levelOptionNameActive]}>
-                      {lvl.label} (~{lvl.rating} pts)
-                    </Text>
-                    <Text style={styles.levelOptionDesc}>{lvl.desc}</Text>
-                  </View>
-                  {userLevel === lvl.label && <Text style={styles.checkIcon}>✓</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowCalibrateModal(false)}>
-              <Text style={styles.modalCloseBtnText}>Listo</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 3. Modal Unirse con Código */}
-      <Modal visible={showCodeModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>🔑 Ingresar Código de Sala</Text>
-            <Text style={styles.modalSub}>Escribe el código de 4 caracteres (ej. X8K2):</Text>
-            <TextInput
-              style={styles.codeInput}
-              placeholder="ABCD"
-              placeholderTextColor="#64748B"
-              maxLength={4}
-              autoCapitalize="characters"
-              value={codeInputValue}
-              onChangeText={setCodeInputValue}
-              autoFocus
-            />
-            <View style={styles.modalActionsRow}>
-              <TouchableOpacity
-                style={[styles.modalActionBtn, styles.modalCancelBtn]}
-                onPress={() => setShowCodeModal(false)}
-              >
-                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalActionBtn, styles.modalConfirmBtn]}
-                onPress={handleJoinWithCode}
-              >
-                <Text style={styles.modalConfirmBtnText}>Entrar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 4. Modal Bolsa de Suplentes */}
-      <Modal visible={showSuplentesModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { maxHeight: '80%' }]}>
-            <View style={styles.suplentesModalHeader}>
-              <Text style={styles.modalTitle}>🚨 Bolsa de Suplentes</Text>
-              <View style={styles.falta1Badge}>
-                <Text style={styles.falta1Text}>URGENTE</Text>
-              </View>
-            </View>
-            <Text style={styles.modalSub}>Partidos incompletos listos para comenzar en tu zona:</Text>
-
-            <ScrollView style={{ marginTop: 10, maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-              {MOCK_SUPLENTES.map((item) => (
-                <View key={item.id} style={styles.suplenteCard}>
-                  <View style={styles.suplenteCardTop}>
-                    <Text style={styles.suplenteCardTitle}>{item.title}</Text>
-                    <View style={styles.suplenteCardBadge}>
-                      <Text style={styles.suplenteCardBadgeText}>#{item.code}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.suplenteCardVenue}>📍 {item.venue} • {item.time}</Text>
-                  <Text style={styles.suplenteCardInfo}>Posición: <Text style={{ color: '#fff' }}>{item.positionNeeded}</Text> • Nivel: {item.ratingAvg}</Text>
-                  <TouchableOpacity
-                    style={styles.suplenteApplyBtn}
-                    onPress={() => handleApplySuplente(item)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.suplenteApplyBtnText}>⚡ Postularme de Inmediato</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowSuplentesModal(false)}>
-              <Text style={styles.modalCloseBtnText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -794,9 +556,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: THEME.colors.border,
+    position: 'relative',
   },
   bellIcon: {
     fontSize: 13,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: THEME.colors.bgCanvas,
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
   },
   userAvatarWrapper: {
     position: 'relative',
@@ -828,7 +609,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // UBICACIÓN (Ancho completo, sin usuario duplicado)
+  // UBICACIÓN (Ancho completo)
   locationBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1125,30 +906,40 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.primary,
   },
 
-  // TARJETA DE NIVEL & CALIBRAR
+  // TARJETA DE ESTADO DE RATING: "CALIBRANDO"
   ratingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: THEME.colors.cardBg,
     borderRadius: THEME.radius.lg,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
+    borderWidth: 1.2,
+    borderColor: 'rgba(0, 230, 118, 0.25)',
   },
   ratingInfo: {
-    gap: 2,
+    gap: 3,
+    flex: 1,
   },
   ratingScoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  ratingScoreText: {
-    fontSize: 15,
+  calibratingBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  calibratingBadgeText: {
+    fontSize: 12,
     fontWeight: '900',
-    color: '#FFFFFF',
+    color: THEME.colors.goldLight,
+    letterSpacing: 0.5,
   },
   levelTag: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -1159,7 +950,13 @@ const styles = StyleSheet.create({
   levelTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: THEME.colors.goldLight,
+    color: THEME.colors.textSecondary,
+  },
+  calibratingDescText: {
+    fontSize: 10.5,
+    color: '#CBD5E1',
+    lineHeight: 14,
+    marginTop: 1,
   },
   recordText: {
     fontSize: 10,
@@ -1169,15 +966,16 @@ const styles = StyleSheet.create({
   calibrateBtn: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: THEME.colors.border,
+    marginLeft: 8,
   },
   calibrateBtnText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
+    fontWeight: '800',
+    color: THEME.colors.primary,
   },
 
   // TOGGLE DE MODO: BUSCAR SOLO VS CREAR EQUIPO
@@ -1208,73 +1006,6 @@ const styles = StyleSheet.create({
   },
   modeToggleTextActive: {
     color: '#FFFFFF',
-  },
-
-  // BOLSA DE SUPLENTES (¡FALTA 1!)
-  suplentesBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderWidth: 1.2,
-    borderColor: 'rgba(245, 158, 11, 0.45)',
-    borderRadius: THEME.radius.lg,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  suplentesLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  suplentesAlertBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  suplentesAlertIcon: {
-    fontSize: 16,
-  },
-  suplentesTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  suplentesTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: THEME.colors.goldLight,
-  },
-  falta1Badge: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  falta1Text: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  suplentesSubtitle: {
-    fontSize: 10,
-    color: '#CBD5E1',
-    marginTop: 1,
-  },
-  suplentesActionArrow: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  suplentesArrowText: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    color: THEME.colors.gold,
   },
 
   // BOTONES DE ACCIÓN
@@ -1355,203 +1086,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: THEME.colors.textSecondary,
-  },
-
-  // MODALES
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalBox: {
-    width: '100%',
-    backgroundColor: THEME.colors.cardElevated,
-    borderRadius: THEME.radius.xl,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  modalTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  modalSub: {
-    fontSize: 11,
-    color: THEME.colors.textSecondary,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  modalOptionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  modalOptionCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: THEME.colors.cardBg,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  modalOptionActive: {
-    backgroundColor: 'rgba(0, 230, 118, 0.15)',
-    borderColor: THEME.colors.primary,
-  },
-  modalOptionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: THEME.colors.textSecondary,
-  },
-  modalOptionTitleActive: {
-    color: THEME.colors.primary,
-  },
-  levelOptionsCol: {
-    gap: 8,
-  },
-  levelOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: THEME.colors.cardBg,
-    padding: 12,
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  levelOptionRowActive: {
-    borderColor: THEME.colors.primary,
-    backgroundColor: 'rgba(0, 230, 118, 0.12)',
-  },
-  levelOptionName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  levelOptionNameActive: {
-    color: THEME.colors.primary,
-  },
-  levelOptionDesc: {
-    fontSize: 10,
-    color: THEME.colors.textMuted,
-    marginTop: 2,
-  },
-  checkIcon: {
-    fontSize: 16,
-    color: THEME.colors.primary,
-    fontWeight: '900',
-  },
-  codeInput: {
-    backgroundColor: '#0F131C',
-    borderWidth: 1.5,
-    borderColor: THEME.colors.primary,
-    borderRadius: THEME.radius.md,
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '900',
-    textAlign: 'center',
-    letterSpacing: 6,
-    paddingVertical: 12,
-    marginVertical: 12,
-  },
-  modalActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
-  },
-  modalActionBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: THEME.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  modalCancelBtnText: {
-    color: THEME.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  modalConfirmBtn: {
-    backgroundColor: THEME.colors.primary,
-  },
-  modalConfirmBtnText: {
-    color: '#00210B',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  modalCloseBtn: {
-    marginTop: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingVertical: 10,
-    borderRadius: THEME.radius.md,
-    alignItems: 'center',
-  },
-  modalCloseBtnText: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  suplentesModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  suplenteCard: {
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.md,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    marginBottom: 8,
-    gap: 4,
-  },
-  suplenteCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  suplenteCardTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  suplenteCardBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  suplenteCardBadgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: THEME.colors.goldLight,
-  },
-  suplenteCardVenue: {
-    fontSize: 11,
-    color: THEME.colors.textSecondary,
-  },
-  suplenteCardInfo: {
-    fontSize: 10,
-    color: THEME.colors.textMuted,
-  },
-  suplenteApplyBtn: {
-    backgroundColor: THEME.colors.primary,
-    borderRadius: 6,
-    paddingVertical: 8,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  suplenteApplyBtnText: {
-    color: '#00210B',
-    fontSize: 11,
-    fontWeight: '900',
   },
 });
