@@ -5,7 +5,6 @@ export default function Sidebar({ currentView, setView, onlineCount = 0, dispute
   const menuItems = [
     { id: 'metrics', label: 'Resumen General', icon: LayoutDashboard, badge: null },
     { id: 'live-monitor', label: 'Live Socket Monitor', icon: Radio, badge: onlineCount > 0 ? `${onlineCount} en vivo` : null, badgeColor: 'badge-lime' },
-    { id: 'venues', label: 'Canchas y Turnos B2B', icon: Calendar, badge: 'B2B', badgeColor: 'badge-purple' },
     { id: 'disputes', label: 'Sala de Disputas', icon: Scale, badge: disputesCount > 0 ? `${disputesCount} alerta` : null, badgeColor: 'badge-red' },
     { id: 'players', label: 'Auditoría de Jugadores', icon: Users, badge: null },
     { id: 'sports', label: 'Deportes y Formatos', icon: SlidersHorizontal, badge: null }

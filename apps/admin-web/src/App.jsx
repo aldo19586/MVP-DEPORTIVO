@@ -4,7 +4,6 @@ import Sidebar from './components/Sidebar';
 import AdminLogin from './components/AdminLogin';
 import MetricsOverviewView from './views/MetricsOverviewView';
 import LiveMonitorView from './views/LiveMonitorView';
-import VenuesScheduleView from './views/VenuesScheduleView';
 import DisputeResolutionView from './views/DisputeResolutionView';
 import PlayerAuditView from './views/PlayerAuditView';
 import SportsConfigView from './views/SportsConfigView';
@@ -95,7 +94,6 @@ export default function App() {
               activeMatches={activeMatches}
             />
           )}
-          {currentView === 'venues' && <VenuesScheduleView />}
           {currentView === 'disputes' && (
             <DisputeResolutionView
               activeMatches={activeMatches}
