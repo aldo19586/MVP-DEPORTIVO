@@ -4,469 +4,762 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   StyleSheet,
+  SafeAreaView,
+  Image,
+  Alert,
   KeyboardAvoidingView,
-  Platform,
-  Alert
+  Platform
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { socketService } from '../services/socket';
+import { THEME } from '../theme';
 
-export default function MatchRoomScreen({ match, currentUser, onMatchFinished }) {
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [timeRemainingSec, setTimeRemainingSec] = useState(3600); // 60 minutos
-  const [timerActive, setTimerActive] = useState(true);
-  const flatListRef = useRef(null);
+export default function MatchRoomScreen({ match, currentUser, onMatchFinished, onOpenDispute }) {
+  const [selectedTeamTab, setSelectedTeamTab] = useState('teamA');
+  const [matchMinutes, setMatchMinutes] = useState(44);
+  const [matchSeconds, setMatchSeconds] = useState(28);
+  const [scoreA, setScoreA] = useState(3);
+  const [scoreB, setScoreB] = useState(2);
+  const [messages, setMessages] = useState([
+    { sender: 'Carlos', text: 'Ya llegué a la cancha 👍 estoy calentando bajo el arco.', time: "34'" },
+    { sender: 'Joaquín', text: 'Estoy con camiseta blanca y short negro en la banda derecha.', time: "36'" },
+    { sender: 'Tú', text: '¡Faltan 5 minutos para el cambio! Mantengan la presión arriba.', time: "38'" }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+
+  const teamAPlayers = match?.teamA || [
+    { id: 'p1', name: 'Mateo Ramos', position: 'MED', rating: 1840, ovr: 88, statText: '1 GOL • 1 ASIST', scoreStar: '8.9', isMe: true },
+    { id: 'p2', name: 'Carlos "Gato" Vega', position: 'POR', rating: 1780, ovr: 84, statText: '4 ATAJADAS', scoreStar: '7.8' },
+    { id: 'p3', name: 'Rodrigo Quispe', position: 'DEF', rating: 1810, ovr: 81, statText: '6 RECUPERAC.', scoreStar: '7.4' },
+    { id: 'p4', name: 'Joaquín Morales', position: 'DEL', rating: 1860, ovr: 86, statText: '2 GOLES', scoreStar: '8.5' },
+    { id: 'p5', name: 'Diego Paredes', position: 'DEF', rating: 1590, ovr: 79, statText: '92% PASES', scoreStar: '7.1' }
+  ];
+
+  const teamBPlayers = match?.teamB || [
+    { id: 'p6', name: 'Lucía Morales', position: 'DEL', rating: 1750, ovr: 82, statText: '1 GOL', scoreStar: '7.9' },
+    { id: 'p7', name: 'Franco Benítez', position: 'DEF', rating: 1800, ovr: 83, statText: '5 RECUPERAC.', scoreStar: '7.5' },
+    { id: 'p8', name: 'Kevin Barreto', position: 'MED', rating: 1690, ovr: 80, statText: '85% PASES', scoreStar: '7.2' }
+  ];
 
   useEffect(() => {
     const socket = socketService.getSocket();
     if (!socket || !match) return;
 
-    // Unirse al canal del partido
     socket.emit('joinMatchRoom', { matchId: match.id });
 
-    // Escuchar mensajes de chat
-    const handleNewMessage = ({ matchId, message }) => {
-      if (matchId === match.id) {
-        setMessages((prev) => [...prev, message]);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    };
-
-    // Escuchar finalización o reporte
+    // Escuchar cuando el partido finaliza (disparado por backend)
     const handleMatchFinished = (data) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Partido Finalizado', 'El resultado oficial ha sido registrado.', [
-        { text: 'Aceptar', onPress: () => onMatchFinished() }
-      ]);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
+      onMatchFinished(data);
     };
 
-    const handleMatchCancelled = (data) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Partido Cancelado', data.message || 'El partido fue cancelado por un jugador.', [
-        { text: 'Volver al Radar', onPress: () => onMatchFinished() }
-      ]);
-    };
-
-    socket.on('newChatMessage', handleNewMessage);
     socket.on('matchFinished', handleMatchFinished);
-    socket.on('matchCancelled', handleMatchCancelled);
-
-    // Temporizador de cancha
-    const timerInterval = setInterval(() => {
-      setTimeRemainingSec((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerInterval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
 
     return () => {
-      socket.off('newChatMessage', handleNewMessage);
       socket.off('matchFinished', handleMatchFinished);
-      socket.off('matchCancelled', handleMatchCancelled);
-      clearInterval(timerInterval);
     };
-  }, [match]);
+  }, [match?.id]);
 
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+  const handleReportWinner = (winnerTeam) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch (e) {}
 
-    const socket = socketService.getSocket();
-    if (socket) {
-      socket.emit('sendChatMessage', {
-        matchId: match.id,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        text: inputText.trim()
-      });
-      setInputText('');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  };
-
-  const handleReportResult = () => {
     Alert.alert(
-      'Reporte de Resultado',
-      '¿Qué equipo se llevó la victoria en el partido?',
+      'Confirmar Marcador Oficial',
+      `¿Declarar ganador oficial a ${winnerTeam === 'teamA' ? 'EQUIPO AZUL' : 'EQUIPO ROJO'}?`,
       [
+        { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Ganó Equipo Azul (A)',
-          onPress: () => submitOfficialResult('teamA')
-        },
-        {
-          text: 'Ganó Equipo Rojo (B)',
-          onPress: () => submitOfficialResult('teamB')
-        },
-        { text: 'Cancelar', style: 'cancel' }
-      ]
-    );
-  };
-
-  const submitOfficialResult = (winnerTeam) => {
-    const socket = socketService.getSocket();
-    if (socket) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      socket.emit('reportResultByReporter', {
-        matchId: match.id,
-        reporterUserId: currentUser.id,
-        winnerTeam
-      });
-    }
-  };
-
-  const handleLeaveMatch = () => {
-    Alert.alert(
-      'Abandonar Partido',
-      '¿Estás seguro de que deseas salir de la cancha?',
-      [
-        {
-          text: 'Salir',
-          style: 'destructive',
+          text: 'Confirmar',
           onPress: () => {
             const socket = socketService.getSocket();
             if (socket) {
-              socket.emit('leaveMatch', { matchId: match.id, userId: currentUser.id });
+              socket.emit('reportResult', {
+                matchId: match?.id || 'demo_match_1',
+                userId: currentUser?.id || 'demo_user_1',
+                winnerTeam
+              });
             }
-            onMatchFinished();
+            // Navegar inmediatamente a la fase post-partido (Peer-Review)
+            onMatchFinished({ winnerTeam, matchId: match?.id });
           }
-        },
-        { text: 'Permanecer', style: 'cancel' }
+        }
       ]
     );
   };
 
-  const formatTimer = (totalSeconds) => {
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const handleSendChat = () => {
+    if (!chatInput.trim()) return;
+    setMessages((prev) => [
+      ...prev,
+      { sender: 'Tú', text: chatInput.trim(), time: 'Ahora' }
+    ]);
+    setChatInput('');
   };
 
-  const isLowTime = timeRemainingSec <= 300; // Menos de 5 minutos
+  const handleQuickChip = (text) => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    setMessages((prev) => [
+      ...prev,
+      { sender: 'Tú', text, time: 'Ahora' }
+    ]);
+  };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      {/* Barra superior de Cancha y Temporizador */}
+    <SafeAreaView style={styles.container}>
+      {/* Top Bar */}
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.matchTitle}>
-            {match?.sportId?.toUpperCase() || 'FÚTBOL'} • {match?.formatId?.toUpperCase() || '5V5'}
-          </Text>
-          <Text style={styles.matchSubtitle}>ID: {match?.id?.slice(0, 14)}...</Text>
+        <View style={styles.brandTitleWrap}>
+          <Text style={styles.brandSmall}>MATCHSPORT</Text>
+          <Text style={styles.brandTitle}>PARTIDOS EN VIVO</Text>
         </View>
 
-        {/* Reloj de Cancha */}
-        <View style={[styles.timerBadge, isLowTime && styles.timerBadgeWarning]}>
-          <Text style={[styles.timerText, isLowTime && styles.timerTextWarning]}>
-            ⏱️ {formatTimer(timeRemainingSec)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Roster de Equipos (Team A vs Team B) */}
-      <View style={styles.scoreboard}>
-        <View style={styles.teamColumn}>
-          <Text style={styles.teamHeaderA}>🔵 EQUIPO AZUL</Text>
-          {(match?.teamA || []).map((p, idx) => (
-            <Text key={`ta-${p.id || idx}`} style={styles.playerText} numberOfLines={1}>
-              {p.name} {p.id === currentUser.id ? '★' : ''} ({p.position || 'MED'})
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.vsDivider}>
-          <Text style={styles.vsText}>VS</Text>
-        </View>
-
-        <View style={styles.teamColumn}>
-          <Text style={styles.teamHeaderB}>🔴 EQUIPO ROJO</Text>
-          {(match?.teamB || []).map((p, idx) => (
-            <Text key={`tb-${p.id || idx}`} style={styles.playerText} numberOfLines={1}>
-              {p.name} {p.id === currentUser.id ? '★' : ''} ({p.position || 'MED'})
-            </Text>
-          ))}
-        </View>
-      </View>
-
-      {/* Chat de Cancha en Tiempo Real */}
-      <View style={styles.chatSection}>
-        <Text style={styles.chatSectionHeader}>💬 CHAT DE COORDINACIÓN EN VIVO</Text>
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item, index) => item.id || `msg-${index}`}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          renderItem={({ item }) => {
-            const isMe = item.senderId === currentUser.id;
-            const isSystem = item.senderId === 'system';
-
-            if (isSystem) {
-              return (
-                <View style={styles.systemMessageContainer}>
-                  <Text style={styles.systemMessageText}>{item.text}</Text>
-                </View>
-              );
-            }
-
-            return (
-              <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
-                {!isMe && <Text style={styles.senderName}>{item.senderName}</Text>}
-                <Text style={styles.messageText}>{item.text}</Text>
-              </View>
-            );
-          }}
-          ListEmptyComponent={
-            <View style={styles.emptyChat}>
-              <Text style={styles.emptyChatText}>
-                Comunícate con tus compañeros y rivales sobre color de camisetas o hora de llegada.
-              </Text>
-            </View>
-          }
-        />
-
-        {/* Input de Chat */}
-        <View style={styles.chatInputContainer}>
-          <TextInput
-            style={styles.chatInput}
-            placeholder="Escribe un mensaje de cancha..."
-            placeholderTextColor="#64748b"
-            value={inputText}
-            onChangeText={setInputText}
-            returnKeyType="send"
-            onSubmitEditing={handleSendMessage}
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.bellBtn}><Text style={styles.bellIcon}>🔔</Text></TouchableOpacity>
+          <Image
+            source={{ uri: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100' }}
+            style={styles.avatarMini}
           />
-          <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-            <Text style={styles.sendButtonText}>ENVIAR</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Match Header Info */}
+        <View style={styles.venueRow}>
+          <Text style={styles.venueName}>🏟️ {match?.venueDistrict || 'Cancha El Golazo • Surco'}</Text>
+          <View style={styles.eloBadge}>
+            <Text style={styles.eloText}>1750 ELO PROMEDIO</Text>
+          </View>
+        </View>
+
+        {/* Live Timer Pill */}
+        <View style={styles.liveTimerPill}>
+          <View style={styles.greenPulseDot} />
+          <Text style={styles.liveTimerText}>
+            {matchMinutes}:{matchSeconds} 2DO TIEMPO
+          </Text>
+        </View>
+        <Text style={styles.formatSubtitle}>5v5 Fútbol Amateur Nocturno</Text>
+
+        {/* Scoreboard */}
+        <View style={styles.scoreboardCard}>
+          <View style={styles.teamScoreCol}>
+            <View style={styles.teamTagRow}>
+              <View style={styles.blueBar} />
+              <View>
+                <Text style={styles.teamNameTitle}>EQUIPO A</Text>
+                <Text style={styles.teamSubTag}>TU ESCUADRA</Text>
+              </View>
+            </View>
+            <Text style={styles.scoreNumber}>{scoreA}</Text>
+          </View>
+
+          <View style={styles.vsBadge}>
+            <Text style={styles.vsIcon}>⚽</Text>
+            <Text style={styles.vsText}>VS</Text>
+          </View>
+
+          <View style={[styles.teamScoreCol, styles.teamScoreColRight]}>
+            <Text style={styles.scoreNumber}>{scoreB}</Text>
+            <View style={styles.teamTagRowRight}>
+              <View>
+                <Text style={styles.teamNameTitleRight}>EQUIPO B</Text>
+                <Text style={styles.teamSubTag}>RIVAL LOCAL</Text>
+              </View>
+              <View style={styles.yellowBar} />
+            </View>
+          </View>
+        </View>
+
+        {/* Player Roster Switcher Tabs */}
+        <View style={styles.teamTabsRow}>
+          <TouchableOpacity
+            style={[styles.teamTabBtn, selectedTeamTab === 'teamA' && styles.teamTabBtnActiveA]}
+            onPress={() => setSelectedTeamTab('teamA')}
+          >
+            <View style={styles.blueDot} />
+            <Text style={[styles.teamTabText, selectedTeamTab === 'teamA' && styles.teamTabTextActive]}>
+              Equipo Azul ({teamAPlayers.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.teamTabBtn, selectedTeamTab === 'teamB' && styles.teamTabBtnActiveB]}
+            onPress={() => setSelectedTeamTab('teamB')}
+          >
+            <View style={styles.redDot} />
+            <Text style={[styles.teamTabText, selectedTeamTab === 'teamB' && styles.teamTabTextActive]}>
+              Equipo Rojo ({teamBPlayers.length})
+            </Text>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Botones Inferiores de Partido */}
-      <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.reportBtn} onPress={handleReportResult}>
-          <Text style={styles.reportBtnText}>🏆 REPORTAR RESULTADO</Text>
+        {/* Active Player Cards */}
+        <View style={styles.playersList}>
+          {(selectedTeamTab === 'teamA' ? teamAPlayers : teamBPlayers).map((p, idx) => (
+            <View key={p.id || idx} style={styles.playerCard}>
+              <Image
+                source={{ uri: p.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }}
+                style={styles.playerAvatar}
+              />
+              <View style={styles.playerMain}>
+                <View style={styles.playerNameRow}>
+                  <Text style={styles.playerName}>{p.name}</Text>
+                  {p.isMe && <View style={styles.meBadge}><Text style={styles.meText}>TÚ</Text></View>}
+                </View>
+                <Text style={styles.playerPosTag}>{p.position} • 🟢 En Cancha</Text>
+              </View>
+
+              <View style={styles.playerStatsCol}>
+                <Text style={styles.playerStarRating}>★ {p.scoreStar || '8.0'}</Text>
+                <Text style={styles.playerStatText}>{p.statText || 'ACTIVO'}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Live Coordination Chat Section */}
+        <View style={styles.coordinationCard}>
+          <View style={styles.coordHeader}>
+            <Text style={styles.coordTitle}>💬 Coordinación de Cancha</Text>
+            <View style={styles.newBadge}><Text style={styles.newBadgeText}>{messages.length} MENSAJES</Text></View>
+          </View>
+
+          <View style={styles.messagesBox}>
+            {messages.map((m, idx) => (
+              <View key={idx} style={styles.messageBubble}>
+                <Text style={styles.messageSender}>{m.sender} • {m.time}</Text>
+                <Text style={styles.messageText}>{m.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Quick Action Chips */}
+          <View style={styles.quickChipsRow}>
+            <TouchableOpacity style={styles.quickChip} onPress={() => handleQuickChip('⇄ Pido Cambio')}>
+              <Text style={styles.quickChipText}>⇄ Pido Cambio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickChip} onPress={() => handleQuickChip('💧 Pausa Hidratación')}>
+              <Text style={styles.quickChipText}>💧 Hidratación</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickChip} onPress={() => handleQuickChip('✓ Confirmado')}>
+              <Text style={styles.quickChipText}>✓ Confirmado</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.chatInputRow}>
+            <TextInput
+              style={styles.chatInput}
+              placeholder="Escribe a los capitanes..."
+              placeholderTextColor={THEME.colors.textMuted}
+              value={chatInput}
+              onChangeText={setChatInput}
+            />
+            <TouchableOpacity style={styles.sendBtn} onPress={handleSendChat}>
+              <Text style={styles.sendIcon}>➤</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Designated Reporter Banner */}
+        <View style={styles.reporterBanner}>
+          <Text style={styles.starIcon}>🎖️</Text>
+          <View style={styles.reporterContent}>
+            <Text style={styles.reporterTitle}>REPORTE OFICIAL DESIGNADO</Text>
+            <Text style={styles.reporterSub}>
+              <Text style={styles.reporterHighlight}>{currentUser?.name || 'Mateo Ramos (Tú)'}</Text> has sido seleccionado para reportar el resultado final del partido.
+            </Text>
+          </View>
+        </View>
+
+        {/* Outcome Reporting Buttons */}
+        <View style={styles.reportButtonsRow}>
+          <TouchableOpacity
+            style={[styles.winnerBtn, styles.winnerBtnBlue]}
+            onPress={() => handleReportWinner('teamA')}
+          >
+            <Text style={styles.winnerBtnText}>✓ GANÓ EQUIPO AZUL</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.winnerBtn, styles.winnerBtnRed]}
+            onPress={() => handleReportWinner('teamB')}
+          >
+            <Text style={styles.winnerBtnText}>✓ GANÓ EQUIPO ROJO</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Dispute Button */}
+        <TouchableOpacity
+          style={styles.disputeBtn}
+          onPress={() => {
+            Alert.alert('Reportar Disputa', 'Se enviará una alerta al SuperAdmin para revisión arbitral del resultado.');
+          }}
+        >
+          <Text style={styles.disputeText}>⚠️ Reportar Disputa / Falta Antideportiva</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.leaveBtn} onPress={handleLeaveMatch}>
-          <Text style={styles.leaveBtnText}>ABANDONAR</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        <Text style={styles.validationNotice}>
+          🛡️ AMBOS CAPITANES DEBEN VALIDAR PARA ACTUALIZACIÓN ELO INMEDIATA
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
-    paddingTop: 45
+    backgroundColor: THEME.colors.bgCanvas,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b'
+    borderBottomColor: THEME.colors.border,
   },
-  matchTitle: {
-    color: '#f8fafc',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 1
+  brandTitleWrap: {},
+  brandSmall: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: THEME.colors.primary,
+    letterSpacing: 1,
   },
-  matchSubtitle: {
-    color: '#64748b',
-    fontSize: 11
-  },
-  timerBadge: {
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#10b981'
-  },
-  timerBadgeWarning: {
-    borderColor: '#ef4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)'
-  },
-  timerText: {
-    color: '#10b981',
+  brandTitle: {
     fontSize: 14,
-    fontWeight: '900'
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
   },
-  timerTextWarning: {
-    color: '#ef4444'
-  },
-  scoreboard: {
+  headerRight: {
     flexDirection: 'row',
-    backgroundColor: '#1e293b',
-    margin: 12,
+    alignItems: 'center',
+    gap: 10,
+  },
+  bellBtn: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  teamColumn: {
-    flex: 1
-  },
-  teamHeaderA: {
-    color: '#38bdf8',
-    fontSize: 12,
-    fontWeight: '900',
-    marginBottom: 6
-  },
-  teamHeaderB: {
-    color: '#f43f5e',
-    fontSize: 12,
-    fontWeight: '900',
-    marginBottom: 6
-  },
-  playerText: {
-    color: '#cbd5e1',
-    fontSize: 11,
-    fontWeight: '600',
-    marginVertical: 2
-  },
-  vsDivider: {
+    backgroundColor: THEME.colors.cardElevated,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10
+  },
+  bellIcon: {
+    fontSize: 14,
+  },
+  avatarMini: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: THEME.colors.gold,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 30,
+    gap: 12,
+  },
+  venueRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  venueName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.textSecondary,
+  },
+  eloBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: THEME.radius.pill,
+  },
+  eloText: {
+    color: THEME.colors.goldLight,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  liveTimerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: THEME.radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+    marginTop: 2,
+  },
+  greenPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: THEME.colors.primary,
+    marginRight: 8,
+  },
+  liveTimerText: {
+    color: THEME.colors.primary,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  formatSubtitle: {
+    fontSize: 11,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    marginTop: -4,
+  },
+  scoreboardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  teamScoreCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  teamScoreColRight: {
+    justifyContent: 'flex-end',
+  },
+  blueBar: {
+    width: 4,
+    height: 32,
+    borderRadius: 2,
+    backgroundColor: THEME.colors.teamA,
+    marginRight: 6,
+  },
+  yellowBar: {
+    width: 4,
+    height: 32,
+    borderRadius: 2,
+    backgroundColor: THEME.colors.teamB,
+    marginLeft: 6,
+  },
+  teamTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  teamTagRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  teamNameTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
+  },
+  teamNameTitleRight: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
+    textAlign: 'right',
+  },
+  teamSubTag: {
+    fontSize: 8,
+    color: THEME.colors.textMuted,
+    fontWeight: '700',
+  },
+  scoreNumber: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
+  },
+  vsBadge: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  vsIcon: {
+    fontSize: 14,
   },
   vsText: {
-    color: '#64748b',
+    fontSize: 9,
     fontWeight: '900',
-    fontSize: 14
+    color: THEME.colors.textMuted,
   },
-  chatSection: {
+  teamTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  teamTabBtn: {
     flex: 1,
-    backgroundColor: '#1e293b',
-    marginHorizontal: 12,
-    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: THEME.colors.cardBg,
+    paddingVertical: 10,
+    borderRadius: THEME.radius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    gap: 6,
+  },
+  teamTabBtnActiveA: {
+    borderColor: THEME.colors.teamA,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+  },
+  teamTabBtnActiveB: {
+    borderColor: THEME.colors.teamB,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+  },
+  blueDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.teamA,
+  },
+  redDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.teamB,
+  },
+  teamTabText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textSecondary,
+  },
+  teamTabTextActive: {
+    color: THEME.colors.textPrimary,
+  },
+  playersList: {
+    gap: 8,
+  },
+  playerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.md,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#334155'
+    borderColor: THEME.colors.border,
+    gap: 10,
   },
-  chatSectionHeader: {
-    color: '#94a3b8',
+  playerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    borderColor: THEME.colors.border,
+  },
+  playerMain: {
+    flex: 1,
+  },
+  playerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  playerName: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
+  },
+  meBadge: {
+    backgroundColor: THEME.colors.primary,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  meText: {
+    color: '#00210B',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  playerPosTag: {
+    fontSize: 9,
+    color: THEME.colors.textMuted,
+    marginTop: 2,
+  },
+  playerStatsCol: {
+    alignItems: 'flex-end',
+  },
+  playerStarRating: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: THEME.colors.gold,
+  },
+  playerStatText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: THEME.colors.textSecondary,
+    marginTop: 2,
+  },
+  coordinationCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    gap: 8,
+  },
+  coordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  coordTitle: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 8
+    color: THEME.colors.textPrimary,
+  },
+  newBadge: {
+    backgroundColor: 'rgba(0, 230, 118, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  newBadgeText: {
+    color: THEME.colors.primary,
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  messagesBox: {
+    gap: 6,
   },
   messageBubble: {
-    padding: 10,
-    borderRadius: 12,
-    marginVertical: 4,
-    maxWidth: '80%'
+    backgroundColor: THEME.colors.cardElevated,
+    borderRadius: THEME.radius.sm,
+    padding: 8,
   },
-  myMessage: {
-    backgroundColor: '#10b981',
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 2
-  },
-  theirMessage: {
-    backgroundColor: '#0f172a',
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 2
-  },
-  senderName: {
-    color: '#38bdf8',
-    fontSize: 10,
+  messageSender: {
+    fontSize: 9,
     fontWeight: '800',
-    marginBottom: 2
+    color: THEME.colors.primary,
   },
   messageText: {
-    color: '#f8fafc',
-    fontSize: 13,
-    fontWeight: '500'
-  },
-  systemMessageContainer: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 8,
-    padding: 6,
-    marginVertical: 4,
-    alignItems: 'center'
-  },
-  systemMessageText: {
-    color: '#f59e0b',
     fontSize: 11,
-    fontWeight: '700'
+    color: THEME.colors.textPrimary,
+    marginTop: 2,
   },
-  emptyChat: {
-    padding: 20,
-    alignItems: 'center'
-  },
-  emptyChatText: {
-    color: '#64748b',
-    fontSize: 12,
-    textAlign: 'center'
-  },
-  chatInputContainer: {
+  quickChipsRow: {
     flexDirection: 'row',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#334155'
+    gap: 6,
+  },
+  quickChip: {
+    backgroundColor: THEME.colors.cardElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: THEME.radius.pill,
+  },
+  quickChipText: {
+    fontSize: 9,
+    color: THEME.colors.textSecondary,
+    fontWeight: '700',
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
   chatInput: {
     flex: 1,
-    backgroundColor: '#0f172a',
-    borderRadius: 10,
+    backgroundColor: THEME.colors.cardElevated,
+    borderRadius: THEME.radius.md,
+    height: 38,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#f8fafc',
-    fontSize: 13,
-    marginRight: 8
+    fontSize: 11,
+    color: THEME.colors.textPrimary,
   },
-  sendButton: {
-    backgroundColor: '#10b981',
-    borderRadius: 10,
-    justifyContent: 'center',
-    paddingHorizontal: 14
-  },
-  sendButtonText: {
-    color: '#0f172a',
-    fontSize: 12,
-    fontWeight: '900'
-  },
-  bottomActions: {
-    flexDirection: 'row',
-    padding: 12,
-    justifyContent: 'space-between'
-  },
-  reportBtn: {
-    flex: 2,
-    backgroundColor: '#f59e0b',
-    paddingVertical: 14,
-    borderRadius: 12,
+  sendBtn: {
+    backgroundColor: THEME.colors.primary,
+    width: 38,
+    height: 38,
+    borderRadius: THEME.radius.md,
     alignItems: 'center',
-    marginRight: 8
+    justifyContent: 'center',
   },
-  reportBtnText: {
-    color: '#0f172a',
+  sendIcon: {
+    color: '#00210B',
     fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 0.5
   },
-  leaveBtn: {
+  reporterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: THEME.radius.md,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderGold,
+    gap: 10,
+  },
+  starIcon: {
+    fontSize: 20,
+  },
+  reporterContent: {
     flex: 1,
-    backgroundColor: '#334155',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center'
   },
-  leaveBtnText: {
-    color: '#f8fafc',
-    fontSize: 12,
-    fontWeight: '800'
-  }
+  reporterTitle: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: THEME.colors.goldLight,
+    letterSpacing: 0.5,
+  },
+  reporterSub: {
+    fontSize: 10,
+    color: THEME.colors.textSecondary,
+    marginTop: 2,
+  },
+  reporterHighlight: {
+    color: THEME.colors.textPrimary,
+    fontWeight: '800',
+  },
+  reportButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  winnerBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: THEME.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  winnerBtnBlue: {
+    backgroundColor: THEME.colors.primary,
+  },
+  winnerBtnRed: {
+    backgroundColor: THEME.colors.cardBg,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  winnerBtnText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#00210B',
+    letterSpacing: 0.5,
+  },
+  disputeBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: THEME.radius.md,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disputeText: {
+    color: THEME.colors.dangerLight,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  validationNotice: {
+    fontSize: 9,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
 });

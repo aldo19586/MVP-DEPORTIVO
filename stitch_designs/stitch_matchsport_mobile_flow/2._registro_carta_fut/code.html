@@ -1,0 +1,354 @@
+<!DOCTYPE html><html class="dark" lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_blank" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "inverse-primary": "#006d35", "on-tertiary-fixed": "#410004", "outline": "#859585", "background": "#10131a", "primary-container": "#00e676", "surface-tint": "#00e475", "primary-fixed": "#62ff96", "on-error": "#690005", "surface-bright": "#363940", "on-secondary-container": "#5b3800", "surface-container-lowest": "#0b0e14", "surface": "#10131a", "on-surface": "#e1e2eb", "tertiary-fixed": "#ffdad7", "secondary-fixed": "#ffddb8", "on-background": "#e1e2eb", "on-primary": "#003918", "tertiary-fixed-dim": "#ffb3ad", "primary-fixed-dim": "#00e475", "on-tertiary-container": "#aa091b", "secondary-fixed-dim": "#ffb95f", "surface-container": "#1d2026", "surface-dim": "#10131a", "surface-container-high": "#272a31", "inverse-surface": "#e1e2eb", "tertiary-container": "#ffb6b0", "on-primary-fixed": "#00210b", "inverse-on-surface": "#2e3037", "primary": "#75ff9e", "surface-container-low": "#191c22", "surface-variant": "#32353c", "secondary-container": "#ee9800", "tertiary": "#ffdcd9", "error-container": "#93000a", "on-surface-variant": "#bacbb9", "on-primary-container": "#00612e", "on-primary-fixed-variant": "#005226", "on-secondary-fixed-variant": "#653e00", "surface-container-highest": "#32353c", "on-secondary-fixed": "#2a1700", "on-secondary": "#472a00", "outline-variant": "#3b4a3d", "secondary": "#ffb95f", "on-tertiary": "#68000a", "error": "#ffb4ab", "on-error-container": "#ffdad6", "on-tertiary-fixed-variant": "#930013" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xs": "0.25rem", "space-sm": "0.5rem", "gutter": "1rem", "margin": "1rem", "space-lg": "1.5rem", "space-xl": "2rem", "space-md": "1rem" }, "fontFamily": { "label-stat": [ "Space Grotesk" ], "headline-sm": [ "Space Grotesk" ], "headline-xl-mobile": [ "Space Grotesk" ], "label-tactical": [ "Space Grotesk" ], "display-ovr": [ "Space Grotesk" ], "body-sm": [ "Inter" ], "headline-lg": [ "Space Grotesk" ], "body-md": [ "Inter" ], "display-ovr-mobile": [ "Space Grotesk" ], "headline-xl": [ "Space Grotesk" ], "body-lg": [ "Inter" ] }, "fontSize": { "label-stat": [ "14px", { "lineHeight": "18px", "fontWeight": "700" } ], "headline-sm": [ "18px", { "lineHeight": "24px", "fontWeight": "600" } ], "headline-xl-mobile": [ "26px", { "lineHeight": "32px", "fontWeight": "700" } ], "label-tactical": [ "11px", { "lineHeight": "14px", "fontWeight": "700" } ], "display-ovr": [ "48px", { "lineHeight": "52px", "fontWeight": "700" } ], "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "headline-lg": [ "22px", { "lineHeight": "28px", "fontWeight": "600" } ], "body-md": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "display-ovr-mobile": [ "36px", { "lineHeight": "40px", "fontWeight": "700" } ], "headline-xl": [ "32px", { "lineHeight": "38px", "fontWeight": "700" } ], "body-lg": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#10131a;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary selection:text-on-primary"><main class="flex flex-col relative w-full pt-safe pb-safe min-h-screen bg-surface"><div class="flex flex-col w-full px-margin pb-space-xl text-on-surface">
+<!-- Top Segmented Switcher -->
+<div class="flex items-center p-space-xs bg-surface-container-low rounded-full w-full max-w-sm mx-auto mt-2 mb-space-md shadow-md">
+<button class="flex-1 py-2 px-3 text-center rounded-full font-label-tactical text-label-tactical uppercase tracking-wider text-on-surface-variant hover:text-on-surface transition-all duration-200" id="tab-login" type="button">
+      Iniciar Sesión
+    </button>
+<button class="flex-1 py-2 px-3 text-center rounded-full font-label-tactical text-label-tactical uppercase tracking-wider bg-primary-container text-on-primary font-bold shadow-[0_0_16px_rgba(0,230,118,0.4)] transition-all duration-200 flex items-center justify-center gap-1" id="tab-signup" type="button">
+<span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span>
+      Nuevo Jugador
+    </button>
+</div>
+<!-- Header Branding / Motivation -->
+<div class="flex flex-col items-center text-center mb-space-md">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-primary font-label-tactical text-label-tactical tracking-widest uppercase mb-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+      Draft Temporada Apertura
+    </span>
+<h1 class="font-headline-xl-mobile text-headline-xl-mobile tracking-tight text-on-surface">
+      Personaliza tu <span class="text-primary font-bold">Carta FUT</span>
+</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-xs mt-0.5">
+      Forja tu identidad competitiva y calcula tu Elo oficial para el radar de canchas locales.
+    </p>
+</div>
+<!-- FUT Card Creator Badge Hero Interactive Preview -->
+<div class="relative flex flex-col items-center justify-center mb-space-lg">
+<!-- Stadium Spotlight Background Aura -->
+<div class="absolute w-44 h-44 rounded-full bg-primary/10 blur-2xl pointer-events-none -top-2"></div>
+<!-- Shield Container (EA FC Style Badge) -->
+<div class="relative w-40 h-52 bg-gradient-to-b from-surface-container-high via-surface-container to-surface-container-lowest rounded-2xl p-2.5 shadow-xl flex flex-col items-center justify-between overflow-hidden group">
+<!-- Metallic Gold Shield Accent Frame & Glow -->
+<div class="absolute inset-0 bg-gradient-to-tr from-secondary/15 via-transparent to-primary/20 pointer-events-none"></div>
+<div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-secondary via-primary-container to-secondary"></div>
+<!-- Card Top Info Row -->
+<div class="w-full flex items-start justify-between z-10">
+<div class="flex flex-col items-center leading-none">
+<span class="font-display-ovr-mobile text-display-ovr-mobile text-secondary font-bold tracking-tighter drop-shadow-md" id="card-ovr">78</span>
+<span class="font-label-tactical text-label-tactical text-primary uppercase font-bold tracking-widest -mt-1" id="card-pos-badge">DEL</span>
+</div>
+<div class="flex flex-col items-end gap-1">
+<div class="w-5 h-3.5 rounded-sm bg-surface-variant overflow-hidden flex items-center justify-center">
+<span class="text-[9px] font-bold text-on-surface">PE</span>
+</div>
+<span class="material-symbols-outlined text-secondary text-sm" style="font-variation-settings: 'FILL' 1;">shield</span>
+</div>
+</div>
+<!-- Circular Avatar Frame with Upload Trigger -->
+<div class="relative z-10 -mt-2">
+<div class="relative w-20 h-20 rounded-full p-1 bg-gradient-to-b from-secondary to-primary/40 shadow-[0_4px_18px_rgba(0,0,0,0.6)]">
+<div class="w-full h-full rounded-full overflow-hidden bg-surface-container-highest flex items-center justify-center relative">
+<img class="w-full h-full object-cover" data-alt="Dynamic dramatic esports portrait of a focused male soccer player with cinematic neon emerald green stadium backlighting, high detail sports photography style" id="avatar-preview-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCR5ASO_BbNVmOPx_yhHESWxMxIw22Begam__NtiovjNs0OUhdp_X8G43XBqj3ohSTNV_NIHKlDEfn-wrslMvWRh5K6WdllaBqN0_yK4K8s6prqxubuWSHUXH1hE-c1-jNAor5Abn5l878LM3Hr4LE8ALFPYYS24CSgn1uelIQRx0WiMzzUvtLMZJiS7HKSGJnQNSkFP5iDiQU5Ekae0oEuEsDT7ZT68lOK9g-oLmuvokAM9W5L554eQQ">
+<button aria-label="Cambiar foto de perfil" class="absolute inset-0 bg-surface-container-lowest/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-primary transition-opacity backdrop-blur-sm cursor-pointer" type="button">
+<span class="material-symbols-outlined text-lg">photo_camera</span>
+<span class="text-[9px] font-label-tactical uppercase">Subir</span>
+</button>
+</div>
+</div>
+<div class="absolute -bottom-1 -right-1 bg-secondary text-on-secondary w-6 h-6 rounded-full flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-xs">edit</span>
+</div>
+</div>
+<!-- Card Name Banner -->
+<div class="w-full text-center z-10 mt-1">
+<h3 class="font-headline-sm text-[13px] leading-tight font-bold text-on-surface truncate uppercase tracking-wider" id="card-name-display">
+          Mateo Ramos
+        </h3>
+<div class="flex items-center justify-center gap-2 mt-1 text-[9px] font-label-tactical text-on-surface-variant">
+<span>RIT <b class="text-on-surface">82</b></span>
+<span>TIR <b class="text-on-surface">79</b></span>
+<span>PAS <b class="text-on-surface">74</b></span>
+</div>
+</div>
+</div>
+</div>
+<!-- Form Fields Section -->
+<form class="flex flex-col gap-space-md w-full max-w-md mx-auto" id="card-registration-form" onsubmit="event.preventDefault();">
+<!-- Field: Nombre Completo / Apodo -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-tactical text-label-tactical uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5" for="player-name">
+<span class="material-symbols-outlined text-sm text-primary">badge</span>
+        Nombre Completo / Apodo en Cancha
+      </label>
+<div class="relative flex items-center">
+<input class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md rounded-xl px-4 py-3 pl-11 focus:outline-none focus:bg-surface-container transition-all placeholder:text-outline shadow-inner" id="player-name" placeholder="Ej. El Tanque, Alex C." type="text" value="Mateo Ramos">
+<span class="material-symbols-outlined absolute left-3.5 text-outline pointer-events-none text-lg">sports_soccer</span>
+</div>
+</div>
+<!-- Field: Distrito de Residencia -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-tactical text-label-tactical uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5" for="player-district">
+<span class="material-symbols-outlined text-sm text-primary">location_on</span>
+        Distrito de Residencia (Sede Preferente)
+      </label>
+<div class="relative flex items-center">
+<select class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md rounded-xl px-4 py-3 pl-11 pr-10 appearance-none focus:outline-none focus:bg-surface-container transition-all shadow-inner" id="player-district">
+<option selected="" value="surco">Santiago de Surco (Polo Turf / Jockey)</option>
+<option value="miraflores">Miraflores (Complejo Cholo Sotil)</option>
+<option value="san-borja">San Borja (Polideportivo Limatambo)</option>
+<option value="san-isidro">San Isidro (Canchas El Bosque)</option>
+<option value="la-molina">La Molina (Rinconada Soccer Club)</option>
+<option value="barranco">Barranco (Estadio Unión)</option>
+</select>
+<span class="material-symbols-outlined absolute left-3.5 text-primary pointer-events-none text-lg">near_me</span>
+<span class="material-symbols-outlined absolute right-3.5 text-outline pointer-events-none text-lg">arrow_drop_down</span>
+</div>
+</div>
+<!-- Field: Tactical Position Selectors -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<label class="font-label-tactical text-label-tactical uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm text-primary">grid_view</span>
+          Posición Favorita en Cancha
+        </label>
+<span class="font-label-tactical text-label-tactical text-primary" id="pos-selected-desc">Delantero Centro</span>
+</div>
+<div aria-label="Posición táctica" class="grid grid-cols-4 gap-2" role="radiogroup">
+<button class="pos-btn flex flex-col items-center justify-center py-2.5 px-1 rounded-xl bg-primary-container text-on-primary shadow-[0_0_12px_rgba(0,230,118,0.3)] font-label-tactical transition-transform active:scale-95" data-desc="Delantero Centro" data-pos="DEL" type="button">
+<span class="text-sm font-bold">DEL</span>
+<span class="text-[9px] uppercase tracking-tight opacity-90">Ataque</span>
+</button>
+<button class="pos-btn flex flex-col items-center justify-center py-2.5 px-1 rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-tactical transition-transform active:scale-95" data-desc="Mediocampista / Volante" data-pos="MED" type="button">
+<span class="text-sm font-bold">MED</span>
+<span class="text-[9px] uppercase tracking-tight opacity-80">Creación</span>
+</button>
+<button class="pos-btn flex flex-col items-center justify-center py-2.5 px-1 rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-tactical transition-transform active:scale-95" data-desc="Defensa Central / Lateral" data-pos="DEF" type="button">
+<span class="text-sm font-bold">DEF</span>
+<span class="text-[9px] uppercase tracking-tight opacity-80">Muro</span>
+</button>
+<button class="pos-btn flex flex-col items-center justify-center py-2.5 px-1 rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-tactical transition-transform active:scale-95" data-desc="Arquero / Guardameta" data-pos="POR" type="button">
+<span class="text-sm font-bold">POR</span>
+<span class="text-[9px] uppercase tracking-tight opacity-80">Guante</span>
+</button>
+</div>
+</div>
+<!-- Skill Questionnaire Card (Calculadora de Elo Inicial) -->
+<div class="flex flex-col bg-surface-container-low rounded-2xl p-space-md mt-1 gap-space-md shadow-md">
+<div class="flex items-center justify-between pb-1">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-lg">calculate</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-[15px] text-on-surface">Calculadora de Elo Inicial</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-[11px]">Calibración táctica de tu primer ranking</p>
+</div>
+</div>
+<span class="flex items-center gap-1 font-label-tactical text-label-tactical text-secondary-fixed bg-secondary-container/20 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">bolt</span>
+          Algoritmo EA
+        </span>
+</div>
+<!-- Slider 1: Frecuencia de Juego -->
+<div class="flex flex-col gap-1.5">
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant font-medium">1. Frecuencia de juego semanal:</span>
+<span class="text-primary font-label-stat text-xs" id="slider-val-freq">3 a 4 veces</span>
+</div>
+<input class="w-full accent-primary bg-surface-container-highest h-2 rounded-lg cursor-pointer" id="slider-freq" max="5" min="1" type="range" value="4">
+<div class="flex justify-between text-[10px] text-outline font-label-tactical">
+<span>Ocasional</span>
+<span>Interdiario</span>
+<span>Pro Turf</span>
+</div>
+</div>
+<!-- Slider 2: Nivel Competitivo Previo -->
+<div class="flex flex-col gap-1.5">
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant font-medium">2. Experiencia competitiva:</span>
+<span class="text-secondary font-label-stat text-xs" id="slider-val-exp">Ligas / Torneos</span>
+</div>
+<input class="w-full accent-secondary bg-surface-container-highest h-2 rounded-lg cursor-pointer" id="slider-exp" max="4" min="1" type="range" value="3">
+<div class="flex justify-between text-[10px] text-outline font-label-tactical">
+<span>Pichangas</span>
+<span>Interbarrial</span>
+<span>Federado</span>
+</div>
+</div>
+<!-- Slider 3: Resistencia Física -->
+<div class="flex flex-col gap-1.5">
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant font-medium">3. Resistencia física percibida:</span>
+<span class="text-primary-fixed font-label-stat text-xs" id="slider-val-sta">90 min intenso</span>
+</div>
+<input class="w-full accent-primary bg-surface-container-highest h-2 rounded-lg cursor-pointer" id="slider-sta" max="4" min="1" type="range" value="3">
+<div class="flex justify-between text-[10px] text-outline font-label-tactical">
+<span>45 min</span>
+<span>60 min</span>
+<span>90 min +</span>
+</div>
+</div>
+<!-- Live Rating Preview Result Box -->
+<div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-high/80 backdrop-blur-sm">
+<div class="flex items-center gap-2.5">
+<div class="w-9 h-9 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+<div>
+<span class="block text-[10px] font-label-tactical text-on-surface-variant uppercase tracking-widest">Rating Base Estimado</span>
+<div class="flex items-center gap-1.5">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold" id="live-elo-val">1,500</span>
+<span class="text-[11px] font-label-tactical text-secondary bg-secondary/15 px-1.5 py-0.5 rounded font-bold">Plata I</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<span class="text-[10px] font-label-tactical text-outline block uppercase">Seed Bracket</span>
+<span class="text-xs font-label-stat text-primary flex items-center justify-end gap-0.5">
+<span class="material-symbols-outlined text-xs">verified</span> Calibrado
+          </span>
+</div>
+</div>
+</div>
+<!-- Main Submission CTA Button -->
+<div class="pt-2">
+<button class="w-full py-4 px-6 rounded-2xl bg-primary-container text-on-primary font-headline-sm text-[16px] uppercase tracking-wider font-bold shadow-[0_4px_24px_rgba(0,230,118,0.35)] active:scale-[0.98] transition-all flex items-center justify-center gap-2" id="submit-card-btn" type="button">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">style</span>
+        Crear Mi Carta FUT &amp; Entrar
+      </button>
+</div>
+</form>
+<!-- Quick Demo Switcher Test Pills (Developer / Preview Tools) -->
+<div class="mt-space-lg pt-space-sm flex flex-col items-center gap-2">
+<span class="text-[11px] font-label-tactical text-outline uppercase tracking-widest flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">tune</span>
+      Cargar Perfiles Demo
+    </span>
+<div class="flex flex-wrap items-center justify-center gap-2 w-full max-w-sm">
+<button class="flex-1 min-w-[140px] py-2 px-3 rounded-full bg-surface-container text-on-surface font-body-sm text-[11px] hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1.5" id="demo-carlos" type="button">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>Carlos <b>(DEL 84)</b></span>
+</button>
+<button class="flex-1 min-w-[140px] py-2 px-3 rounded-full bg-surface-container text-on-surface font-body-sm text-[11px] hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1.5" id="demo-lucia" type="button">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span>Lucía <b>(MED 82)</b></span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    const nameInput = document.getElementById('player-name');
+    const cardNameDisplay = document.getElementById('card-name-display');
+    const cardOvr = document.getElementById('card-ovr');
+    const cardPosBadge = document.getElementById('card-pos-badge');
+    const posDesc = document.getElementById('pos-selected-desc');
+    const liveEloVal = document.getElementById('live-elo-val');
+    const posButtons = document.querySelectorAll('.pos-btn');
+
+    const sliderFreq = document.getElementById('slider-freq');
+    const sliderExp = document.getElementById('slider-exp');
+    const sliderSta = document.getElementById('slider-sta');
+    const valFreq = document.getElementById('slider-val-freq');
+    const valExp = document.getElementById('slider-val-exp');
+    const valSta = document.getElementById('slider-val-sta');
+
+    const freqLabels = ["1 vez al mes", "1 vez por semana", "2 veces por semana", "3 a 4 veces", "5+ casi diario"];
+    const expLabels = ["Pichanga de amigos", "Torneos amateur", "Ligas interbarriales", "Federado / Sub-20"];
+    const staLabels = ["45 min con pausas", "60 min regular", "90 min intenso", "Iron Man / Box to box"];
+
+    // Update Name on FUT card live
+    if (nameInput && cardNameDisplay) {
+      nameInput.addEventListener('input', function(e) {
+        cardNameDisplay.textContent = e.target.value.trim() || "TU NOMBRE";
+      });
+    }
+
+    // Position Selector logic
+    posButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        posButtons.forEach(b => {
+          b.className = 'pos-btn flex flex-col items-center justify-center py-2.5 px-1 rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-tactical transition-transform active:scale-95';
+        });
+        this.className = 'pos-btn flex flex-col items-center justify-center py-2.5 px-1 rounded-xl bg-primary-container text-on-primary shadow-[0_0_12px_rgba(0,230,118,0.3)] font-label-tactical transition-transform active:scale-95';
+        
+        const pos = this.getAttribute('data-pos');
+        const desc = this.getAttribute('data-desc');
+        if (cardPosBadge) cardPosBadge.textContent = pos;
+        if (posDesc) posDesc.textContent = desc;
+      });
+    });
+
+    // Rating Calculator formula
+    function recalculateRating() {
+      const f = parseInt(sliderFreq.value, 10);
+      const e = parseInt(sliderExp.value, 10);
+      const s = parseInt(sliderSta.value, 10);
+
+      valFreq.textContent = freqLabels[f - 1];
+      valExp.textContent = expLabels[e - 1];
+      valSta.textContent = staLabels[s - 1];
+
+      // Base formula: 65 base + weighted sliders
+      const ovr = Math.min(89, Math.round(62 + (f * 2.2) + (e * 3.5) + (s * 2.1)));
+      const elo = Math.round(1150 + (ovr - 65) * 25);
+
+      if (cardOvr) cardOvr.textContent = ovr;
+      if (liveEloVal) liveEloVal.textContent = elo.toLocaleString();
+    }
+
+    [sliderFreq, sliderExp, sliderSta].forEach(slider => {
+      if (slider) slider.addEventListener('input', recalculateRating);
+    });
+
+    // Demo profile loaders
+    const demoCarlos = document.getElementById('demo-carlos');
+    const demoLucia = document.getElementById('demo-lucia');
+
+    if (demoCarlos) {
+      demoCarlos.addEventListener('click', () => {
+        nameInput.value = "Carlos Morales";
+        cardNameDisplay.textContent = "Carlos Morales";
+        sliderFreq.value = 4;
+        sliderExp.value = 4;
+        sliderSta.value = 3;
+        recalculateRating();
+        const delBtn = document.querySelector('[data-pos="DEL"]');
+        if (delBtn) delBtn.click();
+      });
+    }
+
+    if (demoLucia) {
+      demoLucia.addEventListener('click', () => {
+        nameInput.value = "Lucía Mendez";
+        cardNameDisplay.textContent = "Lucía Mendez";
+        sliderFreq.value = 5;
+        sliderExp.value = 3;
+        sliderSta.value = 4;
+        recalculateRating();
+        const medBtn = document.querySelector('[data-pos="MED"]');
+        if (medBtn) medBtn.click();
+      });
+    }
+
+    // Interactive Tab switcher toggle
+    const tabLogin = document.getElementById('tab-login');
+    const tabSignup = document.getElementById('tab-signup');
+    if (tabLogin && tabSignup) {
+      tabLogin.addEventListener('click', () => {
+        tabLogin.className = 'flex-1 py-2 px-3 text-center rounded-full font-label-tactical text-label-tactical uppercase tracking-wider bg-surface-container-high text-on-surface font-bold transition-all';
+        tabSignup.className = 'flex-1 py-2 px-3 text-center rounded-full font-label-tactical text-label-tactical uppercase tracking-wider text-on-surface-variant hover:text-on-surface transition-all flex items-center justify-center gap-1';
+      });
+      tabSignup.addEventListener('click', () => {
+        tabSignup.className = 'flex-1 py-2 px-3 text-center rounded-full font-label-tactical text-label-tactical uppercase tracking-wider bg-primary-container text-on-primary font-bold shadow-[0_0_16px_rgba(0,230,118,0.4)] transition-all flex items-center justify-center gap-1';
+        tabLogin.className = 'flex-1 py-2 px-3 text-center rounded-full font-label-tactical text-label-tactical uppercase tracking-wider text-on-surface-variant hover:text-on-surface transition-all';
+      });
+    }
+  })();
+</script></main></body></html>

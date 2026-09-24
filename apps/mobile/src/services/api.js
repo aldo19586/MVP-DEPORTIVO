@@ -80,5 +80,20 @@ export const api = {
   async getLeaderboard(sportId, formatId) {
     const res = await fetch(`${API_BASE_URL}/leaderboard/${sportId}/${formatId}`);
     return handleResponse(res);
+  },
+
+  // Peer-Review Circular (Post-Partido 1-Toque)
+  async getPeerReviewAssignment(matchId, userId) {
+    const res = await fetch(`${API_BASE_URL}/match/${matchId}/peer-review/${userId}`);
+    return handleResponse(res);
+  },
+
+  async submitPeerReview({ matchId, evaluatorId, attributeTag }) {
+    const res = await fetch(`${API_BASE_URL}/match/peer-review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId, evaluatorId, attributeTag })
+    });
+    return handleResponse(res);
   }
 };

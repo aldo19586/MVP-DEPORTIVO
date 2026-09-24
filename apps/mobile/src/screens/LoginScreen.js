@@ -9,31 +9,82 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { api } from '../services/api';
 import { storage } from '../services/storage';
+import { THEME } from '../theme';
 
-const QUICK_DISTRICTS = ['Surco, Lima', 'Miraflores, Lima', 'San Borja, Lima', 'La Molina, Lima', 'San Isidro, Lima'];
-const POSITIONS = ['POR', 'DEF', 'MED', 'DEL'];
+const QUICK_DISTRICTS = [
+  'Surco, Lima (Polo Turf / Jockey)',
+  'Miraflores, Lima (Bonilla / Club)',
+  'San Borja, Lima (Polideportivo)',
+  'San Isidro, Lima (Complejo)',
+  'La Molina, Lima (Rinconada)'
+];
 
-export default function LoginScreen({ onLoginSuccess }) {
-  const [isRegistering, setIsRegistering] = useState(false);
+const POSITIONS = [
+  { key: 'DEL', label: 'DEL', sub: 'ATAQUE' },
+  { key: 'MED', label: 'MED', sub: 'CREACIÓN' },
+  { key: 'DEF', label: 'DEF', sub: 'MURO' },
+  { key: 'POR', label: 'POR', sub: 'GUANTE' }
+];
+
+export default function LoginScreen({ onLoginSuccess, initialIsRegistering = false, onBackToSplash }) {
+  const [isRegistering, setIsRegistering] = useState(initialIsRegistering);
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
-  const [district, setDistrict] = useState('Surco, Lima');
-  const [position, setPosition] = useState('MED');
+  const [district, setDistrict] = useState(QUICK_DISTRICTS[0]);
+  const [position, setPosition] = useState('DEL');
+  const [avatarUri, setAvatarUri] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150');
   const [loading, setLoading] = useState(false);
+
+  // Sliders/Selecciones del Cuestionario de Elo Inicial
+  const [freqIndex, setFreqIndex] = useState(2); // 0: Ocasional, 1: Interdiario, 2: 3-4 veces, 3: Pro Turf
+  const [expIndex, setExpIndex] = useState(1);  // 0: Pichangas, 1: Ligas/Torneos, 2: Federado
+  const [staminaIndex, setStaminaIndex] = useState(2); // 0: 45 min, 1: 60 min, 2: 90 min intenso
+
+  const FREQ_LABELS = ['1 vez/semana', 'Interdiario', '3 a 4 veces', 'Pro Turf Diario'];
+  const EXP_LABELS = ['Pichangas de amigos', 'Ligas / Torneos', 'Federado'];
+  const STAMINA_LABELS = ['45 min', '60 min', '90 min intenso'];
+
+  // Calcular rating base simulado
+  const calculatedElo = 1400 + (freqIndex * 40) + (expIndex * 60) + (staminaIndex * 30);
+  const calculatedOvr = Math.min(92, Math.floor(65 + (calculatedElo - 1200) / 40));
+
+  const handlePickAvatar = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permiso necesario', 'Se requiere acceso a la galería para cambiar tu foto de perfil.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets && res.assets[0].uri) {
+        setAvatarUri(res.assets[0].uri);
+      }
+    } catch (e) {
+      console.warn('Error picker:', e);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Datos requeridos', 'Ingresa tu nombre o apodo de jugador.');
+      Alert.alert('Datos requeridos', 'Ingresa tu nombre o apodo para la carta.');
       return;
     }
 
     if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      Alert.alert('PIN inválido', 'El PIN debe ser exactamente de 4 dígitos numéricos.');
+      Alert.alert('PIN inválido', 'El PIN de seguridad debe tener exactamente 4 dígitos numéricos.');
       return;
     }
 
@@ -46,8 +97,9 @@ export default function LoginScreen({ onLoginSuccess }) {
           pin: pin.trim(),
           district,
           position,
+          avatar: avatarUri,
           primarySport: 'futbol',
-          declaredLevel: 'intermedio'
+          declaredLevel: expIndex === 2 ? 'avanzado' : expIndex === 1 ? 'intermedio' : 'principiante'
         });
       } else {
         result = await api.pinLogin(name.trim(), pin.trim());
@@ -58,16 +110,17 @@ export default function LoginScreen({ onLoginSuccess }) {
       onLoginSuccess(result.user);
     } catch (err) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', err.message || 'Error al autenticar');
+      Alert.alert('Error', err.message || 'Error al autenticar.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDemoFill = async (demoName) => {
+  const handleDemoFill = async (demoName, demoPos, demoOvr) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setName(demoName);
     setPin('1234');
+    setPosition(demoPos);
   };
 
   return (
@@ -76,137 +129,311 @@ export default function LoginScreen({ onLoginSuccess }) {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Logo y Encabezado Deportivo */}
-        <View style={styles.brandContainer}>
-          <Text style={styles.brandTitle}>MATCH<Text style={styles.brandAccent}>SPORT</Text></Text>
-          <Text style={styles.brandTagline}>PLATAFORMA NATIVA DE MATCHMAKING DEPORTIVO</Text>
+        
+        {/* Top Header Switcher */}
+        <View style={styles.topTabs}>
+          <TouchableOpacity
+            style={[styles.topTabBtn, !isRegistering && styles.topTabBtnActive]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setIsRegistering(false);
+            }}
+          >
+            <Text style={[styles.topTabText, !isRegistering && styles.topTabTextActive]}>
+              INICIAR SESIÓN
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.topTabBtn, isRegistering && styles.topTabBtnActive]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setIsRegistering(true);
+            }}
+          >
+            <Text style={[styles.topTabText, isRegistering && styles.topTabTextActive]}>
+              ★ NUEVO JUGADOR
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Tarjeta de Autenticación */}
-        <View style={styles.card}>
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, !isRegistering && styles.tabActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsRegistering(false);
-              }}
-            >
-              <Text style={[styles.tabText, !isRegistering && styles.tabTextActive]}>INGRESAR</Text>
-            </TouchableOpacity>
+        {isRegistering ? (
+          /* ========================================================
+             MODO REGISTRO: Personaliza tu Carta FUT (Stitch Screen 2)
+             ======================================================== */
+          <View style={styles.registerSection}>
+            <View style={styles.draftBadge}>
+              <View style={styles.draftGreenDot} />
+              <Text style={styles.draftBadgeText}>DRAFT TEMPORADA APERTURA</Text>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.tab, isRegistering && styles.tabActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsRegistering(true);
-              }}
-            >
-              <Text style={[styles.tabText, isRegistering && styles.tabTextActive]}>REGISTRARSE</Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.mainTitle}>
+              Personaliza tu <Text style={styles.titleGreen}>Carta FUT</Text>
+            </Text>
+            <Text style={styles.subtitle}>
+              Forja tu identidad competitiva y calcula tu Elo oficial para el radar de canchas locales.
+            </Text>
 
-          {/* Input Nombre */}
-          <Text style={styles.inputLabel}>Nombre o Apodo de Cancha</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Paolo G."
-            placeholderTextColor="#64748b"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-            maxLength={25}
-          />
+            {/* FUT Card Preview */}
+            <View style={styles.futCardPreview}>
+              <View style={styles.cardHeaderRow}>
+                <View>
+                  <Text style={styles.cardOvr}>{calculatedOvr}</Text>
+                  <Text style={styles.cardPos}>{position}</Text>
+                </View>
+                <View style={styles.cardCountry}>
+                  <Text style={styles.cardFlag}>🇵🇪</Text>
+                  <Text style={styles.cardCountryCode}>PER</Text>
+                </View>
+              </View>
 
-          {/* Input PIN 4 dígitos */}
-          <Text style={styles.inputLabel}>PIN de 4 Dígitos</Text>
-          <TextInput
-            style={[styles.input, styles.pinInput]}
-            placeholder="••••"
-            placeholderTextColor="#64748b"
-            value={pin}
-            onChangeText={(text) => setPin(text.replace(/[^0-9]/g, ''))}
-            keyboardType="numeric"
-            maxLength={4}
-            secureTextEntry
-          />
+              <TouchableOpacity style={styles.avatarWrapper} onPress={handlePickAvatar}>
+                <Image source={{ uri: avatarUri }} style={styles.cardAvatar} />
+                <View style={styles.editPencil}>
+                  <Text style={styles.pencilIcon}>✏️</Text>
+                </View>
+              </TouchableOpacity>
 
-          {/* Campos de Registro */}
-          {isRegistering && (
-            <>
-              <Text style={styles.inputLabel}>Distrito de Residencia</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+              <Text style={styles.cardPlayerName}>{name.trim() || 'TU NOMBRE'}</Text>
+              <Text style={styles.cardStatsPill}>
+                RIT <Text style={styles.statVal}>82</Text>   TIR <Text style={styles.statVal}>79</Text>   PAS <Text style={styles.statVal}>74</Text>
+              </Text>
+            </View>
+
+            {/* Formulario */}
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>⚽ NOMBRE COMPLETO / APODO EN CANCHA</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ej. Mateo Ramos"
+                placeholderTextColor={THEME.colors.textMuted}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>🔒 PIN DE SEGURIDAD (4 DÍGITOS)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="1234"
+                placeholderTextColor={THEME.colors.textMuted}
+                value={pin}
+                onChangeText={setPin}
+                keyboardType="numeric"
+                maxLength={4}
+                secureTextEntry
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>📍 DISTRITO DE RESIDENCIA (SEDE PREFERENTE)</Text>
+              <View style={styles.districtChipsScroll}>
                 {QUICK_DISTRICTS.map((d) => (
                   <TouchableOpacity
                     key={d}
-                    style={[styles.chip, district === d && styles.chipActive]}
+                    style={[styles.districtChip, district === d && styles.districtChipActive]}
                     onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      Haptics.selectionAsync();
                       setDistrict(d);
                     }}
                   >
-                    <Text style={[styles.chipText, district === d && styles.chipTextActive]}>{d}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <Text style={styles.inputLabel}>Posición en Cancha</Text>
-              <View style={styles.positionsRow}>
-                {POSITIONS.map((pos) => (
-                  <TouchableOpacity
-                    key={pos}
-                    style={[styles.posButton, position === pos && styles.posButtonActive]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setPosition(pos);
-                    }}
-                  >
-                    <Text style={[styles.posButtonText, position === pos && styles.posButtonTextActive]}>
-                      {pos}
+                    <Text style={[styles.districtChipText, district === d && styles.districtChipTextActive]}>
+                      {d.split(' ')[0]}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </>
-          )}
+            </View>
 
-          {/* Botón Principal */}
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#0f172a" />
-            ) : (
-              <Text style={styles.submitButtonText}>
-                {isRegistering ? 'CREAR JUGADOR' : 'INGRESAR A LA CANCHA'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Acceso Rápido para Pruebas Locales */}
-          {!isRegistering && (
-            <View style={styles.demoSection}>
-              <Text style={styles.demoTitle}>Cuentas demo (PIN: 1234):</Text>
-              <View style={styles.demoButtonsRow}>
-                <TouchableOpacity
-                  style={styles.demoChip}
-                  onPress={() => handleDemoFill('Carlos Méndez')}
-                >
-                  <Text style={styles.demoChipText}>Carlos M. (DEL)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.demoChip}
-                  onPress={() => handleDemoFill('Mateo Silva')}
-                >
-                  <Text style={styles.demoChipText}>Mateo S. (MED)</Text>
-                </TouchableOpacity>
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>⚽ POSICIÓN FAVORITA EN CANCHA</Text>
+              <View style={styles.positionsRow}>
+                {POSITIONS.map((p) => {
+                  const isActive = position === p.key;
+                  return (
+                    <TouchableOpacity
+                      key={p.key}
+                      style={[styles.posButton, isActive && styles.posButtonActive]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setPosition(p.key);
+                      }}
+                    >
+                      <Text style={[styles.posButtonTitle, isActive && styles.posButtonTitleActive]}>
+                        {p.label}
+                      </Text>
+                      <Text style={[styles.posButtonSub, isActive && styles.posButtonSubActive]}>
+                        {p.sub}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
-          )}
+
+            {/* Calculadora de Elo Inicial */}
+            <View style={styles.calculatorCard}>
+              <View style={styles.calcHeader}>
+                <View>
+                  <Text style={styles.calcTitle}>Calculadora de Elo Inicial</Text>
+                  <Text style={styles.calcSubtitle}>Calibración táctica de tu primer ranking</Text>
+                </View>
+                <View style={styles.eaBadge}>
+                  <Text style={styles.eaBadgeText}>⚡ Algoritmo EA</Text>
+                </View>
+              </View>
+
+              {/* Pregunta 1 */}
+              <View style={styles.calcItem}>
+                <View style={styles.calcItemHeader}>
+                  <Text style={styles.calcItemLabel}>1. Frecuencia de juego semanal:</Text>
+                  <Text style={styles.calcItemValue}>{FREQ_LABELS[freqIndex]}</Text>
+                </View>
+                <View style={styles.selectorRow}>
+                  {FREQ_LABELS.map((label, idx) => (
+                    <TouchableOpacity
+                      key={label}
+                      style={[styles.stepDot, freqIndex === idx && styles.stepDotActive]}
+                      onPress={() => setFreqIndex(idx)}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Pregunta 2 */}
+              <View style={styles.calcItem}>
+                <View style={styles.calcItemHeader}>
+                  <Text style={styles.calcItemLabel}>2. Experiencia competitiva:</Text>
+                  <Text style={styles.calcItemValue}>{EXP_LABELS[expIndex]}</Text>
+                </View>
+                <View style={styles.selectorRow}>
+                  {EXP_LABELS.map((label, idx) => (
+                    <TouchableOpacity
+                      key={label}
+                      style={[styles.stepDot, expIndex === idx && styles.stepDotActive]}
+                      onPress={() => setExpIndex(idx)}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Resumen Calculado */}
+              <View style={styles.calcResultRow}>
+                <View>
+                  <Text style={styles.calcResultLabel}>RATING BASE ESTIMADO</Text>
+                  <Text style={styles.calcResultValue}>
+                    {calculatedElo} <Text style={styles.bracketLabel}>Plata I</Text>
+                  </Text>
+                </View>
+                <View style={styles.calibratedBadge}>
+                  <Text style={styles.calibratedText}>✓ Calibrado</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Botón Principal de Registro */}
+            <TouchableOpacity
+              style={styles.mainSubmitBtn}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#00210B" />
+              ) : (
+                <Text style={styles.mainSubmitText}>⚽ CREAR MI CARTA FUT & ENTRAR</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* ========================================================
+             MODO LOGIN: Acceso rápido con PIN
+             ======================================================== */
+          <View style={styles.loginSection}>
+            <Text style={styles.mainTitle}>
+              Bienvenido de <Text style={styles.titleGreen}>Vuelta</Text>
+            </Text>
+            <Text style={styles.subtitle}>
+              Ingresa tu nombre y PIN para sincronizar tus partidos y estadísticas de cancha.
+            </Text>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>👤 NOMBRE O CORREO REGISTRADO</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ej. Carlos Mendoza o demo_user_1"
+                placeholderTextColor={THEME.colors.textMuted}
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>🔒 PIN DE 4 DÍGITOS</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="1234"
+                placeholderTextColor={THEME.colors.textMuted}
+                value={pin}
+                onChangeText={setPin}
+                keyboardType="numeric"
+                maxLength={4}
+                secureTextEntry
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.mainSubmitBtn}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#00210B" />
+              ) : (
+                <Text style={styles.mainSubmitText}>INGRESAR A LA CANCHA ➔</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Demo Fast Switcher */}
+        <View style={styles.demoSection}>
+          <Text style={styles.demoSectionTitle}>⚡ CARGAR PERFILES DEMO</Text>
+          <View style={styles.demoButtonsRow}>
+            <TouchableOpacity
+              style={styles.demoBtn}
+              onPress={() => handleDemoFill('Carlos Mendoza', 'DEL', 84)}
+            >
+              <View style={styles.orangeDot} />
+              <Text style={styles.demoBtnText}>Carlos (DEL 84)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.demoBtn}
+              onPress={() => handleDemoFill('Mateo Ramos', 'MED', 82)}
+            >
+              <View style={styles.greenDot} />
+              <Text style={styles.demoBtnText}>Mateo (MED 82)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.demoBtn}
+              onPress={() => handleDemoFill('Lucía Morales', 'DEL', 80)}
+            >
+              <View style={styles.greenDot} />
+              <Text style={styles.demoBtnText}>Lucía (DEL 80)</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {onBackToSplash && (
+          <TouchableOpacity style={styles.backSplashBtn} onPress={onBackToSplash}>
+            <Text style={styles.backSplashText}>← Volver a la pantalla de bienvenida</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -215,193 +442,425 @@ export default function LoginScreen({ onLoginSuccess }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a'
+    backgroundColor: THEME.colors.bgCanvas,
   },
   scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24
+    paddingHorizontal: 20,
+    paddingTop: 45,
+    paddingBottom: 40,
   },
-  brandContainer: {
-    alignItems: 'center',
-    marginBottom: 24
-  },
-  brandTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#f8fafc',
-    letterSpacing: 2
-  },
-  brandAccent: {
-    color: '#10b981'
-  },
-  brandTagline: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#94a3b8',
-    letterSpacing: 1.5,
-    marginTop: 4
-  },
-  card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#334155',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6
-  },
-  tabContainer: {
+  topTabs: {
     flexDirection: 'row',
-    backgroundColor: '#0f172a',
-    borderRadius: 12,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
     padding: 4,
-    marginBottom: 20
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
-  tab: {
+  topTabBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    borderRadius: THEME.radius.md,
     alignItems: 'center',
-    borderRadius: 8
   },
-  tabActive: {
-    backgroundColor: '#10b981'
+  topTabBtnActive: {
+    backgroundColor: THEME.colors.primary,
   },
-  tabText: {
-    color: '#94a3b8',
+  topTabText: {
     fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 1
+    color: THEME.colors.textSecondary,
+    letterSpacing: 0.5,
   },
-  tabTextActive: {
-    color: '#0f172a'
+  topTabTextActive: {
+    color: '#00210B',
+  },
+  registerSection: {
+    gap: 16,
+  },
+  loginSection: {
+    gap: 18,
+    marginTop: 10,
+  },
+  draftBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: THEME.radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  draftGreenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.primary,
+    marginRight: 6,
+  },
+  draftBadgeText: {
+    color: THEME.colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  mainTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
+    textAlign: 'center',
+  },
+  titleGreen: {
+    color: THEME.colors.primary,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: THEME.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: -8,
+  },
+  futCardPreview: {
+    alignSelf: 'center',
+    width: 200,
+    backgroundColor: '#1E232D',
+    borderRadius: THEME.radius.lg,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: THEME.colors.gold,
+    alignItems: 'center',
+    marginVertical: 8,
+    shadowColor: THEME.colors.gold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    alignItems: 'flex-start',
+  },
+  cardOvr: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: THEME.colors.gold,
+    lineHeight: 30,
+  },
+  cardPos: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.primary,
+  },
+  cardCountry: {
+    alignItems: 'center',
+  },
+  cardFlag: {
+    fontSize: 14,
+  },
+  cardCountryCode: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: THEME.colors.gold,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginVertical: 6,
+  },
+  cardAvatar: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 2,
+    borderColor: THEME.colors.gold,
+  },
+  editPencil: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: THEME.colors.gold,
+    borderRadius: 12,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pencilIcon: {
+    fontSize: 10,
+  },
+  cardPlayerName: {
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  cardStatsPill: {
+    color: THEME.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  statVal: {
+    color: THEME.colors.gold,
+    fontWeight: '900',
+  },
+  formGroup: {
+    gap: 6,
   },
   inputLabel: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 6,
-    marginTop: 8
-  },
-  input: {
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: '#f8fafc',
-    fontSize: 15
-  },
-  pinInput: {
-    textAlign: 'center',
-    fontSize: 22,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 8
+    color: THEME.colors.textSecondary,
+    letterSpacing: 0.5,
   },
-  chipsScroll: {
-    marginVertical: 6
-  },
-  chip: {
-    backgroundColor: '#0f172a',
+  textInput: {
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: THEME.colors.border,
+    borderRadius: THEME.radius.md,
+    height: 48,
+    paddingHorizontal: 14,
+    color: THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  districtChipsScroll: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  districtChip: {
+    backgroundColor: THEME.colors.cardBg,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8
+    borderRadius: THEME.radius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
-  chipActive: {
-    borderColor: '#10b981',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)'
+  districtChipActive: {
+    borderColor: THEME.colors.primary,
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
   },
-  chipText: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontWeight: '600'
+  districtChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.textSecondary,
   },
-  chipTextActive: {
-    color: '#10b981',
-    fontWeight: '800'
+  districtChipTextActive: {
+    color: THEME.colors.primary,
   },
   positionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 6
+    gap: 8,
   },
   posButton: {
     flex: 1,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.md,
     paddingVertical: 10,
-    marginHorizontal: 3,
-    borderRadius: 10,
-    alignItems: 'center'
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
   posButtonActive: {
-    borderColor: '#f59e0b',
-    backgroundColor: 'rgba(245, 158, 11, 0.15)'
+    backgroundColor: THEME.colors.primary,
+    borderColor: THEME.colors.primary,
   },
-  posButtonText: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '800'
-  },
-  posButtonTextActive: {
-    color: '#f59e0b'
-  },
-  submitButton: {
-    backgroundColor: '#10b981',
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 20,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4
-  },
-  submitButtonDisabled: {
-    opacity: 0.6
-  },
-  submitButtonText: {
-    color: '#0f172a',
+  posButtonTitle: {
     fontSize: 15,
     fontWeight: '900',
-    letterSpacing: 1
+    color: THEME.colors.textPrimary,
+  },
+  posButtonTitleActive: {
+    color: '#00210B',
+  },
+  posButtonSub: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: THEME.colors.textMuted,
+    marginTop: 2,
+  },
+  posButtonSubActive: {
+    color: '#00210B',
+  },
+  calculatorCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    gap: 12,
+    marginTop: 6,
+  },
+  calcHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  calcTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: THEME.colors.textPrimary,
+  },
+  calcSubtitle: {
+    fontSize: 10,
+    color: THEME.colors.textSecondary,
+  },
+  eaBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: THEME.radius.pill,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderGold,
+  },
+  eaBadgeText: {
+    color: THEME.colors.goldLight,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  calcItem: {
+    gap: 6,
+  },
+  calcItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  calcItemLabel: {
+    fontSize: 11,
+    color: THEME.colors.textSecondary,
+    fontWeight: '600',
+  },
+  calcItemValue: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.primary,
+  },
+  selectorRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  stepDot: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.cardElevated,
+  },
+  stepDotActive: {
+    backgroundColor: THEME.colors.primary,
+  },
+  calcResultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(11, 14, 20, 0.6)',
+    padding: 10,
+    borderRadius: THEME.radius.md,
+    marginTop: 4,
+  },
+  calcResultLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: THEME.colors.textMuted,
+  },
+  calcResultValue: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: THEME.colors.textPrimary,
+  },
+  bracketLabel: {
+    fontSize: 11,
+    color: THEME.colors.gold,
+    fontWeight: '800',
+  },
+  calibratedBadge: {
+    backgroundColor: 'rgba(0, 230, 118, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: THEME.radius.pill,
+  },
+  calibratedText: {
+    color: THEME.colors.primary,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  mainSubmitBtn: {
+    backgroundColor: THEME.colors.primary,
+    height: 52,
+    borderRadius: THEME.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: THEME.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mainSubmitText: {
+    color: '#00210B',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   demoSection: {
-    marginTop: 18,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#334155'
+    marginTop: 24,
+    gap: 8,
   },
-  demoTitle: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 8
+  demoSectionTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    letterSpacing: 1,
   },
   demoButtonsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  demoChip: {
-    backgroundColor: '#0f172a',
+  demoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.cardBg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: THEME.radius.pill,
     borderWidth: 1,
-    borderColor: '#334155',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8
+    borderColor: THEME.colors.border,
   },
-  demoChipText: {
-    color: '#38bdf8',
+  orangeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.gold,
+    marginRight: 6,
+  },
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.primary,
+    marginRight: 6,
+  },
+  demoBtnText: {
     fontSize: 11,
-    fontWeight: '700'
-  }
+    fontWeight: '700',
+    color: THEME.colors.textSecondary,
+  },
+  backSplashBtn: {
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  backSplashText: {
+    color: THEME.colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });

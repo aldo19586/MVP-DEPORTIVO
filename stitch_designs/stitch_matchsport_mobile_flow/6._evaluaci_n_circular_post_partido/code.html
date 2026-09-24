@@ -1,0 +1,286 @@
+<!DOCTYPE html><html class="dark" lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_stack" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "inverse-primary": "#006d35", "on-tertiary-fixed": "#410004", "outline": "#859585", "background": "#10131a", "primary-container": "#00e676", "surface-tint": "#00e475", "primary-fixed": "#62ff96", "on-error": "#690005", "surface-bright": "#363940", "on-secondary-container": "#5b3800", "surface-container-lowest": "#0b0e14", "surface": "#10131a", "on-surface": "#e1e2eb", "tertiary-fixed": "#ffdad7", "secondary-fixed": "#ffddb8", "on-background": "#e1e2eb", "on-primary": "#003918", "tertiary-fixed-dim": "#ffb3ad", "primary-fixed-dim": "#00e475", "on-tertiary-container": "#aa091b", "secondary-fixed-dim": "#ffb95f", "surface-container": "#1d2026", "surface-dim": "#10131a", "surface-container-high": "#272a31", "inverse-surface": "#e1e2eb", "tertiary-container": "#ffb6b0", "on-primary-fixed": "#00210b", "inverse-on-surface": "#2e3037", "primary": "#75ff9e", "surface-container-low": "#191c22", "surface-variant": "#32353c", "secondary-container": "#ee9800", "tertiary": "#ffdcd9", "error-container": "#93000a", "on-surface-variant": "#bacbb9", "on-primary-container": "#00612e", "on-primary-fixed-variant": "#005226", "on-secondary-fixed-variant": "#653e00", "surface-container-highest": "#32353c", "on-secondary-fixed": "#2a1700", "on-secondary": "#472a00", "outline-variant": "#3b4a3d", "secondary": "#ffb95f", "on-tertiary": "#68000a", "error": "#ffb4ab", "on-error-container": "#ffdad6", "on-tertiary-fixed-variant": "#930013" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xs": "0.25rem", "space-sm": "0.5rem", "gutter": "1rem", "margin": "1rem", "space-lg": "1.5rem", "space-xl": "2rem", "space-md": "1rem" }, "fontFamily": { "label-stat": [ "Space Grotesk" ], "headline-sm": [ "Space Grotesk" ], "headline-xl-mobile": [ "Space Grotesk" ], "label-tactical": [ "Space Grotesk" ], "display-ovr": [ "Space Grotesk" ], "body-sm": [ "Inter" ], "headline-lg": [ "Space Grotesk" ], "body-md": [ "Inter" ], "display-ovr-mobile": [ "Space Grotesk" ], "headline-xl": [ "Space Grotesk" ], "body-lg": [ "Inter" ] }, "fontSize": { "label-stat": [ "14px", { "lineHeight": "18px", "fontWeight": "700" } ], "headline-sm": [ "18px", { "lineHeight": "24px", "fontWeight": "600" } ], "headline-xl-mobile": [ "26px", { "lineHeight": "32px", "fontWeight": "700" } ], "label-tactical": [ "11px", { "lineHeight": "14px", "fontWeight": "700" } ], "display-ovr": [ "48px", { "lineHeight": "52px", "fontWeight": "700" } ], "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "headline-lg": [ "22px", { "lineHeight": "28px", "fontWeight": "600" } ], "body-md": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "display-ovr-mobile": [ "36px", { "lineHeight": "40px", "fontWeight": "700" } ], "headline-xl": [ "32px", { "lineHeight": "38px", "fontWeight": "700" } ], "body-lg": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#10131a;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary selection:text-on-primary"><header class="fixed top-0 w-full z-50 pt-safe bg-surface-container-lowest/80 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.5)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><button aria-label="Volver" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface hover:text-primary transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><img alt="MatchSport Emblem" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1U0VZ45Dmzq7yAR971vkoDl5LgoGI2SHJ8-spiXSduiog71fC14pP4Q4LKaAp8mAeYbtI0gb1jcsNFb91VlxUQL3SvdDA59Wk2AJllWGw06ki8AQib6o8IatQsDUoKK2DQcMtACR8aiad3Ew1iJDwVPGnIE36hmlSBTx5DhXqxMrF-FgA4rOo0eQHrWv3YCeXYxSBW7NQ3VOik5gX2VjhfxMuErk1ubj1CMJ95QwwYkEBkOdBPJE44Uiiq4"><h1 class="font-headline-sm text-headline-sm uppercase tracking-tight text-on-surface">Detalle Del Partido</h1></div><div class="flex items-center gap-space-sm"><div class="relative flex items-center justify-center p-0.5 rounded-full bg-secondary shadow-[0_0_12px_rgba(255,185,95,0.4)]"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2dNPo43J8LN-MrvBVAcPaOutKrRdq_LIs3iUU8MIqKXUsO92j8fOpJi6Kh5c4xlFMkriUU7JPrx9sX6XHedssFFH0_woRq3dX33nvQXWWyk0FUdzuvd2HH5RIJpEgWa4WjV89bsrVRSFyy4D8Cg7-0qsgwKWTeYn7BAA7BwrpgriNKYbIXSa78Vj-mbBwObeXL6CMVmL79nb9mmUqJZqayQGLLfWtp-4aIOhjssQQob93vtXT1WgP5Q"><span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary-container shadow-[0_0_8px_#00e676]"></span></div></div></div></header><main class="flex flex-col relative w-full pt-16 pb-safe bg-surface min-h-screen"><div class="flex flex-col w-full pb-8">
+<!-- Stadium Pitch Aura Effect -->
+<div class="fixed inset-0 pointer-events-none -z-10 flex items-center justify-center overflow-hidden">
+<div class="w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+<div class="w-80 h-80 bg-secondary/10 rounded-full blur-3xl transform translate-y-24"></div>
+</div>
+<!-- Bottom Sheet / Modal Shell Container -->
+<div class="w-full px-margin pt-space-xs flex flex-col items-center">
+<!-- Tactile Drag Indicator / Modal Grabber -->
+<div class="w-12 h-1.5 rounded-full bg-surface-variant mb-4 self-center"></div>
+<!-- Modal Content Card Container -->
+<div class="w-full bg-surface-container-low rounded-[28px] p-5 shadow-2xl flex flex-col relative overflow-hidden">
+<!-- Top Glowing Header Section -->
+<div class="flex flex-col items-center text-center gap-1.5 mb-5 relative">
+<!-- Live Circular Derangement Badge -->
+<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-container/15 text-primary">
+<span class="material-symbols-outlined text-[16px] text-primary" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="font-label-tactical text-label-tactical uppercase tracking-wider text-primary">Evaluación Circular de Compañero</span>
+</div>
+<h2 class="font-headline-xl-mobile text-headline-xl-mobile text-on-surface tracking-tight mt-1">
+          ¿Cuál fue el punto más fuerte de tu compañero hoy?
+        </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-xs leading-relaxed">
+          Tu voto es <span class="text-on-surface font-semibold">100% anónimo</span> y calibrará su carta oficial de FUT en el ranking global.
+        </p>
+</div>
+<!-- Compact FIFA Ultimate Team Gold Shield Card -->
+<div class="w-full flex justify-center mb-6">
+<div class="relative w-full max-w-[310px] bg-gradient-to-b from-surface-container-highest via-surface-container-high to-surface-container-lowest rounded-2xl p-4 shadow-xl flex flex-col">
+<!-- Card Decorative Pitch Radial Ring -->
+<div class="absolute -top-12 -right-12 w-32 h-32 bg-secondary/15 rounded-full blur-xl pointer-events-none"></div>
+<!-- Top Meta: OVR + Position + Player Details -->
+<div class="flex items-start justify-between relative z-10">
+<!-- Left: OVR & Flag/Pos Stack -->
+<div class="flex flex-col items-center">
+<span class="font-display-ovr-mobile text-display-ovr-mobile text-secondary leading-none drop-shadow-[0_2px_8px_rgba(255,185,95,0.4)]" id="player-ovr">
+                84
+              </span>
+<span class="font-label-stat text-label-stat text-secondary-fixed uppercase tracking-wider mt-0.5">
+                DEL
+              </span>
+<!-- Country Badge Micro Indicator -->
+<div class="flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-surface-container-lowest">
+<span class="inline-block w-3 h-2 rounded-[1px] bg-error"></span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant">PER</span>
+</div>
+</div>
+<!-- Center/Right: Teammate Portrait with Gold Radial Glow -->
+<div class="relative flex items-center justify-center">
+<div class="w-20 h-20 rounded-full bg-gradient-to-tr from-secondary via-secondary-fixed-dim to-primary p-0.5 shadow-lg">
+<img class="w-full h-full rounded-full object-cover bg-surface-container-lowest" data-alt="Intense athletic portrait of Mateo Ramos, a 22-year-old Peruvian amateur soccer striker looking forward with focused determination under atmospheric night stadium floodlights, dynamic cinematic rim light with emerald and golden accents on athletic charcoal jersey." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8W7MTxRVCTgjAsXge7S2zOI-QBvqtg_j2pqso2L_OWp13X5M8Uop8Ohj4EO2EhYIIaYwjrihUJiS6GAYEHPe_ZgqzDL_ykdBfwqgvny4gbBiHKfdNM968xbxrRQRMOYSIqW9WfJ3OQTUUxL-axLZDFDPYONT7CdPPJkNPFETTmgfyMdCyICzHfnMBNDUBzEXZj7eD8NRh44P1Gz00S1KrKZbtfXtGNCZr3IPpBcCeKFR_aEKwX-T7Ig">
+</div>
+<span class="absolute -bottom-1 -right-1 bg-primary text-on-primary rounded-full p-1 shadow-md flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px]">sports_soccer</span>
+</span>
+</div>
+</div>
+<!-- Player Identity -->
+<div class="flex flex-col mt-3 text-center relative z-10">
+<div class="flex items-center justify-center gap-1.5">
+<h3 class="font-headline-sm text-headline-sm text-on-surface uppercase tracking-wide">
+                Mateo Ramos
+              </h3>
+<span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Tu compañero en <span class="text-primary font-medium">Equipo A • Turf Masters</span>
+</p>
+</div>
+<!-- FIFA Base Attribute Matrix (6 Core Stats) -->
+<div class="grid grid-cols-6 gap-1 mt-3.5 pt-3 bg-surface-container-lowest/80 rounded-xl p-2.5 shadow-inner">
+<div class="flex flex-col items-center">
+<span class="font-label-tactical text-label-tactical text-on-surface-variant">PAC</span>
+<span class="font-label-stat text-label-stat text-on-surface" id="stat-pac">86</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-tactical text-label-tactical text-secondary font-bold">TIR</span>
+<span class="font-label-stat text-label-stat text-secondary font-bold" id="stat-tir">84</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-tactical text-label-tactical text-on-surface-variant">PAS</span>
+<span class="font-label-stat text-label-stat text-on-surface" id="stat-pas">80</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-tactical text-label-tactical text-on-surface-variant">REG</span>
+<span class="font-label-stat text-label-stat text-on-surface" id="stat-reg">83</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-tactical text-label-tactical text-on-surface-variant">DEF</span>
+<span class="font-label-stat text-label-stat text-on-surface" id="stat-def">62</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-label-tactical text-label-tactical text-on-surface-variant">FIS</span>
+<span class="font-label-stat text-label-stat text-on-surface" id="stat-fis">78</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Voting Action Zone -->
+<div class="flex flex-col gap-2.5 w-full">
+<div class="flex items-center justify-between px-1">
+<p class="font-label-tactical text-label-tactical text-on-surface-variant uppercase tracking-wider">
+            Toca 1 atributo para sumar +2 pts directos:
+          </p>
+<span class="inline-flex items-center gap-1 font-label-tactical text-label-tactical text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+            1-Tap Voto
+          </span>
+</div>
+<!-- 1. Ritmo (+2) -->
+<button class="vote-option group relative w-full p-3 rounded-xl bg-surface-container hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-between text-left shadow-sm" onclick="castVote('pac', this, '+2 PAC')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[22px]">bolt</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Ritmo</span>
+<span class="px-1.5 py-0.2 rounded bg-primary/20 text-primary font-label-tactical text-label-tactical">+2 PTS</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Velocidad explosiva y resistencia en la banda</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] ml-2 shrink-0">radio_button_unchecked</span>
+</button>
+<!-- 2. Definición (+2) - Destacado -->
+<button class="vote-option group relative w-full p-3 rounded-xl bg-surface-container hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-between text-left shadow-sm" onclick="castVote('tir', this, '+2 TIR')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-secondary/15 flex items-center justify-center text-secondary group-hover:bg-secondary/25 transition-colors">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">ads_click</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Definición</span>
+<span class="px-1.5 py-0.2 rounded bg-secondary/20 text-secondary font-label-tactical text-label-tactical">+2 PTS</span>
+<span class="px-1.5 py-0.5 rounded-full bg-secondary text-on-secondary font-label-tactical text-label-tactical">TOP</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Gol, oportunismo y frialdad de cara al arco</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] ml-2 shrink-0">radio_button_unchecked</span>
+</button>
+<!-- 3. Visión (+2) -->
+<button class="vote-option group relative w-full p-3 rounded-xl bg-surface-container hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-between text-left shadow-sm" onclick="castVote('pas', this, '+2 PAS')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[22px]">visibility</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Visión</span>
+<span class="px-1.5 py-0.2 rounded bg-primary/20 text-primary font-label-tactical text-label-tactical">+2 PTS</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Pases filtrados clave y distribución táctica</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] ml-2 shrink-0">radio_button_unchecked</span>
+</button>
+<!-- 4. Defensa (+2) -->
+<button class="vote-option group relative w-full p-3 rounded-xl bg-surface-container hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-between text-left shadow-sm" onclick="castVote('def', this, '+2 DEF')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[22px]">shield</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Defensa</span>
+<span class="px-1.5 py-0.2 rounded bg-primary/20 text-primary font-label-tactical text-label-tactical">+2 PTS</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Marca firme, presión alta y recuperación rápida</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] ml-2 shrink-0">radio_button_unchecked</span>
+</button>
+<!-- 5. Habilidad (+2) -->
+<button class="vote-option group relative w-full p-3 rounded-xl bg-surface-container hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-between text-left shadow-sm" onclick="castVote('reg', this, '+2 REG')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[22px]">star</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Habilidad</span>
+<span class="px-1.5 py-0.2 rounded bg-primary/20 text-primary font-label-tactical text-label-tactical">+2 PTS</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Regate en espacio reducido, gambeta y dominio</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] ml-2 shrink-0">radio_button_unchecked</span>
+</button>
+</div>
+<!-- Blind Reveal & Collusion Guard Status Notification -->
+<div class="mt-4 p-3.5 rounded-xl bg-surface-container-lowest flex items-start gap-3 transition-all" id="blind-status-box">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high shrink-0 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">lock</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="font-label-stat text-label-stat text-on-surface">Protocolo Derangement Activo</span>
+<span class="inline-block w-2 h-2 rounded-full bg-primary"></span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 leading-snug">
+            Sistema ciego anti-colusión. Nadie sabrá quién votó por quién hasta que los 10 jugadores cierren su tarjeta.
+          </p>
+</div>
+</div>
+<!-- Success Revealed State Card (Initially Hidden, Unlocked on Vote) -->
+<div class="hidden mt-4 p-4 rounded-xl bg-primary text-on-primary flex flex-col gap-2 shadow-lg animate-fade-in" id="success-banner">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[24px]">task_alt</span>
+<span class="font-headline-sm text-headline-sm">¡Voto Asignado con Éxito!</span>
+</div>
+<p class="font-body-sm text-body-sm opacity-90">
+          Has sumado puntos al ranking de Mateo. Tus propias estadísticas de la fecha han sido desbloqueadas.
+        </p>
+<button class="mt-2 w-full py-2.5 rounded-lg bg-on-primary text-primary font-headline-sm text-headline-sm uppercase tracking-wide active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-md" onclick="window.history.back()">
+<span>Ver Mis Calificaciones</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+<!-- Quick Skip/Dismiss Link -->
+<div class="mt-4 text-center">
+<button class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors py-1" onclick="window.history.back()">
+          Omitir valoración (no sumará EXP extra)
+        </button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  let hasVoted = false;
+
+  function castVote(statKey, element, label) {
+    if (hasVoted) return;
+    hasVoted = true;
+
+    // Reset other buttons visual state
+    document.querySelectorAll('.vote-option').forEach(btn => {
+      btn.classList.add('opacity-40', 'pointer-events-none');
+    });
+
+    // Highlight selected button
+    element.classList.remove('opacity-40', 'bg-surface-container');
+    element.classList.add('bg-secondary-container', 'text-on-secondary-container', 'scale-[1.02]');
+    
+    // Swap icon to verified check
+    const iconSpan = element.querySelector('.material-symbols-outlined:last-child');
+    if (iconSpan) {
+      iconSpan.textContent = 'check_circle';
+      iconSpan.classList.remove('text-on-surface-variant');
+      iconSpan.classList.add('text-on-secondary-container');
+    }
+
+    // Dynamic numeric update on FUT card
+    const targetStatElem = document.getElementById('stat-' + statKey);
+    const ovrElem = document.getElementById('player-ovr');
+    
+    if (targetStatElem) {
+      const currentVal = parseInt(targetStatElem.innerText, 10);
+      targetStatElem.innerText = currentVal + 2;
+      targetStatElem.classList.add('text-primary-fixed', 'scale-125');
+    }
+
+    if (ovrElem) {
+      // Micro bump player OVR calculation
+      ovrElem.innerText = '85';
+      ovrElem.classList.add('text-primary-fixed');
+    }
+
+    // Reveal success banner
+    const blindBox = document.getElementById('blind-status-box');
+    const successBanner = document.getElementById('success-banner');
+    
+    if (blindBox) blindBox.classList.add('hidden');
+    if (successBanner) {
+      successBanner.classList.remove('hidden');
+      successBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+</script></main></body></html>

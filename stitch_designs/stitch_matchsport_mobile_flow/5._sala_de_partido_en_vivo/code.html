@@ -1,0 +1,508 @@
+<!DOCTYPE html><html class="dark" lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "inverse-primary": "#006d35", "on-tertiary-fixed": "#410004", "outline": "#859585", "background": "#10131a", "primary-container": "#00e676", "surface-tint": "#00e475", "primary-fixed": "#62ff96", "on-error": "#690005", "surface-bright": "#363940", "on-secondary-container": "#5b3800", "surface-container-lowest": "#0b0e14", "surface": "#10131a", "on-surface": "#e1e2eb", "tertiary-fixed": "#ffdad7", "secondary-fixed": "#ffddb8", "on-background": "#e1e2eb", "on-primary": "#003918", "tertiary-fixed-dim": "#ffb3ad", "primary-fixed-dim": "#00e475", "on-tertiary-container": "#aa091b", "secondary-fixed-dim": "#ffb95f", "surface-container": "#1d2026", "surface-dim": "#10131a", "surface-container-high": "#272a31", "inverse-surface": "#e1e2eb", "tertiary-container": "#ffb6b0", "on-primary-fixed": "#00210b", "inverse-on-surface": "#2e3037", "primary": "#75ff9e", "surface-container-low": "#191c22", "surface-variant": "#32353c", "secondary-container": "#ee9800", "tertiary": "#ffdcd9", "error-container": "#93000a", "on-surface-variant": "#bacbb9", "on-primary-container": "#00612e", "on-primary-fixed-variant": "#005226", "on-secondary-fixed-variant": "#653e00", "surface-container-highest": "#32353c", "on-secondary-fixed": "#2a1700", "on-secondary": "#472a00", "outline-variant": "#3b4a3d", "secondary": "#ffb95f", "on-tertiary": "#68000a", "error": "#ffb4ab", "on-error-container": "#ffdad6", "on-tertiary-fixed-variant": "#930013" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xs": "0.25rem", "space-sm": "0.5rem", "gutter": "1rem", "margin": "1rem", "space-lg": "1.5rem", "space-xl": "2rem", "space-md": "1rem" }, "fontFamily": { "label-stat": [ "Space Grotesk" ], "headline-sm": [ "Space Grotesk" ], "headline-xl-mobile": [ "Space Grotesk" ], "label-tactical": [ "Space Grotesk" ], "display-ovr": [ "Space Grotesk" ], "body-sm": [ "Inter" ], "headline-lg": [ "Space Grotesk" ], "body-md": [ "Inter" ], "display-ovr-mobile": [ "Space Grotesk" ], "headline-xl": [ "Space Grotesk" ], "body-lg": [ "Inter" ] }, "fontSize": { "label-stat": [ "14px", { "lineHeight": "18px", "fontWeight": "700" } ], "headline-sm": [ "18px", { "lineHeight": "24px", "fontWeight": "600" } ], "headline-xl-mobile": [ "26px", { "lineHeight": "32px", "fontWeight": "700" } ], "label-tactical": [ "11px", { "lineHeight": "14px", "fontWeight": "700" } ], "display-ovr": [ "48px", { "lineHeight": "52px", "fontWeight": "700" } ], "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "headline-lg": [ "22px", { "lineHeight": "28px", "fontWeight": "600" } ], "body-md": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "display-ovr-mobile": [ "36px", { "lineHeight": "40px", "fontWeight": "700" } ], "headline-xl": [ "32px", { "lineHeight": "38px", "fontWeight": "700" } ], "body-lg": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#10131a;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary selection:text-on-primary"><header class="fixed top-0 w-full z-50 pt-safe bg-surface-container-lowest/80 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.5)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="MatchSport Emblem" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1U0VZ45Dmzq7yAR971vkoDl5LgoGI2SHJ8-spiXSduiog71fC14pP4Q4LKaAp8mAeYbtI0gb1jcsNFb91VlxUQL3SvdDA59Wk2AJllWGw06ki8AQib6o8IatQsDUoKK2DQcMtACR8aiad3Ew1iJDwVPGnIE36hmlSBTx5DhXqxMrF-FgA4rOo0eQHrWv3YCeXYxSBW7NQ3VOik5gX2VjhfxMuErk1ubj1CMJ95QwwYkEBkOdBPJE44Uiiq4"><div class="flex flex-col"><span class="font-label-tactical text-label-tactical uppercase tracking-wider text-primary">MATCHSPORT</span><h1 class="font-headline-sm text-headline-sm uppercase tracking-tight text-on-surface">Partidos En Vivo</h1></div></div><div class="flex items-center gap-space-sm"><button aria-label="Notifications" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><div class="relative flex items-center justify-center p-0.5 rounded-full bg-secondary shadow-[0_0_12px_rgba(255,185,95,0.4)]"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2dNPo43J8LN-MrvBVAcPaOutKrRdq_LIs3iUU8MIqKXUsO92j8fOpJi6Kh5c4xlFMkriUU7JPrx9sX6XHedssFFH0_woRq3dX33nvQXWWyk0FUdzuvd2HH5RIJpEgWa4WjV89bsrVRSFyy4D8Cg7-0qsgwKWTeYn7BAA7BwrpgriNKYbIXSa78Vj-mbBwObeXL6CMVmL79nb9mmUqJZqayQGLLfWtp-4aIOhjssQQob93vtXT1WgP5Q"><span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary-container shadow-[0_0_8px_#00e676]"></span></div></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full text-on-surface">
+<!-- TOP LIVE HEADER & STADIUM SPOTLIGHT -->
+<div class="relative w-full px-margin pt-space-sm pb-space-md bg-surface-container-low shadow-md overflow-hidden">
+<!-- Ambient Pitch Floodlight Glow -->
+<div class="absolute -top-12 left-1/2 -translate-x-1/2 w-64 h-32 bg-primary/10 rounded-full blur-2xl pointer-events-none"></div>
+<!-- Match Venue & Tier Badges -->
+<div class="relative flex items-center justify-between gap-space-sm mb-space-xs">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[16px] text-primary">stadium</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Cancha El Golazo • Surco</span>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-highest">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="font-label-tactical text-label-tactical text-secondary uppercase">1750 Elo Promedio</span>
+</div>
+</div>
+<!-- Match Chronometer & Game Stage -->
+<div class="relative flex flex-col items-center justify-center my-space-xs">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-highest/80 shadow-[0_0_12px_rgba(0,230,118,0.25)]">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+</span>
+<span class="font-label-stat text-label-stat text-primary tracking-wider font-mono" id="match-timer">41:03</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase tracking-widest">2DO TIEMPO</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-1">5v5 Fútbol Amateur Nocturno</span>
+</div>
+<!-- Live Scoreboard Display -->
+<div class="relative flex items-center justify-between gap-space-sm mt-space-sm px-space-md py-space-sm rounded-xl bg-surface-container-highest">
+<!-- Team A Summary -->
+<div class="flex items-center gap-space-sm flex-1 min-w-0">
+<div class="w-2.5 h-7 rounded-full bg-primary-container shrink-0"></div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">EQUIPO AZUL</span>
+<span class="font-label-tactical text-label-tactical text-primary uppercase">Tu Escuadra</span>
+</div>
+</div>
+<!-- Live Score Badge with Radar Emblem Centerpiece -->
+<div class="flex items-center gap-space-sm shrink-0 px-space-sm">
+<span class="font-display-ovr-mobile text-display-ovr-mobile text-on-surface" id="score-a">3</span>
+<div class="flex flex-col items-center">
+<svg class="w-6 h-6 animate-spin" fill="none" style="animation-duration: 8s;" viewBox="0 0 100 100">
+<polygon fill="#10131a" points="50,15 85,38 72,80 28,80 15,38" stroke="#75ff9e" stroke-width="4"></polygon>
+<polygon fill="#00e676" fill-opacity="0.3" points="50,30 72,46 64,72 36,72 28,46" stroke="#00e676" stroke-width="3"></polygon>
+<circle cx="50" cy="54" fill="#ffffff" r="5"></circle>
+</svg>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase mt-0.5">VS</span>
+</div>
+<span class="font-display-ovr-mobile text-display-ovr-mobile text-on-surface" id="score-b">2</span>
+</div>
+<!-- Team B Summary -->
+<div class="flex items-center justify-end gap-space-sm flex-1 min-w-0 text-right">
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">EQUIPO ROJO</span>
+<span class="font-label-tactical text-label-tactical text-secondary uppercase">Rival Local</span>
+</div>
+<div class="w-2.5 h-7 rounded-full bg-secondary-container shrink-0"></div>
+</div>
+</div>
+</div>
+<!-- SQUAD ROSTER TABS & SPLIT-GRID VIEW -->
+<div class="w-full px-margin mt-space-md flex flex-col">
+<!-- Tactical Tabs Toggle -->
+<div class="flex items-center p-1 rounded-xl bg-surface-container-low mb-space-sm shadow-sm">
+<button class="flex-1 py-2 px-space-sm rounded-lg bg-surface-container font-label-stat text-label-stat text-primary transition-all flex items-center justify-center gap-1.5 shadow-sm" id="tab-btn-team-a" onclick="switchTeam('team-a')">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="">Equipo Azul (5)</span>
+</button>
+<button class="flex-1 py-2 px-space-sm rounded-lg font-label-stat text-label-stat text-on-surface-variant transition-all flex items-center justify-center gap-1.5" id="tab-btn-team-b" onclick="switchTeam('team-b')">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="">Equipo Rojo (5)</span>
+</button>
+</div>
+<!-- SQUAD A: TU EQUIPO (ACTIVE BY DEFAULT) -->
+<div class="flex flex-col gap-2" id="roster-team-a">
+<!-- Player 1 (User / Captain) -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-high shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="High quality athletic portrait of a focused young amateur football player with modern short haircut, wearing a glowing electric green sports training jersey under night floodlights with intense concentrated expression." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPIzTnLr6H8xfSB3psQkhMMmczxwto-gLfslzYQ8WvThKFb7xXvuHNeeYmMW9A_iWI5xnsR4WZWrpdXJ3Q1qvf0SiKmZ35CRfjA6YlLJGeRJAmGSTSlE06shhbYz70451tyuO9HzDATaYwwzo2dMJSSFD4Ab2gFZgY0QgIOt0FnW-gX3qY6PDGLWCGJqFAaZ8zgvYnDmj50ppK3hcsYQ-OlK9ZycRlvy1lIphcZn3yrPj5CmFsoSkolQ">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-primary">88</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Mateo Ramos</span>
+<span class="px-1.5 py-0.5 rounded bg-primary/20 text-primary font-label-tactical text-label-tactical uppercase">TÚ</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant font-label-tactical text-label-tactical">MED</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-secondary">★ 8.9</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">1 Gol • 1 Asist</span>
+</div>
+</div>
+<!-- Player 2 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Intense close-up portrait of an energetic amateur football goalkeeper wearing fluorescent goalie gloves and sports head wrap, tactical dark neon stadium backdrop, cinematic lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9dho_3v4cEdBVr5bT76bIY0ADqhhadHDNq0PWYYelK5R4WAOsZHtrsDhTzYletslhrqfsEeXH2zY2U0eR-1nPYqubZZBAxTBug4MeDZDBQsXiU6Kb7d31svHchfOblq4k5Gd3ZQvLonP2nbklWvXtDJjr8M64Z-Z2QPD_Hja-sYf66ysEui6jtDPgs0WpdAFm1IHlAf5fKr1o9tnrNHIJm4nlFqvnx374DgTa0P-cbv2vHI9nW_sIhQ">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">84</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Carlos "Gato" Vega</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">POR</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-on-surface-variant">★ 7.8</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">4 Atajadas</span>
+</div>
+</div>
+<!-- Player 3 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Dynamic portrait of an athletic defender running on turf with dynamic sweat droplets and bright green stadium lights in the dark evening background, sharp focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAA7kSpqQcsFR006P3tIxXy4XrJ70B_DAGqKsPa3kuyI0Z65gDtxK9zH9M9KKu53TGvMz6XKDUC2rdl_ZvB4ZY-2IyExClGF4IDHYJLW3l3_l6z-98cT6kZ-gHrcKo2Rpaxc5x1KUX8bLz4bI3693vdaAEF0VMfdazWXykI6FW9lDp-uINY2GiQ_6MNvt3yBMYYuUJBKbnbQVzKmf8urn5yei7zfYIyW7QdhTHGmKXLuRD7oug0YSlMhg">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">81</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Rodrigo Quispe</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">DEF</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-on-surface-variant">★ 7.4</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">6 Recuperac.</span>
+</div>
+</div>
+<!-- Player 4 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Athletic portrait of a fast smiling young winger in soccer uniform under floodlights, cinematic dark athletic ambience, high sharpness." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD17Qd-z653ZDh6wzt4_5xjD2DO7SJq_79w7iWVlDxbahe9uLAHhfoCfb1uEsKv4nL8sNP2g_xgfO6NQs_wwXv8fyG0tPreSbZFsxvT7GI8LglHvidWwt6sf5qQflR2vz_wbM-tVARpYFMsZfOq436_8LYzs4_3CinpALBgmUKYRkuBuYORWhYVm05zFa96YH5_osgG5S6plEy9nO3zmmoNTEQdmlzo_tu3r8WTF0jcxylDT2s8GrtW7Q">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-secondary">86</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Joaquín Morales</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">DEL</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-secondary">★ 8.5</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">2 Goles</span>
+</div>
+</div>
+<!-- Player 5 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Tough defensive midfielder portrait during evening match under synthetic field spotlights, high contrast esports football vibe." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP1bEDdxqPglqCdaOW6xVtFLbYq8C0rzE99i86vG1sHDSB8jWVBJJxsQLOOFm1acz7Q8tnb_ZGfQVP7N6_bRiR1Xpuu0dQy0DU6TPpZEe3ih2sf7zsKxF1aQUioojTkIsKMJiSLU3gKLyaxr2nCfLz5mql9wsGvzPHYMrt8iSqEmLCIKFwJogGLfKXh3w-rtS20C070XEPAzfioMmuzhEF7wEfbtwPDsNsWmXoOUjjN6JF5YehcuX0Jw">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">79</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Diego Paredes</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">DEF</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-on-surface-variant">★ 7.1</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">92% Pases</span>
+</div>
+</div>
+</div>
+<!-- SQUAD B: RIVAL (HIDDEN IN TAB) -->
+<div class="hidden flex flex-col gap-2" id="roster-team-b">
+<!-- Rival 1 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Fierce competitive soccer forward looking directly at the camera under neon pitch lighting with crimson red squad jersey details, moody dramatic shadow." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtfKdOrjyGxv7DKM9lqxpzucHy6gOe7CNIntx6sKbfbK1UGjy4O6yI9lHpycCXFEyJrok9A1Uw5BlFoOoPVcZzlo3jYgQUPBWZ2MwCt6UBCio3NSB9Ibw1oWruR8V1xM3v5IxWVz8YmjKbcuOzBM59UsQ0DP0bMqzGlH4-I25P0K5FruN4Uk29jJ9LAN_RreGYerc3hMLLZuGmtJUj5q_Faoh5pNxEZCbR7K2euwBmgoIp1Q2jmNfDrA">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-secondary">87</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Luciano Farfán</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">DEL</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> Capitán
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-secondary">★ 8.2</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">1 Gol</span>
+</div>
+</div>
+<!-- Rival 2 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Portrait of an experienced amateur soccer central midfielder with tactical focus, sharp night lights and mist in stadium background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCK_qZXHWtueAovkiwOrXiQ39N6j_DbjbHFVNn-AuY6ul6ODj5HbZv4bvTiWmsukKHT8qGAV1HZQwoyqcUhxEkK8S_OQ59OBSq8kXqImet0jOZ8YSRLBaekUl2ixenPDt-LN0Dz_w3D5ELcsToWjA7tE79A6OelE6QBYMdTEINprQ0GIx3LhZ5ufJRdIbsG1PdOd03PbXMZTZtOXfSBeADaqQ0UT0pTJ56kytRUNwsEarqVCfIBlPoJ6g">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">82</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Martín Arévalo</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">MED</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-on-surface-variant">★ 7.6</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">1 Asistencia</span>
+</div>
+</div>
+<!-- Rival 3 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Young energetic football defender with sweat on forehead, intense match look, synthetic field with green reflections in background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAbcMB1Su__JI86SnkkZWcC0Nn2mOARpxY1TD5pt5D6Rv_Yg1SYPL_Vx5EoptRoMXzpUwyXXId7fRK60MBkfM9KtOb1F2E8w3kLWEhjteFxNDxFxa5BRk0M4R0a4HKhuTqZWX2EXhpT9VBpig3D9hcEuRRnZnKj9nQSH036IjT6Sj4cvkuD0gJA8A4PlsKsl_alEV9qOhJs0Y05U4LoUT45f2PqGcc1jIPBMFeJsMFC4bGgqSk50ot9w">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">80</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Stefano Salazar</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">DEF</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-on-surface-variant">★ 6.9</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">5 Entradas</span>
+</div>
+</div>
+<!-- Rival 4 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Aggressive winger soccer player portrait, sharp tactical night stadium aesthetic, dark shadows with emerald turf lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAlkxJLesC1N4X22akFMZDTgkXce-X0_Cdd2D0mE9Q58Dl210DUmFaJvtUSYsImM29uRfKGui2qocMyALxrFH8E7YGjGAiHIjpUWP2poohPDs4xTZBRzn8f-bnFsYooXDG3p69N-Tp2MY4Oo_zrTnwcoTgpkEyxHegKHAb1N8aXDWnnaZbOQDYSUaFCyeQi3oICRoxyGnztVLBDVExmVVrBpCvxk69sD2VdiLkB6kAEKban45BfI6rtcg">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">83</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Renato Córdova</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">DEL</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-secondary">★ 8.0</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">1 Gol</span>
+</div>
+</div>
+<!-- Rival 5 -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="relative shrink-0">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="Goalkeeper with athletic headband, determined expression, stadium spotlights overhead, FUT card card style profile angle." src="https://lh3.googleusercontent.com/aida-public/AB6AXuACMTXepSvHyY8zcrWZUuqAsLXMXuIEpK15Lffowv247h4-WwaEB26qQjHf3ShcUZ1ez5omgC6cjpxVvU8_t2UxJf9uFHUWUWLYvsg1t9RkfVlGCGcH9EnDndaNO-TzOfKghgLtagdM41l_CDfhZgfxwllDg7bOGDpvIloiC-quSWmFK5yJNYzaUYmClDBdXntOE5WCdSOdchSa7kOE8vElp3sinAh_004jibZ5V0fu1rbp6ac5eDEwXg">
+<span class="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-surface-container-lowest font-label-tactical text-label-tactical text-on-surface">78</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Fabricio Benítez</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-on-surface-variant font-label-tactical text-label-tactical">POR</span>
+<span class="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span> En Cancha
+              </span>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0 pl-2">
+<span class="font-label-stat text-label-stat text-on-surface-variant">★ 6.8</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase">3 Paradas</span>
+</div>
+</div>
+</div>
+</div>
+<!-- COLLAPSIBLE FIELD QUICK-COORDINATION SHEET -->
+<div class="w-full px-margin mt-space-md flex flex-col">
+<div class="flex items-center justify-between py-1 cursor-pointer" onclick="toggleChatSheet()">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-primary">chat</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Coordinación de Cancha</span>
+<span class="px-1.5 py-0.2 rounded-full bg-primary-container text-on-primary-container font-label-tactical text-label-tactical">3 NUEVOS</span>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px] transition-transform duration-200" id="chat-chevron">expand_more</span>
+</button>
+</div>
+<!-- Live Messages Stream -->
+<div class="flex flex-col gap-2 mt-2 transition-all" id="chat-drawer">
+<div class="flex items-start gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 text-primary font-label-tactical text-label-tactical">
+          CV
+        </div>
+<div class="px-3 py-1.5 rounded-2xl rounded-tl-sm bg-surface-container-high text-on-surface max-w-[85%] shadow-sm">
+<span class="font-label-tactical text-label-tactical text-on-surface-variant block mb-0.5">Carlos • 34'</span>
+<p class="font-body-md text-body-md">Ya llegué a la cancha 👍 estoy calentando bajo el arco.</p>
+</div>
+</div>
+<div class="flex items-start gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 text-secondary font-label-tactical text-label-tactical">
+          JM
+        </div>
+<div class="px-3 py-1.5 rounded-2xl rounded-tl-sm bg-surface-container-high text-on-surface max-w-[85%] shadow-sm">
+<span class="font-label-tactical text-label-tactical text-secondary block mb-0.5">Joaquín • 36'</span>
+<p class="font-body-md text-body-md">Estoy con camiseta blanca y short negro en la banda derecha.</p>
+</div>
+</div>
+<div class="flex items-start gap-2">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-primary font-label-tactical text-label-tactical">
+          TÚ
+        </div>
+<div class="px-3 py-1.5 rounded-2xl rounded-tl-sm bg-surface-container-highest text-on-surface max-w-[85%] shadow-sm">
+<span class="font-label-tactical text-label-tactical text-primary block mb-0.5">Tú • 38'</span>
+<p class="font-body-md text-body-md">¡Faltan 5 minutos para el cambio! Mantengan la presión arriba.</p>
+</div>
+</div>
+<!-- Quick Tappable Audio/Text Presets -->
+<div class="flex items-center gap-2 overflow-x-auto py-1 mt-1 -mx-margin px-margin">
+<button class="shrink-0 px-3 py-1.5 rounded-full bg-surface-container-low hover:bg-surface-container font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1.5 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">swap_horiz</span>
+          Pido Cambio
+        </button>
+<button class="shrink-0 px-3 py-1.5 rounded-full bg-surface-container-low hover:bg-surface-container font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1.5 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-secondary">water_drop</span>
+          Pausa Hidratación
+        </button>
+<button class="shrink-0 px-3 py-1.5 rounded-full bg-surface-container-low hover:bg-surface-container font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1.5 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+          Confirmado
+        </button>
+</div>
+</div>
+</div>
+<!-- BOTTOM MATCH OUTCOME & REPORTING SECTION -->
+<div class="w-full px-margin mt-space-lg mb-space-md flex flex-col gap-space-sm">
+<!-- Designated Reporter Gold Shield Banner -->
+<div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-surface-container-high via-surface-container to-surface-container-high p-3.5 shadow-md">
+<div class="absolute right-0 top-0 translate-x-2 -translate-y-2 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-[90px] text-secondary">military_tech</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-secondary/15 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(255,185,95,0.3)]">
+<span class="material-symbols-outlined text-[24px] text-secondary" style="font-variation-settings: 'FILL' 1;">stars</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-tactical text-label-tactical text-secondary uppercase tracking-wider">Reporte Oficial Designado</span>
+<p class="font-body-md text-body-md text-on-surface">
+<strong class="font-headline-sm text-headline-sm text-secondary">Mateo Ramos (Tú)</strong> has sido seleccionado para reportar el resultado final del partido.
+          </p>
+</div>
+</div>
+</div>
+<!-- Tactical Quick Confirmation Outcome Buttons -->
+<div class="flex flex-col gap-2 mt-1">
+<div class="flex items-center gap-2">
+<!-- Blue Team Wins -->
+<button class="flex-1 py-3 px-space-sm rounded-xl bg-primary-container text-on-primary-container hover:brightness-110 font-headline-sm text-headline-sm uppercase tracking-wide flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(0,230,118,0.35)] active:scale-[0.98] transition-transform" onclick="confirmOutcome('azul')">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          Ganó Equipo Azul
+        </button>
+<!-- Red Team Wins -->
+<button class="flex-1 py-3 px-space-sm rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-headline-sm text-headline-sm uppercase tracking-wide flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-transform" onclick="confirmOutcome('rojo')">
+<span class="material-symbols-outlined text-[20px] text-secondary">check</span>
+          Ganó Equipo Rojo
+        </button>
+</div>
+<!-- Dispute / Foul / Incident Reporting -->
+<button class="w-full py-2.5 px-space-md rounded-xl bg-surface-container-low hover:bg-surface-container text-error font-body-md text-body-md flex items-center justify-center gap-2 shadow-sm transition-colors" onclick="openDisputeModal()">
+<span class="material-symbols-outlined text-[18px]">report_problem</span>
+        Reportar Disputa / Falta Antideportiva
+      </button>
+</div>
+<!-- Safety Microcopy -->
+<div class="flex items-center justify-center gap-1.5 py-1 text-center">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">verified_user</span>
+<span class="font-label-tactical text-label-tactical text-on-surface-variant uppercase tracking-wider">
+        Ambos capitanes deben validar para actualización Elo inmediata
+      </span>
+</div>
+</div>
+<!-- OUTCOME CONFIRMATION TOAST / MODAL -->
+<div class="hidden fixed bottom-24 left-4 right-4 z-50 p-4 rounded-xl bg-surface-container-highest/95 backdrop-blur-xl shadow-xl flex items-center justify-between gap-3" id="outcome-toast">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[28px] text-primary" style="font-variation-settings: 'FILL' 1;">task_alt</span>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface" id="toast-title">Resultado Enviado</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Esperando confirmación del capitán rival...</span>
+</div>
+</div>
+<button class="p-1 rounded-full text-on-surface-variant hover:text-on-surface" onclick="dismissToast()">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+<script>
+  function switchTeam(team) {
+    const rosterA = document.getElementById('roster-team-a');
+    const rosterB = document.getElementById('roster-team-b');
+    const btnA = document.getElementById('tab-btn-team-a');
+    const btnB = document.getElementById('tab-btn-team-b');
+
+    if (team === 'team-a') {
+      rosterA.classList.remove('hidden');
+      rosterB.classList.add('hidden');
+      btnA.classList.add('bg-surface-container', 'text-primary');
+      btnA.classList.remove('text-on-surface-variant');
+      btnB.classList.remove('bg-surface-container', 'text-secondary');
+      btnB.classList.add('text-on-surface-variant');
+    } else {
+      rosterA.classList.add('hidden');
+      rosterB.classList.remove('hidden');
+      btnB.classList.add('bg-surface-container', 'text-secondary');
+      btnB.classList.remove('text-on-surface-variant');
+      btnA.classList.remove('bg-surface-container', 'text-primary');
+      btnA.classList.add('text-on-surface-variant');
+    }
+  }
+
+  function toggleChatSheet() {
+    const drawer = document.getElementById('chat-drawer');
+    const chevron = document.getElementById('chat-chevron');
+    if (drawer.classList.contains('hidden')) {
+      drawer.classList.remove('hidden');
+      chevron.style.transform = 'rotate(0deg)';
+    } else {
+      drawer.classList.add('hidden');
+      chevron.style.transform = 'rotate(180deg)';
+    }
+  }
+
+  function confirmOutcome(team) {
+    const toast = document.getElementById('outcome-toast');
+    const toastTitle = document.getElementById('toast-title');
+    toastTitle.innerText = team === 'azul' ? 'Victoria Azul (3 - 2) Reportada' : 'Victoria Roja Reportada';
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 4500);
+  }
+
+  function dismissToast() {
+    document.getElementById('outcome-toast').classList.add('hidden');
+  }
+
+  function openDisputeModal() {
+    const toast = document.getElementById('outcome-toast');
+    const toastTitle = document.getElementById('toast-title');
+    toastTitle.innerText = 'Formulario de Disputa Activado';
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 3500);
+  }
+
+  // Simulated live clock increment
+  let seconds = 45;
+  let minutes = 38;
+  const timerEl = document.getElementById('match-timer');
+  if (timerEl) {
+    setInterval(() => {
+      seconds++;
+      if (seconds >= 60) {
+        seconds = 0;
+        minutes++;
+      }
+      const s = seconds < 10 ? '0' + seconds : seconds;
+      const m = minutes < 10 ? '0' + minutes : minutes;
+      timerEl.textContent = m + ':' + s;
+    }, 1000);
+  }
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.6)]" data-active-classes="text-primary [&amp;&gt;span:first-child]:text-primary [&amp;&gt;span:first-child]:drop-shadow-[0_0_8px_rgba(117,255,158,0.7)]"><div class="flex items-center justify-around h-16 px-space-xs"><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-space-xs text-on-surface-variant hover:text-primary transition-colors" data-path="jugar" href="#"><span class="material-symbols-outlined text-[24px]">sports_soccer</span><span class="font-label-tactical text-label-tactical uppercase tracking-wider mt-0.5">JUGAR</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-space-xs transition-colors text-primary [&amp;&gt;span:first-child]:text-primary [&amp;&gt;span:first-child]:drop-shadow-[0_0_8px_rgba(117,255,158,0.7)]" data-path="salas" href="#"><span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">stadium</span><span class="font-label-tactical text-label-tactical uppercase tracking-wider mt-0.5">SALAS</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-space-xs text-on-surface-variant hover:text-primary transition-colors" data-path="ranking" href="#"><span class="material-symbols-outlined text-[24px]">leaderboard</span><span class="font-label-tactical text-label-tactical uppercase tracking-wider mt-0.5">RANKING</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-space-xs text-on-surface-variant hover:text-primary transition-colors" data-path="perfil" href="#"><span class="material-symbols-outlined text-[24px]">badge</span><span class="font-label-tactical text-label-tactical uppercase tracking-wider mt-0.5">PERFIL</span></a></div></nav>
+
+</body></html>

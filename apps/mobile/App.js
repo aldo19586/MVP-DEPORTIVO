@@ -4,10 +4,23 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { storage } from './src/services/storage';
 import { socketService } from './src/services/socket';
+import { THEME } from './src/theme';
+
+// Pantallas
+import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RadarScreen from './src/screens/RadarScreen';
+import LobbyListScreen from './src/screens/LobbyListScreen';
+import LobbyRoomScreen from './src/screens/LobbyRoomScreen';
+import MatchAcceptanceScreen from './src/screens/MatchAcceptanceScreen';
 import MatchRoomScreen from './src/screens/MatchRoomScreen';
-import MatchPromptModal from './src/components/MatchPromptModal';
+import PeerReviewScreen from './src/screens/PeerReviewScreen';
+import MatchSummaryScreen from './src/screens/MatchSummaryScreen';
+import LeaderboardScreen from './src/screens/LeaderboardScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+
+// Componentes
+import BottomNavBar from './src/components/BottomNavBar';
 
 // Configurar comportamiento de Notificaciones Push nativas
 Notifications.setNotificationHandler({
@@ -21,15 +34,22 @@ Notifications.setNotificationHandler({
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentScreen, setCurrentScreen] = useState('LOGIN'); // 'LOGIN' | 'RADAR' | 'MATCH_ROOM'
+  
+  // Flujo Auth
+  const [authScreen, setAuthScreen] = useState('SPLASH'); // 'SPLASH' | 'LOGIN' | 'REGISTER'
+  
+  // Pestañas Principales
+  const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'SALAS' | 'RANKING' | 'PERFIL'
+  
+  // Pantallas Nativas de Flujo (Pushed Screens)
+  const [selectedLobby, setSelectedLobby] = useState(null);
+  const [acceptanceData, setAcceptanceData] = useState(null);
   const [activeMatch, setActiveMatch] = useState(null);
-
-  // Estado del Modal Global de Aceptación (20s)
-  const [showPromptModal, setShowPromptModal] = useState(false);
-  const [promptMatchData, setPromptMatchData] = useState(null);
+  const [peerReviewMatch, setPeerReviewMatch] = useState(null);
+  const [summaryData, setSummaryData] = useState(null);
 
   useEffect(() => {
-    // 1. Solicitar permisos de Notificaciones Push
+    // 1. Permisos de Notificaciones Push
     (async () => {
       try {
         const { status } = await Notifications.requestPermissionsAsync();
@@ -48,13 +68,13 @@ export default function App() {
         if (session && session.id) {
           setCurrentUser(session);
           initSocketSession(session);
-          setCurrentScreen('RADAR');
+          setActiveTab('JUGAR');
         } else {
-          setCurrentScreen('LOGIN');
+          setAuthScreen('SPLASH');
         }
       } catch (e) {
         console.error('[APP] Error cargando sesión:', e);
-        setCurrentScreen('LOGIN');
+        setAuthScreen('SPLASH');
       } finally {
         setLoading(false);
       }
@@ -64,13 +84,11 @@ export default function App() {
   const initSocketSession = (user) => {
     const socket = socketService.connect(user.id, user);
 
-    // Modal de confirmación de 20s estilo MOBA
+    // Pantalla de confirmación de 20s estilo MOBA
     socket.on('matchPromptAcceptance', async (data) => {
-      console.log('[APP] ⚡ Desafío encontrado - Abriendo modal de 20s:', data);
-      setPromptMatchData(data);
-      setShowPromptModal(true);
+      console.log('[APP] ⚡ Desafío encontrado - Abriendo pantalla de 20s:', data);
+      setAcceptanceData(data);
 
-      // Lanzar notificación push en caso el usuario esté fuera o distraído
       try {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -85,41 +103,38 @@ export default function App() {
       }
     });
 
-    // Actualización de jugadores que han aceptado el match prompt
-    socket.on('matchPromptUpdated', (data) => {
-      setPromptMatchData((prev) => (prev ? { ...prev, acceptedUserIds: data.acceptedUserIds } : prev));
-    });
-
     // Partido oficial iniciado
     socket.on('matchFound', (data) => {
       console.log('[APP] 🏟️ Partido iniciado oficial:', data.matchId);
-      setShowPromptModal(false);
-      setPromptMatchData(null);
+      setAcceptanceData(null);
+      setSelectedLobby(null);
       setActiveMatch(data.match);
-      setCurrentScreen('MATCH_ROOM');
     });
 
     // Partido activo restaurado por reconexión
     socket.on('activeMatch', (data) => {
       if (data && data.match) {
         setActiveMatch(data.match);
-        setCurrentScreen('MATCH_ROOM');
       }
     });
 
     // Cancelación de partida
     socket.on('matchCancelled', () => {
-      setShowPromptModal(false);
-      setPromptMatchData(null);
+      setAcceptanceData(null);
       setActiveMatch(null);
-      setCurrentScreen('RADAR');
+      setActiveTab('JUGAR');
+    });
+
+    // Notificación en vivo de Peer Review asignado
+    socket.on('peerReviewAssigned', (data) => {
+      console.log('[APP] 🗳️ Evaluación circular asignada:', data);
     });
   };
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
     initSocketSession(user);
-    setCurrentScreen('RADAR');
+    setActiveTab('JUGAR');
   };
 
   const handleLogout = async () => {
@@ -127,70 +142,192 @@ export default function App() {
     socketService.disconnect();
     setCurrentUser(null);
     setActiveMatch(null);
-    setCurrentScreen('LOGIN');
+    setSelectedLobby(null);
+    setPeerReviewMatch(null);
+    setSummaryData(null);
+    setAuthScreen('SPLASH');
   };
 
-  const handleAcceptMatchPrompt = (pendingMatchId) => {
+  const handleAcceptMatchPrompt = () => {
     const socket = socketService.getSocket();
-    if (socket && currentUser) {
+    if (socket && currentUser && acceptanceData) {
       socket.emit('acceptPendingMatch', {
-        pendingMatchId,
+        pendingMatchId: acceptanceData.pendingMatchId,
         userId: currentUser.id
       });
     }
   };
 
-  const handleDeclineMatchPrompt = (pendingMatchId) => {
+  const handleDeclineMatchPrompt = () => {
     const socket = socketService.getSocket();
-    if (socket && currentUser) {
+    if (socket && currentUser && acceptanceData) {
       socket.emit('declinePendingMatch', {
-        pendingMatchId,
+        pendingMatchId: acceptanceData.pendingMatchId,
         userId: currentUser.id
       });
     }
-    setShowPromptModal(false);
-    setPromptMatchData(null);
+    setAcceptanceData(null);
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10b981" />
+        <ActivityIndicator size="large" color={THEME.colors.primary} />
       </View>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="light" backgroundColor="#0f172a" />
-
-      {/* Ruteador de Pantallas Nativas */}
-      {currentScreen === 'LOGIN' && (
-        <LoginScreen onLoginSuccess={handleLoginSuccess} />
-      )}
-
-      {currentScreen === 'RADAR' && currentUser && (
-        <RadarScreen user={currentUser} onLogout={handleLogout} />
-      )}
-
-      {currentScreen === 'MATCH_ROOM' && activeMatch && currentUser && (
-        <MatchRoomScreen
-          match={activeMatch}
-          currentUser={currentUser}
-          onMatchFinished={() => {
-            setActiveMatch(null);
-            setCurrentScreen('RADAR');
-          }}
+  // ==========================================
+  // FLUJO DE NO AUTENTICADO: SPLASH / LOGIN / REGISTRO
+  // ==========================================
+  if (!currentUser) {
+    if (authScreen === 'SPLASH') {
+      return (
+        <SplashScreen
+          onLoginPress={() => setAuthScreen('LOGIN')}
+          onRegisterPress={() => setAuthScreen('REGISTER')}
         />
-      )}
+      );
+    }
+    return (
+      <LoginScreen
+        initialIsRegistering={authScreen === 'REGISTER'}
+        onLoginSuccess={handleLoginSuccess}
+        onBackToSplash={() => setAuthScreen('SPLASH')}
+      />
+    );
+  }
 
-      {/* Modal Global de Confirmación de Partido (20 segundos) */}
-      <MatchPromptModal
-        visible={showPromptModal}
-        matchData={promptMatchData}
-        currentUserId={currentUser?.id}
+  // ==========================================
+  // FLUJOS NATIVOS A PANTALLA COMPLETA (PRIORIDAD ALTA)
+  // ==========================================
+
+  // 1. Pantalla de Aceptación de Partido (20s)
+  if (acceptanceData) {
+    return (
+      <MatchAcceptanceScreen
+        matchData={acceptanceData}
         onAccept={handleAcceptMatchPrompt}
         onDecline={handleDeclineMatchPrompt}
+      />
+    );
+  }
+
+  // 2. Pantalla de Evaluación Circular Post-Partido (Peer-Review 1-Toque)
+  if (peerReviewMatch) {
+    return (
+      <PeerReviewScreen
+        match={peerReviewMatch}
+        user={currentUser}
+        onVoteCompleted={(result) => {
+          setPeerReviewMatch(null);
+          setSummaryData({
+            match: peerReviewMatch,
+            reviewResult: result
+          });
+        }}
+        onSkip={() => {
+          setPeerReviewMatch(null);
+          setSummaryData({ match: peerReviewMatch });
+        }}
+      />
+    );
+  }
+
+  // 3. Pantalla de Resumen Final de Victoria y Elo Desbloqueado
+  if (summaryData) {
+    return (
+      <MatchSummaryScreen
+        match={summaryData.match}
+        user={currentUser}
+        reviewResult={summaryData.reviewResult}
+        onBackToRadar={() => {
+          setSummaryData(null);
+          setActiveMatch(null);
+          setActiveTab('JUGAR');
+        }}
+      />
+    );
+  }
+
+  // 4. Pantalla de Partido en Curso (Match Room)
+  if (activeMatch) {
+    return (
+      <MatchRoomScreen
+        match={activeMatch}
+        currentUser={currentUser}
+        onMatchFinished={(matchData) => {
+          const currentMatch = activeMatch;
+          setActiveMatch(null);
+          // Transicionar a la pantalla nativa de Peer-Review
+          setPeerReviewMatch(currentMatch);
+        }}
+      />
+    );
+  }
+
+  // 5. Pantalla de Sala de Convocatoria Activa (Lobby Room)
+  if (selectedLobby) {
+    return (
+      <LobbyRoomScreen
+        lobby={selectedLobby}
+        user={currentUser}
+        onBack={() => setSelectedLobby(null)}
+        onStartSquadRadar={(code) => {
+          setSelectedLobby(null);
+          setActiveTab('JUGAR');
+        }}
+      />
+    );
+  }
+
+  // ==========================================
+  // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (4 TABS)
+  // ==========================================
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="light" backgroundColor={THEME.colors.bgCanvas} />
+
+      <View style={styles.tabContent}>
+        {activeTab === 'JUGAR' && (
+          <RadarScreen
+            user={currentUser}
+            onNavigateToLobbies={() => setActiveTab('SALAS')}
+            onLogout={handleLogout}
+          />
+        )}
+
+        {activeTab === 'SALAS' && (
+          <LobbyListScreen
+            onEnterLobby={(lobby) => setSelectedLobby(lobby)}
+            onCreateLobbyPress={() => {
+              setSelectedLobby({
+                code: 'NEW1',
+                name: 'Mi Convocatoria',
+                venueDistrict: 'Manuel Bonilla, Miraflores',
+                sportId: 'futbol',
+                formatId: '5v5',
+                teamA: [{ id: currentUser.id, name: currentUser.name, position: currentUser.position, isMe: true, isCaptain: true, isReady: true }],
+                teamB: []
+              });
+            }}
+          />
+        )}
+
+        {activeTab === 'RANKING' && (
+          <LeaderboardScreen currentUser={currentUser} />
+        )}
+
+        {activeTab === 'PERFIL' && (
+          <ProfileScreen user={currentUser} onLogout={handleLogout} />
+        )}
+      </View>
+
+      {/* Persistent Bottom Bar */}
+      <BottomNavBar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        openRoomsCount={3}
       />
     </SafeAreaView>
   );
@@ -199,12 +336,15 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a'
+    backgroundColor: THEME.colors.bgCanvas,
+  },
+  tabContent: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: THEME.colors.bgCanvas,
     justifyContent: 'center',
-    alignItems: 'center'
-  }
+    alignItems: 'center',
+  },
 });
