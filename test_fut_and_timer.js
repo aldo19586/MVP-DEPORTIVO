@@ -52,6 +52,11 @@ async function testBackend() {
   let activeMatchId = null;
 
   await new Promise((resolve) => {
+    socketPlayer1.on('matchPromptAcceptance', ({ pendingMatchId }) => {
+      console.log('✓ Confirmación de partido recibida. Aceptando desafío...');
+      socketPlayer1.emit('acceptPendingMatch', { pendingMatchId, userId: 'demo_user_1' });
+    });
+
     socketPlayer1.on('matchFound', ({ match }) => {
       console.log(`✓ Match 1v1 creado: ${match.id}`);
       console.log(`  Reportero Oficial Designado: ${match.designatedReporterName} (ID: ${match.designatedReporter})`);
@@ -116,7 +121,6 @@ async function testBackend() {
   socketPlayer2.disconnect();
 
   console.log('\n🎉 ¡TODAS LAS PRUEBAS AUTOMATIZADAS PASARON AL 100%!');
-  process.exit(0);
 }
 
 testBackend().catch(err => {

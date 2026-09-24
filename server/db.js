@@ -633,6 +633,10 @@ class Database {
     if (!user) {
       return { error: 'No existe una cuenta con este correo. ¿Deseas registrarte?' };
     }
+    if (user.isBanned && user.bannedUntil && user.bannedUntil > Date.now()) {
+      const remainingHours = Math.ceil((user.bannedUntil - Date.now()) / (3600 * 1000));
+      return { error: `Tu cuenta se encuentra suspendida por ${remainingHours} hora(s) más. Motivo: ${user.banReason || 'Conducta antideportiva'}` };
+    }
     // Si la cuenta tiene contraseña y se envió contraseña, verificar
     if (user.password && password && user.password !== password) {
       return { error: 'Contraseña incorrecta. Por favor verifica tus datos.' };
@@ -669,6 +673,11 @@ class Database {
     const user = this.getUserByName(cleanName);
     if (!user) {
       return { error: `No se encontró el jugador "${cleanName}". ¿Deseas registrarte?` };
+    }
+
+    if (user.isBanned && user.bannedUntil && user.bannedUntil > Date.now()) {
+      const remainingHours = Math.ceil((user.bannedUntil - Date.now()) / (3600 * 1000));
+      return { error: `Tu cuenta se encuentra suspendida por ${remainingHours} hora(s) más. Motivo: ${user.banReason || 'Conducta antideportiva'}` };
     }
 
     // Verificar PIN
@@ -808,6 +817,65 @@ class Database {
       this.getProfile(id, sportId, '2v2');
     }
 
+    return user;
+  }
+
+  updateUserProfile(userId, updates = {}) {
+    const user = this.getUser(userId);
+    if (!user) return null;
+
+    if (updates.name && typeof updates.name === 'string') user.name = updates.name.trim();
+    if (updates.district && typeof updates.district === 'string') user.district = updates.district.trim();
+    if (updates.bio && typeof updates.bio === 'string') user.bio = updates.bio.trim();
+    if (updates.avatar && typeof updates.avatar === 'string') user.avatar = updates.avatar.trim();
+    if (updates.position && typeof updates.position === 'string') user.position = updates.position.trim();
+    if (updates.primarySport && typeof updates.primarySport === 'string') user.primarySport = updates.primarySport.trim();
+    if (Array.isArray(updates.favoriteSports) && updates.favoriteSports.length > 0) {
+      user.favoriteSports = updates.favoriteSports;
+    }
+
+    this._persistUser(user);
+    return user;
+  }
+
+  setUserBanned(userId, hours = 24, reason = 'Infracción al código deportivo') {
+    const user = this.getUser(userId);
+    if (!user) return null;
+
+    user.isBanned = true;
+    user.bannedUntil = Date.now() + Number(hours) * 3600 * 1000;
+    user.banReason = reason;
+
+    this._persistUser(user);
+    return user;
+  }
+
+  resetUserPin(userId, newPin = '1234') {
+    const user = this.getUser(userId);
+    if (!user) return null;
+
+    user.password = newPin;
+    user.pinHash = bcrypt.hashSync(String(newPin).trim(), 10);
+
+    this._persistUser(user);
+    return user;
+  }
+
+  toggleUserDniVerified(userId) {
+    const user = this.getUser(userId);
+    if (!user) return null;
+
+    user.verifiedDni = !user.verifiedDni;
+    this._persistUser(user);
+    return user;
+  }
+
+  setUserPushToken(userId, pushToken) {
+    const user = this.getUser(userId);
+    if (!user) return null;
+
+    user.pushToken = pushToken;
+    this._persistUser(user);
     return user;
   }
 

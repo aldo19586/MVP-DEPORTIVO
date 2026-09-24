@@ -1,12 +1,14 @@
 async function testAuth() {
   console.log('🧪 Probando flujo de registro con deporte favorito, posición y tope de 70...');
 
+  const testEmail = `rodrigo.${Date.now()}@test.pe`;
+
   // 1. Registro nuevo eligiendo PÁDEL como deporte favorito y REVÉS como posición
   const regRes = await fetch('http://localhost:3001/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      email: 'rodrigo.padel@test.pe',
+      email: testEmail,
       password: 'password123',
       name: 'Rodrigo Pádel',
       district: 'Miraflores, Lima',
@@ -25,6 +27,7 @@ async function testAuth() {
 
   const u = regData.user;
   console.log(`✓ Usuario registrado: ${u.name} (${u.email})`);
+  console.log(`  Token JWT emitido: ${Boolean(regData.token)}`);
   console.log(`  Deporte Principal: ${u.primarySport} | Posición: ${u.position}`);
   console.log(`  Deportes Favoritos: ${u.favoriteSports.join(', ')}`);
   console.log(`  Carta FUT Inicial: RIT ${u.futStats.rit}, TIR ${u.futStats.tir}, PAS ${u.futStats.pas}, REG ${u.futStats.reg}, DEF ${u.futStats.def}, FÍS ${u.futStats.fis} | OVR: ${u.futStats.ovr}`);
@@ -45,20 +48,19 @@ async function testAuth() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      email: 'rodrigo.padel@test.pe',
+      email: testEmail,
       password: 'password123'
     })
   });
   const loginData = await loginRes.json();
-  if (loginRes.ok && loginData.user) {
-    console.log(`✓ Inicio de sesión exitoso para: ${loginData.user.name}`);
+  if (loginRes.ok && loginData.user && loginData.token) {
+    console.log(`✓ Inicio de sesión exitoso para: ${loginData.user.name} | Token JWT verificado.`);
   } else {
     console.error('❌ Error en login:', loginData);
     process.exit(1);
   }
 
   console.log('🎉 ¡TODAS LAS PRUEBAS DE AUTENTICACIÓN PASARON AL 100%!');
-  process.exit(0);
 }
 
 testAuth().catch(err => {

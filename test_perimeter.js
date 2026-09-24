@@ -52,6 +52,16 @@ async function runPerimeterE2ETest() {
 
   console.log('2️⃣ Jugador 2 busca con perímetro en San Borja (Radio 5 km)...');
   const matchPromise = new Promise((resolve) => {
+    socket1.on('matchPromptAcceptance', ({ pendingMatchId }) => {
+      console.log('⚡ Notificación de confirmación recibida por Jugador 1. Confirmando...');
+      socket1.emit('acceptPendingMatch', { pendingMatchId, userId: user1.id });
+    });
+
+    socket2.on('matchPromptAcceptance', ({ pendingMatchId }) => {
+      console.log('⚡ Notificación de confirmación recibida por Jugador 2. Confirmando...');
+      socket2.emit('acceptPendingMatch', { pendingMatchId, userId: user2.id });
+    });
+
     socket1.on('matchFound', ({ match }) => {
       console.log(`🏆 ¡MATCH EXITOSO POR CERCANÍA DE PERÍMETROS! Distancia entre distritos: ~3.5 km <= 5 km permitido.`);
       resolve(match);
@@ -74,7 +84,6 @@ async function runPerimeterE2ETest() {
 
   socket1.disconnect();
   socket2.disconnect();
-  process.exit(0);
 }
 
 runPerimeterE2ETest().catch((err) => {

@@ -7,6 +7,8 @@ import { db } from './db.js';
 import { MatchmakingEngine } from './matchmakingEngine.js';
 import { calculateGlicko2Match, getInitialGlicko } from './glicko2.js';
 import { logger } from './logger.js';
+import { signToken, verifyToken, requireAuth, requireAdmin, authRateLimiter } from './auth.js';
+import { VENUES, getVenueSlots } from './venues.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -77,19 +79,31 @@ app.get('/api/lobbies/replacements', (req, res) => {
 });
 
 
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
+app.post('/api/auth/login', authRateLimiter, (req, res) => {
+  const { email, password, name, district } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'El correo electrónico es requerido' });
+  }
+  let user = db.getUserByEmail(email.trim());
+  if (!user && name) {
+    user = db.createUser({
+      email: email.trim(),
+      password: password || '1234',
+      name,
+      district: district || 'Surco, Lima'
+    });
+    const token = signToken({ userId: user.id, role: user.role || 'player', name: user.name });
+    return res.json({ user, token });
   }
   const result = db.loginUser({ email: email.trim(), password });
   if (result.error) {
     return res.status(401).json({ error: result.error });
   }
-  res.json({ user: result.user });
+  const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
+  res.json({ user: result.user, token });
 });
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', authRateLimiter, (req, res) => {
   const { email, password, name, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Ingresa un correo electrónico válido' });
@@ -102,11 +116,12 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(409).json({ error: 'Este correo ya tiene una cuenta registrada. Por favor inicia sesión.' });
   }
   const user = db.createUser({ email: email.trim(), password, name, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel });
-  res.json({ user });
+  const token = signToken({ userId: user.id, role: user.role || 'player', name: user.name });
+  res.json({ user, token });
 });
 
 // Autenticación rápida por Nombre + PIN de 4 dígitos (Fase 2)
-app.post('/api/auth/pin-login', (req, res) => {
+app.post('/api/auth/pin-login', authRateLimiter, (req, res) => {
   const { name, pin } = req.body;
   if (!name || !pin) {
     return res.status(400).json({ error: 'Nombre y PIN de 4 dígitos son requeridos' });
@@ -115,10 +130,11 @@ app.post('/api/auth/pin-login', (req, res) => {
   if (result.error) {
     return res.status(401).json({ error: result.error });
   }
-  res.json({ user: result.user });
+  const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
+  res.json({ user: result.user, token });
 });
 
-app.post('/api/auth/pin-register', (req, res) => {
+app.post('/api/auth/pin-register', authRateLimiter, (req, res) => {
   const { name, pin, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
   if (!name || name.trim().length < 2) {
     return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
@@ -130,12 +146,84 @@ app.post('/api/auth/pin-register', (req, res) => {
   if (result.error) {
     return res.status(409).json({ error: result.error });
   }
-  res.json({ user: result.user });
+  const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
+  res.json({ user: result.user, token });
+});
+
+// Autenticación administrativa para SuperAdmin
+app.post('/api/auth/admin-login', authRateLimiter, (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+  }
+  const result = db.loginUser({ email: email.trim(), password });
+  if (result.error) {
+    return res.status(401).json({ error: result.error });
+  }
+  if (result.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acceso restringido únicamente a Administradores' });
+  }
+  const token = signToken({ userId: result.user.id, role: 'admin', name: result.user.name });
+  res.json({ user: result.user, token });
 });
 
 app.get('/api/auth/check-name/:name', (req, res) => {
   const user = db.getUserByName(req.params.name);
   res.json({ exists: !!user, name: req.params.name });
+});
+
+// Actualización de Perfil y Notificaciones Push
+app.put('/api/user/:userId', (req, res) => {
+  const updatedUser = db.updateUserProfile(req.params.userId, req.body);
+  if (!updatedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json({ success: true, user: updatedUser });
+});
+
+app.post('/api/user/push-token', (req, res) => {
+  const { userId, pushToken } = req.body;
+  if (!userId || !pushToken) return res.status(400).json({ error: 'userId y pushToken son requeridos' });
+  const user = db.setUserPushToken(userId, pushToken);
+  res.json({ success: true, pushToken: user?.pushToken });
+});
+
+// Catálogo de Complejos Deportivos y Canchas (B2B / Reservas)
+app.get('/api/venues', (req, res) => {
+  const { district, sportId } = req.query;
+  let list = VENUES;
+  if (district && district !== 'all') {
+    const dLower = district.toLowerCase();
+    list = list.filter(v => v.district.toLowerCase().includes(dLower));
+  }
+  if (sportId && sportId !== 'all') {
+    list = list.filter(v => v.sports.includes(sportId));
+  }
+  res.json({ venues: list });
+});
+
+app.get('/api/venues/:id', (req, res) => {
+  const venue = VENUES.find(v => v.id === req.params.id);
+  if (!venue) return res.status(404).json({ error: 'Complejo deportivo no encontrado' });
+  const slots = getVenueSlots(venue.id, req.query.date);
+  res.json({ venue: { ...venue, slots } });
+});
+
+app.post('/api/venues/:id/book', (req, res) => {
+  const { slotId, userId, matchId } = req.body;
+  const venue = VENUES.find(v => v.id === req.params.id);
+  if (!venue) return res.status(404).json({ error: 'Complejo no encontrado' });
+  res.json({
+    success: true,
+    booking: {
+      id: `booking_${Date.now()}`,
+      venueId: venue.id,
+      venueName: venue.name,
+      slotId,
+      userId,
+      matchId,
+      status: 'confirmed',
+      timestamp: Date.now()
+    }
+  });
 });
 
 app.get('/api/user/:userId', (req, res) => {
@@ -252,6 +340,87 @@ app.get('/api/admin/live-activity', (req, res) => {
     onlineUsers: Array.from(connectedUsers.values()),
     activeMatches: liveMatches
   });
+});
+
+// Moderación y Resolución de Disputas SuperAdmin
+app.get('/api/admin/disputes', (req, res) => {
+  const disputed = Array.from(db.matches.values()).filter(
+    (m) => m.status === 'disputed' || m.disputeAlert
+  );
+  res.json({ disputes: disputed });
+});
+
+app.post('/api/admin/disputes/resolve', (req, res) => {
+  const { matchId, winnerTeam, adminUserId = 'demo_user_admin' } = req.body;
+  const match = db.getMatch(matchId);
+  if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+
+  match.status = 'finished';
+  match.resultFinal = winnerTeam;
+  match.disputeResolvedBy = adminUserId;
+  match.disputeAlert = null;
+
+  const ratingUpdates = {};
+  const scoreA = winnerTeam === 'teamA' ? 1 : 0;
+  const scoreB = winnerTeam === 'teamB' ? 1 : 0;
+
+  for (const p of match.teamA) {
+    const prof = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
+    const delta = scoreA === 1 ? 35 : -25;
+    const newRating = Math.max(800, prof.rating + delta);
+    db.setProfile(p.userId || p.id, match.sportId, match.formatId, { rating: newRating });
+    ratingUpdates[p.userId || p.id] = { oldRating: prof.rating, newRating, ratingChange: delta };
+  }
+
+  for (const p of match.teamB) {
+    const prof = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
+    const delta = scoreB === 1 ? 35 : -25;
+    const newRating = Math.max(800, prof.rating + delta);
+    db.setProfile(p.userId || p.id, match.sportId, match.formatId, { rating: newRating });
+    ratingUpdates[p.userId || p.id] = { oldRating: prof.rating, newRating, ratingChange: delta };
+  }
+
+  db._persistMatch(match);
+
+  io.to(matchId).emit('matchFinished', {
+    matchId,
+    winnerTeam,
+    ratingUpdates,
+    match,
+    resolvedByAdmin: true
+  });
+
+  res.json({ success: true, match, ratingUpdates });
+});
+
+app.post('/api/admin/user/:userId/ban', (req, res) => {
+  const { hours = 24, reason } = req.body;
+  const user = db.setUserBanned(req.params.userId, hours, reason);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const socketId = userSocketMap.get(req.params.userId);
+  if (socketId) {
+    io.to(socketId).emit('userBannedNotification', {
+      hours,
+      reason,
+      bannedUntil: user.bannedUntil
+    });
+  }
+
+  res.json({ success: true, user });
+});
+
+app.post('/api/admin/user/:userId/reset-pin', (req, res) => {
+  const { newPin = '1234' } = req.body;
+  const user = db.resetUserPin(req.params.userId, newPin);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json({ success: true, user });
+});
+
+app.post('/api/admin/user/:userId/verify-dni', (req, res) => {
+  const user = db.toggleUserDniVerified(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json({ success: true, verifiedDni: user.verifiedDni });
 });
 
 // Endpoint para consultar datos de una Sala de Convocatoria (Lobby)
@@ -413,7 +582,7 @@ io.on('connection', (socket) => {
   });
 
   // Iniciar búsqueda de Desafío (cola de matchmaking con radio geoespacial)
-  socket.on('startQueue', ({ userId, sportId, formatId, mode = 'solo', lat, lng, radiusKm, district }) => {
+  const handleStartQueue = ({ userId, sportId, formatId, mode = 'solo', lat, lng, radiusKm, district }) => {
     if (!userId || !sportId || !formatId) return;
 
     // Desalojar al usuario de cualquier sala previa antes de entrar a la cola del radar
@@ -459,9 +628,12 @@ io.on('connection', (socket) => {
     });
 
     matchmakingEngine.processQueue();
-  });
+  };
 
-  socket.on('cancelQueue', ({ userId }) => {
+  socket.on('startQueue', handleStartQueue);
+  socket.on('startSearch', handleStartQueue);
+
+  const handleCancelQueue = ({ userId }) => {
     const removed = db.removeChallengeByUserId(userId);
     const cancelUser = db.getUser(userId);
     if (removed) {
@@ -477,7 +649,10 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('queueCancelled', { isSearching: false });
-  });
+  };
+
+  socket.on('cancelQueue', handleCancelQueue);
+  socket.on('cancelSearch', handleCancelQueue);
 
   // ==========================================
   // EVENTOS DE SALAS DE CONVOCATORIA (LOBBY)
@@ -828,11 +1003,40 @@ io.on('connection', (socket) => {
     if (!pendingMatchId || !userId) return;
     matchmakingEngine.handlePlayerAccept(pendingMatchId, userId);
   });
+  socket.on('acceptMatch', ({ pendingMatchId, userId }) => {
+    if (!pendingMatchId || !userId) return;
+    matchmakingEngine.handlePlayerAccept(pendingMatchId, userId);
+  });
 
   // Rechazar Partida en Fase de Aceptación
   socket.on('declinePendingMatch', ({ pendingMatchId, userId }) => {
     if (!pendingMatchId || !userId) return;
     matchmakingEngine.cancelPendingMatch(pendingMatchId, 'declined', userId);
+  });
+  socket.on('declineMatch', ({ pendingMatchId, userId }) => {
+    if (!pendingMatchId || !userId) return;
+    matchmakingEngine.cancelPendingMatch(pendingMatchId, 'declined', userId);
+  });
+
+  // Resolución de disputas por SuperAdmin vía Socket
+  socket.on('adminResolveDispute', ({ matchId, winnerTeam, adminUserId }) => {
+    const adminId = adminUserId || socket.userId || 'demo_user_admin';
+    io.emit('adminDisputeResolved', { matchId, winnerTeam, adminId });
+    // Disparar lógica de resolución
+    const match = db.getMatch(matchId);
+    if (match) {
+      match.status = 'finished';
+      match.resultFinal = winnerTeam;
+      match.disputeResolvedBy = adminId;
+      match.disputeAlert = null;
+      db._persistMatch(match);
+      io.to(matchId).emit('matchFinished', {
+        matchId,
+        winnerTeam,
+        match,
+        resolvedByAdmin: true
+      });
+    }
   });
 
   socket.on('startLobbyRadarSearch', ({ code }) => {
@@ -1192,13 +1396,18 @@ io.on('connection', (socket) => {
 
     match.resultReports[userId] = { winnerTeam, timestamp: Date.now() };
     const isAgainstDemo = match.teamB.some(p => p.isDemo);
+    const isAdmin = userId === 'demo_user_admin' || String(userId).includes('admin') || db.getUser(userId)?.role === 'admin';
 
     let isResolved = false;
     let finalWinner = null;
 
-    if (isAgainstDemo) {
+    if (isAdmin || isAgainstDemo) {
       isResolved = true;
       finalWinner = winnerTeam;
+      if (isAdmin) {
+        match.disputeResolvedBy = userId;
+        match.disputeAlert = null;
+      }
     } else {
       const reports = Object.values(match.resultReports);
       if (reports.length >= 2) {

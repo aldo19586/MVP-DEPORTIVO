@@ -266,11 +266,17 @@ export class MatchmakingEngine {
     const user = db.getUser(userId);
     logger.info(`[JUGADOR ACEPTÓ] ${user?.name || userId} confirmó asistencia en ${pendingMatchId} (${acceptedList.length}/${pending.totalPlayers})`);
 
-    // Emitir actualización a todos los jugadores
+    // Emitir actualización a todos los jugadores (soporta ambos nombres de evento)
     const allPlayers = [...pending.teamA, ...pending.teamB];
     for (const p of allPlayers) {
       if (p.socketId) {
         this.io.to(p.socketId).emit('pendingMatchUpdated', {
+          pendingMatchId,
+          acceptedUserIds: acceptedList,
+          acceptedCount: acceptedList.length,
+          totalPlayers: pending.totalPlayers
+        });
+        this.io.to(p.socketId).emit('matchPromptUpdated', {
           pendingMatchId,
           acceptedUserIds: acceptedList,
           acceptedCount: acceptedList.length,
@@ -284,7 +290,7 @@ export class MatchmakingEngine {
       clearTimeout(pending.timeoutTimer);
       this.pendingMatches.delete(pendingMatchId);
 
-      const lobby = db.createLobbyFromMatchmaking({
+      const match = db.createMatch({
         sportId: pending.sportId,
         formatId: pending.formatId,
         teamA: pending.teamA,
@@ -296,29 +302,37 @@ export class MatchmakingEngine {
         if (this.connectedUsers) {
           const entry = this.connectedUsers.get(pId);
           if (entry) {
-            entry.status = 'in_chat';
-            entry.details = `En Sala de Convocatoria #${lobby.code} (${pending.sportId?.toUpperCase()} ${pending.formatId?.toUpperCase()})`;
+            entry.status = 'in_game';
+            entry.details = `En Cancha: Partido Oficial #${match.id}`;
           }
         }
         if (player.socketId) {
           const sock = this.io.sockets.sockets.get(player.socketId);
           if (sock) {
-            sock.join(`lobby_${lobby.code}`);
-            sock.lobbyCode = lobby.code;
+            sock.join(match.id);
           }
-          this.io.to(player.socketId).emit('lobbyCreated', { lobby });
-          this.io.to(player.socketId).emit('lobbyUpdated', { lobby });
+          this.io.to(player.socketId).emit('matchFound', {
+            matchId: match.id,
+            sportId: match.sportId,
+            formatId: match.formatId,
+            match
+          });
         }
       }
 
-      this.io.to(`lobby_${lobby.code}`).emit('lobbyUpdated', { lobby });
+      this.io.to(match.id).emit('matchFound', {
+        matchId: match.id,
+        sportId: match.sportId,
+        formatId: match.formatId,
+        match
+      });
 
       if (this.broadcastOnlineUsers) {
         this.broadcastOnlineUsers();
       }
 
-      console.log(`[MATCHMAKING] ¡Todos aceptaron! Sala llena #${lobby.code} creada con éxito.`);
-      logger.info(`[CONFIRMADO] Todos los jugadores aceptaron. Sala llena #${lobby.code} (${pending.sportId} ${pending.formatId}) lista para iniciar.`);
+      console.log(`[MATCHMAKING] ¡Todos aceptaron! Partido oficial #${match.id} iniciado con éxito.`);
+      logger.info(`[CONFIRMADO] Todos los jugadores aceptaron. Partido #${match.id} (${pending.sportId} ${pending.formatId}) en curso.`);
     }
   }
 

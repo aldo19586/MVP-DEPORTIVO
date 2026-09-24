@@ -73,6 +73,16 @@ async function runE2ETest() {
     let matchA = null;
     let matchB = null;
 
+    socketA.on('matchPromptAcceptance', ({ pendingMatchId }) => {
+      console.log('⚡ [SOCKET A] Desafío encontrado. Confirmando asistencia (Ventana 20s)...');
+      socketA.emit('acceptPendingMatch', { pendingMatchId, userId: userA.id });
+    });
+
+    socketB.on('matchPromptAcceptance', ({ pendingMatchId }) => {
+      console.log('⚡ [SOCKET B] Desafío encontrado. Confirmando asistencia (Ventana 20s)...');
+      socketB.emit('acceptPendingMatch', { pendingMatchId, userId: userB.id });
+    });
+
     socketA.on('matchFound', ({ match }) => {
       console.log(`🏆 [SOCKET A] ¡MATCH ENCONTRADO! ID: ${match.id}`);
       matchA = match;
@@ -147,7 +157,6 @@ async function runE2ETest() {
 
   socketA.disconnect();
   socketB.disconnect();
-  process.exit(0);
 }
 
 runE2ETest().catch((err) => {
