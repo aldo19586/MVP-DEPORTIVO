@@ -50,7 +50,8 @@
         {
           "color": "#10b981"
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }

@@ -112,6 +112,30 @@ export default function App() {
       setActiveMatch(data.match);
     });
 
+    // Sala de convocatoria creada o actualizada
+    socket.on('lobbyCreated', (data) => {
+      if (data && data.lobby) {
+        setSelectedLobby(data.lobby);
+      }
+    });
+
+    socket.on('lobbyUpdated', (data) => {
+      if (data && data.lobby) {
+        setSelectedLobby((prev) => {
+          if (prev && prev.code === data.lobby.code) {
+            return data.lobby;
+          }
+          return prev;
+        });
+      }
+    });
+
+    socket.on('lobbyRestored', (data) => {
+      if (data && data.lobby) {
+        setSelectedLobby(data.lobby);
+      }
+    });
+
     // Partido activo restaurado por reconexión
     socket.on('activeMatch', (data) => {
       if (data && data.match) {
@@ -294,6 +318,7 @@ export default function App() {
           <RadarScreen
             user={currentUser}
             onNavigateToLobbies={() => setActiveTab('SALAS')}
+            onSelectLobby={(lobby) => setSelectedLobby(lobby)}
             onLogout={handleLogout}
           />
         )}
