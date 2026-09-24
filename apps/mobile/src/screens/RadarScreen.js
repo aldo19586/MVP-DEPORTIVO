@@ -22,11 +22,28 @@ const SPORTS = [
   { id: 'tenis', name: 'TENIS', icon: '🎾' }
 ];
 
-const FORMATS = [
-  { id: '1v1', label: '1v1', sub: 'DUELO' },
-  { id: '3v3', label: '3v3', sub: 'RETA' },
-  { id: '5v5', label: '5v5', sub: 'CONVOCATORIA', hasDot: true }
-];
+const FORMATS_BY_SPORT = {
+  futbol: [
+    { id: '3v3', label: '3v3', sub: 'Pichanga', desc: 'Mini losa o fútbol callejero rápido', playersPerTeam: 3 },
+    { id: '6v6', label: '6v6', sub: 'Sintético', desc: 'Fútbol 6 en césped sintético (Modalidad rey en Lima)', playersPerTeam: 6, popular: true },
+    { id: '11v11', label: '11v11', sub: 'Reglamentario', desc: 'Fútbol 11 oficial en cancha completa', playersPerTeam: 11 }
+  ],
+  basket: [
+    { id: '1v1', label: '1v1', sub: 'Duelo', desc: 'Mano a mano individual al aro', playersPerTeam: 1 },
+    { id: '3v3', label: '3v3', sub: 'FIBA 3x3', desc: 'Media cancha oficial estilo Streetball FIBA', playersPerTeam: 3, popular: true },
+    { id: '5v5', label: '5v5', sub: 'Completa', desc: 'Cancha completa reglamentaria', playersPerTeam: 5 }
+  ],
+  padel: [
+    { id: '1v1', label: '1v1', sub: 'Singles', desc: 'Individual en pista cruzada', playersPerTeam: 1 },
+    { id: '2v2', label: '2v2', sub: 'Oficial', desc: 'Dobles en pareja reglamentario', playersPerTeam: 2, popular: true },
+    { id: '3v3', label: '3v3', sub: 'Americano', desc: 'Rotación americana y rey de la pista', playersPerTeam: 3 }
+  ],
+  tenis: [
+    { id: '1v1', label: '1v1', sub: 'Singles', desc: 'Singles individual oficial a sets', playersPerTeam: 1, popular: true },
+    { id: '2v2', label: '2v2', sub: 'Dobles', desc: 'Dobles en pareja con pasillos laterales', playersPerTeam: 2 },
+    { id: 'tiebreak', label: 'Tie-break', sub: 'Express', desc: 'Super Tie-Break express a 10 puntos', playersPerTeam: 1 }
+  ]
+};
 
 export default function RadarScreen({
   user,
@@ -41,7 +58,17 @@ export default function RadarScreen({
 }) {
   // Configuración deportiva
   const [selectedSport, setSelectedSport] = useState('futbol');
-  const [selectedFormat, setSelectedFormat] = useState('5v5');
+  const [selectedFormat, setSelectedFormat] = useState('6v6');
+
+  // Sincronizar automáticamente la modalidad al cambiar de deporte
+  useEffect(() => {
+    const formats = FORMATS_BY_SPORT[selectedSport] || FORMATS_BY_SPORT.futbol;
+    const exists = formats.some((f) => f.id === selectedFormat);
+    if (!exists) {
+      const defaultFmt = formats.find((f) => f.popular) || formats[0];
+      setSelectedFormat(defaultFmt.id);
+    }
+  }, [selectedSport]);
 
   // Modo de juego: Buscar Solo vs Crear Equipo
   const [mode, setMode] = useState('solo'); // 'solo' | 'squad'
@@ -55,6 +82,9 @@ export default function RadarScreen({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sweepAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef(null);
+
+  const availableFormats = FORMATS_BY_SPORT[selectedSport] || FORMATS_BY_SPORT.futbol;
+  const currentFormatObj = availableFormats.find((f) => f.id === selectedFormat) || availableFormats[0];
 
   useEffect(() => {
     // 1. Ubicación GPS nativa
@@ -343,29 +373,46 @@ export default function RadarScreen({
           </View>
         </View>
 
-        {/* 5. SELECTOR DE MODALIDAD */}
+        {/* 5. SELECTOR DE MODALIDAD (Segmented Control Compacto) */}
         <View style={styles.sectionBlock}>
-          <Text style={styles.sectionHeader}>MODALIDAD</Text>
-          <View style={styles.chipsRow}>
-            {FORMATS.map((fmt) => {
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeader}>MODALIDAD</Text>
+            {currentFormatObj?.popular && (
+              <View style={styles.popularBadge}>
+                <Text style={styles.popularBadgeText}>MÁS JUGADA EN LIMA</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Segmented Control Ultracompacto */}
+          <View style={styles.segmentedControlTrack}>
+            {availableFormats.map((fmt) => {
               const active = selectedFormat === fmt.id;
               return (
                 <TouchableOpacity
                   key={fmt.id}
-                  style={[styles.formatChip, active && styles.formatChipActive]}
+                  style={[styles.segmentedItem, active && styles.segmentedItemActive]}
                   onPress={() => {
                     try { Haptics.selectionAsync(); } catch (e) {}
                     setSelectedFormat(fmt.id);
                   }}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
-                  <Text style={[styles.formatLabel, active && styles.formatLabelActive]}>{fmt.label}</Text>
-                  <Text style={[styles.formatSub, active && styles.formatSubActive]}>{fmt.sub}</Text>
-                  {fmt.hasDot && <View style={styles.formatDot} />}
+                  <Text style={[styles.segmentedLabel, active && styles.segmentedLabelActive]}>
+                    {fmt.label}
+                  </Text>
+                  {fmt.popular && !active && (
+                    <View style={styles.dotPopular} />
+                  )}
                 </TouchableOpacity>
               );
             })}
           </View>
+
+          {/* Breve descripción contextual de la modalidad seleccionada */}
+          <Text style={styles.formatExplanationText}>
+            ℹ️ {currentFormatObj?.desc || ''}
+          </Text>
         </View>
 
         {/* 6. TARJETA DE ESTADO DE RATING: "CALIBRANDO" (Sin puntaje por defecto) */}
@@ -864,46 +911,71 @@ const styles = StyleSheet.create({
   sportChipLabelActive: {
     color: '#00210B',
   },
-  formatChip: {
-    flex: 1,
+  sectionHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.md,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+  },
+  popularBadge: {
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  popularBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: THEME.colors.primary,
+    letterSpacing: 0.5,
+  },
+  segmentedControlTrack: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderRadius: 10,
+    padding: 3,
     borderWidth: 1,
     borderColor: THEME.colors.border,
-    position: 'relative',
+    height: 40,
   },
-  formatChipActive: {
-    backgroundColor: 'rgba(0, 230, 118, 0.12)',
-    borderColor: THEME.colors.primary,
+  segmentedItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    gap: 4,
   },
-  formatLabel: {
-    fontSize: 13,
+  segmentedItemActive: {
+    backgroundColor: THEME.colors.primary,
+    shadowColor: THEME.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentedLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.textSecondary,
+  },
+  segmentedLabelActive: {
+    color: '#00210B',
     fontWeight: '900',
-    color: THEME.colors.textPrimary,
   },
-  formatLabelActive: {
-    color: THEME.colors.primary,
-  },
-  formatSub: {
-    fontSize: 8.5,
-    fontWeight: '700',
-    color: THEME.colors.textMuted,
-    marginTop: 1,
-  },
-  formatSubActive: {
-    color: THEME.colors.primary,
-  },
-  formatDot: {
-    position: 'absolute',
-    top: 5,
-    right: 6,
+  dotPopular: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
     backgroundColor: THEME.colors.primary,
+  },
+  formatExplanationText: {
+    fontSize: 10.5,
+    color: THEME.colors.textSecondary,
+    fontStyle: 'italic',
+    paddingHorizontal: 2,
+    marginTop: 2,
   },
 
   // TARJETA DE ESTADO DE RATING: "CALIBRANDO"

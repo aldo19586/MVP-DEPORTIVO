@@ -33,3 +33,7 @@ matchsport.db
 
 # Logs de matchmaking
 logs/
+
+# Expo
+.expo/
+*.expo/
