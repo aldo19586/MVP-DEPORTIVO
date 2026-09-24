@@ -51,6 +51,32 @@ function getLocalIp() {
   return 'localhost';
 }
 
+// Helper para generar y notificar evaluaciones circulares post-partido (Peer-Review 1-Toque)
+function broadcastPeerReviewAssignments(match) {
+  if (!match || !match.id) return;
+  const assignments = db.generatePeerReviewAssignments(match);
+  if (!assignments || assignments.length === 0) return;
+
+  // Notificar a la sala del partido
+  io.to(match.id).emit('peerReviewsReady', {
+    matchId: match.id,
+    count: assignments.length
+  });
+
+  // Notificar a cada jugador con su respectivo asignado
+  assignments.forEach(assignment => {
+    const evaluatorId = assignment.evaluatorId;
+    const socketId = userSocketMap.get(evaluatorId);
+    const reviewData = db.getPeerReviewForUser(match.id, evaluatorId);
+    if (socketId && reviewData) {
+      io.to(socketId).emit('peerReviewAssigned', {
+        matchId: match.id,
+        ...reviewData
+      });
+    }
+  });
+}
+
 // ---------------- REST API ----------------
 
 app.get('/api/health', (req, res) => {
@@ -271,6 +297,46 @@ app.get('/api/match/:matchId', (req, res) => {
   res.json({ match });
 });
 
+// Obtener asignación circular de Peer-Review para un usuario en un partido
+app.get('/api/match/:matchId/peer-review/:userId', (req, res) => {
+  const { matchId, userId } = req.params;
+  const review = db.getPeerReviewForUser(matchId, userId);
+  if (!review) {
+    return res.status(404).json({ error: 'No hay evaluación asignada para este usuario en el partido indicado.' });
+  }
+  res.json(review);
+});
+
+// Enviar voto de 1-toque en Peer-Review post-partido
+app.post('/api/match/peer-review', (req, res) => {
+  const { matchId, evaluatorId, attributeTag } = req.body;
+  if (!matchId || !evaluatorId || !attributeTag) {
+    return res.status(400).json({ error: 'matchId, evaluatorId y attributeTag son requeridos.' });
+  }
+
+  const result = db.submitPeerReview(matchId, evaluatorId, attributeTag);
+  if (result.error) {
+    const statusCode = (result.alreadyVoted || result.error.includes('Ya has emitido') || result.error.includes('ya fue enviada')) ? 409 : 400;
+    return res.status(statusCode).json({ error: result.error });
+  }
+
+  const evaluatorSocketId = userSocketMap.get(evaluatorId);
+  if (evaluatorSocketId) {
+    io.to(evaluatorSocketId).emit('peerReviewSubmitted', { matchId, ...result });
+  }
+  const targetSocketId = userSocketMap.get(result.targetUserId);
+  if (targetSocketId) {
+    io.to(targetSocketId).emit('peerReviewReceived', {
+      matchId,
+      statUpdated: result.statKey,
+      newValue: result.newValue,
+      newOvr: result.newOvr
+    });
+  }
+
+  res.json({ success: true, ...result });
+});
+
 // Historial de Partidas del Usuario (Estilo MOBA / Dota 2)
 app.get('/api/user/:userId/matches', (req, res) => {
   const history = db.getUserMatchHistory(req.params.userId);
@@ -398,6 +464,8 @@ app.post('/api/admin/disputes/resolve', (req, res) => {
     match,
     resolvedByAdmin: true
   });
+
+  broadcastPeerReviewAssignments(match);
 
   res.json({ success: true, match, ratingUpdates });
 });
@@ -1045,6 +1113,7 @@ io.on('connection', (socket) => {
         match,
         resolvedByAdmin: true
       });
+      broadcastPeerReviewAssignments(match);
     }
   });
 
@@ -1310,6 +1379,8 @@ io.on('connection', (socket) => {
         });
       }
     }
+
+    broadcastPeerReviewAssignments(match);
   });
 
   // Reporte estándar multi-jugador (>1v1) o consenso
@@ -1400,6 +1471,7 @@ io.on('connection', (socket) => {
           });
         }
       }
+      broadcastPeerReviewAssignments(match);
       return;
     }
 
@@ -1527,6 +1599,7 @@ io.on('connection', (socket) => {
           });
         }
       }
+      broadcastPeerReviewAssignments(match);
     }
   });
 
@@ -1561,6 +1634,30 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('futRatingsSaved', { success: true, futStats: updatedStats });
+  });
+
+  // Voto de 1-toque en Peer-Review Circular post-partido (+2 al atributo)
+  socket.on('submitPeerReviewOneTap', ({ matchId, evaluatorId, attributeTag }, callback) => {
+    const result = db.submitPeerReview(matchId, evaluatorId, attributeTag);
+    if (result.error) {
+      if (typeof callback === 'function') callback({ success: false, error: result.error });
+      socket.emit('peerReviewError', { error: result.error });
+      return;
+    }
+
+    if (typeof callback === 'function') callback({ success: true, ...result });
+    socket.emit('peerReviewSubmitted', { matchId, ...result });
+
+    // Notificar al evaluado si está conectado sobre la actualización de su carta
+    const targetSocketId = userSocketMap.get(result.targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('peerReviewReceived', {
+        matchId,
+        statUpdated: result.statKey,
+        newValue: result.newValue,
+        newOvr: result.newOvr
+      });
+    }
   });
 
   // Reseña general para partidos de equipos (>1v1)

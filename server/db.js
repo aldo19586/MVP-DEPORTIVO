@@ -395,6 +395,7 @@ class Database {
     this.lobbies = new Map(); // code -> lobby — SOLO EN MEMORIA (tiempo real)
     this.reviews = [];
     this.futReviews = [];
+    this.peerReviews = new Map(); // matchId_evaluatorId -> peer review assignment
     this._sqliteReady = false;
   }
 
@@ -902,6 +903,179 @@ class Database {
 
     this._persistUser(user);
     return user.futStats;
+  }
+
+  // ==========================================
+  // PEER-REVIEW CIRCULAR (POST-PARTIDO 1-TOQUE)
+  // ==========================================
+
+  generatePeerReviewAssignments(match) {
+    if (!match || !match.id) return [];
+    const assignments = [];
+
+    const processTeam = (teamMembers, otherTeamMembers) => {
+      const pIds = teamMembers.map(p => p.userId || p.id).filter(Boolean);
+      if (pIds.length === 0) return;
+
+      if (pIds.length === 1) {
+        // En 1v1, califica al rival de enfrente
+        const targetId = otherTeamMembers[0]?.userId || otherTeamMembers[0]?.id;
+        if (targetId && targetId !== pIds[0]) {
+          const key = `${match.id}_${pIds[0]}`;
+          const item = {
+            matchId: match.id,
+            evaluatorId: pIds[0],
+            targetUserId: targetId,
+            completed: false,
+            attributeGiven: null,
+            createdAt: Date.now()
+          };
+          this.peerReviews.set(key, item);
+          assignments.push(item);
+        }
+        return;
+      }
+
+      // En equipos de 2 o más jugadores: Derangement Circular Intra-Equipo (A != B)
+      // Garantiza que cada jugador evalúa a un compañero de su mismo equipo y todos son evaluados
+      const shuffled = [...pIds].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < shuffled.length; i++) {
+        const evaluatorId = shuffled[i];
+        const targetUserId = shuffled[(i + 1) % shuffled.length];
+        const key = `${match.id}_${evaluatorId}`;
+        const item = {
+          matchId: match.id,
+          evaluatorId,
+          targetUserId,
+          completed: false,
+          attributeGiven: null,
+          createdAt: Date.now()
+        };
+        this.peerReviews.set(key, item);
+        assignments.push(item);
+      }
+    };
+
+    processTeam(match.teamA || [], match.teamB || []);
+    processTeam(match.teamB || [], match.teamA || []);
+
+    return assignments;
+  }
+
+  getPeerReviewForUser(matchId, userId) {
+    if (!matchId || !userId) return null;
+    const key = `${matchId}_${userId}`;
+    const assignment = this.peerReviews.get(key);
+    if (!assignment) return null;
+
+    const targetUser = this.getUser(assignment.targetUserId);
+
+    // Revisar cuántos compañeros han evaluado a este usuario en este partido
+    const reviewsReceived = Array.from(this.peerReviews.values()).filter(
+      r => r.matchId === matchId && r.targetUserId === userId && r.completed
+    );
+
+    return {
+      matchId,
+      evaluatorId: userId,
+      hasVoted: assignment.completed,
+      attributeGiven: assignment.attributeGiven,
+      // Regla de voto ciego: las estadísticas recibidas permanecen bloqueadas hasta que el usuario vote
+      statsRevealed: assignment.completed,
+      targetPlayer: targetUser ? {
+        id: targetUser.id,
+        name: targetUser.name,
+        avatar: targetUser.avatar,
+        position: targetUser.position || 'DEL',
+        district: targetUser.district || 'Lima',
+        ratingOverall: targetUser.ratingOverall || 1500,
+        futStats: targetUser.futStats || { rit: 70, tir: 70, pas: 70, reg: 70, def: 70, fis: 70, ovr: 70 }
+      } : null,
+      reviewsReceivedCount: reviewsReceived.length
+    };
+  }
+
+  submitPeerReview(matchId, evaluatorId, attributeTag) {
+    if (!matchId || !evaluatorId || !attributeTag) {
+      return { error: 'Faltan parámetros para registrar la evaluación.' };
+    }
+
+    const key = `${matchId}_${evaluatorId}`;
+    const assignment = this.peerReviews.get(key);
+    if (!assignment) {
+      return { error: 'No se encontró una evaluación asignada para este usuario en el partido.' };
+    }
+
+    // Regla anti-doble voto
+    if (assignment.completed) {
+      return { error: 'Ya has emitido tu voto para este partido.', alreadyVoted: true };
+    }
+
+    const cleanTag = String(attributeTag).trim().toLowerCase();
+    const tagToStatMap = {
+      'ritmo': 'rit',
+      'velocidad': 'rit',
+      'rit': 'rit',
+      'definicion': 'tir',
+      'tiro': 'tir',
+      'gol': 'tir',
+      'tir': 'tir',
+      'vision': 'pas',
+      'pase': 'pas',
+      'pases': 'pas',
+      'pas': 'pas',
+      'defensa': 'def',
+      'marca': 'def',
+      'recuperacion': 'def',
+      'def': 'def',
+      'habilidad': 'reg',
+      'regate': 'reg',
+      'drible': 'reg',
+      'reg': 'reg'
+    };
+
+    const targetStatKey = tagToStatMap[cleanTag];
+    if (!targetStatKey) {
+      return { error: `Atributo inválido: "${attributeTag}". Opciones válidas: Ritmo, Definición, Visión, Defensa, Habilidad.` };
+    }
+
+    const targetUser = this.getUser(assignment.targetUserId);
+    if (!targetUser) {
+      return { error: 'El usuario evaluado ya no existe.' };
+    }
+
+    if (!targetUser.futStats) {
+      targetUser.futStats = { rit: 70, tir: 70, pas: 70, reg: 70, def: 70, fis: 70, reviewsCount: 0, ovr: 70 };
+    }
+
+    // Sumar +2 puntos directos al atributo base seleccionado (tope 99)
+    const prevValue = targetUser.futStats[targetStatKey] || 70;
+    const newValue = Math.min(99, prevValue + 2);
+    targetUser.futStats[targetStatKey] = newValue;
+    targetUser.futStats.reviewsCount = (targetUser.futStats.reviewsCount || 0) + 1;
+    targetUser.futStats.ovr = calculateOvrFromStats(targetUser.futStats, targetUser.ratingOverall || 1500);
+
+    // Persistir usuario actualizado
+    this._persistUser(targetUser);
+
+    // Actualizar estado del voto a completado
+    assignment.completed = true;
+    assignment.attributeGiven = cleanTag;
+    assignment.votedAt = Date.now();
+
+    return {
+      success: true,
+      message: `Voto registrado con éxito. Se sumaron +2 pts al atributo "${cleanTag.toUpperCase()}" de ${targetUser.name}.`,
+      attributeAdded: targetStatKey,
+      prevValue,
+      newValue,
+      statsRevealed: true,
+      updatedTargetPlayer: {
+        id: targetUser.id,
+        name: targetUser.name,
+        futStats: targetUser.futStats
+      }
+    };
   }
 
   getProfileKey(userId, sportId, formatId) {
