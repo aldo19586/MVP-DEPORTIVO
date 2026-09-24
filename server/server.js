@@ -53,6 +53,15 @@ function getLocalIp() {
 
 // ---------------- REST API ----------------
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    database: db._sqliteReady ? 'connected' : 'initializing',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/api/districts', (req, res) => {
   const { query } = req.query;
   if (!query) {
@@ -1632,6 +1641,14 @@ io.on('connection', (socket) => {
     } else {
       broadcastOnlineUsers();
     }
+  });
+});
+
+// Middleware global para captura de excepciones y errores HTTP
+app.use((err, req, res, next) => {
+  logger.error(`[ERROR HTTP] ${req.method} ${req.url}: ${err.message}`, { stack: err.stack });
+  res.status(err.status || 500).json({
+    error: err.message || 'Error interno del servidor. Por favor intenta más tarde.'
   });
 });
 
