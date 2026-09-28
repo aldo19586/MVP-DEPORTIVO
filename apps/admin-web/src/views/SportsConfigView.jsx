@@ -68,8 +68,13 @@ export default function SportsConfigView() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <span style={{ fontSize: '28px' }}>{sport.icon}</span>
               <div>
-                <h3 style={{ fontSize: '18px' }}>{sport.name}</h3>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>{sport.description}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ fontSize: '18px', margin: 0 }}>{sport.name}</h3>
+                  <span className="badge badge-cyan" style={{ fontSize: '10px' }}>
+                    {sport.formats?.length || 0} modalidades
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{sport.description}</div>
               </div>
             </div>
 
@@ -87,11 +92,21 @@ export default function SportsConfigView() {
                     border: '1px solid #1e293b'
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: '700', color: '#f8fafc', fontSize: '13px' }}>
-                      {format.name}
+                  <div style={{ flex: 1, paddingRight: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontWeight: '700', color: '#f8fafc', fontSize: '13px' }}>
+                        {format.name}
+                      </span>
+                      {format.popular && (
+                        <span className="badge badge-lime" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                          MÁS POPULAR
+                        </span>
+                      )}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                      {format.desc || `${format.playersPerTeam} vs ${format.playersPerTeam}`}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>
                       {format.playersPerTeam} vs {format.playersPerTeam} • ID: {format.id}
                     </div>
                   </div>

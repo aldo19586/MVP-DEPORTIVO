@@ -13,20 +13,27 @@ import {
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { socketService } from '../services/socket';
+import { api } from '../services/api';
 import { THEME } from '../theme';
 
-const SPORTS = [
-  { id: 'futbol', name: 'FÚTBOL', icon: '⚽' },
-  { id: 'basket', name: 'BASKET', icon: '🏀' },
-  { id: 'padel', name: 'PÁDEL', icon: '🎾' },
-  { id: 'tenis', name: 'TENIS', icon: '🎾' }
+// Enfoque exclusivo en Fútbol para esta etapa del MVP (Extensible a más deportes)
+const ENABLE_ONLY_FUTBOL = true;
+
+const DEFAULT_SPORTS = [
+  { id: 'futbol', name: 'FÚTBOL', icon: '⚽', active: true }
 ];
 
-const FORMATS_BY_SPORT = {
+const DEFAULT_FORMATS_BY_SPORT = {
   futbol: [
-    { id: '3v3', label: '3v3', sub: 'Pichanga', desc: 'Mini losa o fútbol callejero rápido', playersPerTeam: 3 },
-    { id: '6v6', label: '6v6', sub: 'Sintético', desc: 'Fútbol 6 en césped sintético (Modalidad rey en Lima)', playersPerTeam: 6, popular: true },
-    { id: '11v11', label: '11v11', sub: 'Reglamentario', desc: 'Fútbol 11 oficial en cancha completa', playersPerTeam: 11 }
+    { id: '1v1', label: '1v1', sub: 'Rey de Pista', desc: 'Duelo individual mano a mano o caño', playersPerTeam: 1 },
+    { id: '2v2', label: '2v2', sub: 'Parejas', desc: 'Duelo en arco chico sin arquero fijo', playersPerTeam: 2 },
+    { id: '3v3', label: '3v3', sub: 'Squad', desc: 'Mini losa o fútbol callejero rápido 3v3', playersPerTeam: 3 },
+    { id: '5v5', label: '5v5', sub: 'Futsal', desc: 'Fútbol 5 en losa o césped sintético', playersPerTeam: 5, popular: true },
+    { id: '6v6', label: '6v6', sub: 'Sintético', desc: 'Fútbol 6 en césped sintético (Modalidad reina en Lima)', playersPerTeam: 6, popular: true },
+    { id: '7v7', label: '7v7', sub: 'Fútbol 7', desc: 'Canchas medianas de fútbol 7 tradicional', playersPerTeam: 7 },
+    { id: '8v8', label: '8v8', sub: 'Fútbol 8', desc: 'Canchas amplias de fútbol 8 sintético', playersPerTeam: 8 },
+    { id: '9v9', label: '9v9', sub: 'Fútbol 9', desc: 'Formato táctico intermedio 9 vs 9', playersPerTeam: 9 },
+    { id: '11v11', label: '11v11', sub: 'Reglamentario', desc: 'Fútbol 11 oficial en campo completo', playersPerTeam: 11 }
   ],
   basket: [
     { id: '1v1', label: '1v1', sub: 'Duelo', desc: 'Mano a mano individual al aro', playersPerTeam: 1 },
@@ -52,23 +59,90 @@ export default function RadarScreen({
   onOpenCalibration,
   onOpenLocationSettings,
   onOpenJoinCode,
+  onStartFootballTest,
+  onRequireProfileSetup,
   radiusKm = 8,
   districtName = 'SURCO, LIMA',
   userLevel = 'Intermedio'
 }) {
-  // Configuración deportiva
+  // Catálogo dinámico sincronizado con backend
+  const [sportsList, setSportsList] = useState(DEFAULT_SPORTS);
+  const [formatsBySport, setFormatsBySport] = useState(DEFAULT_FORMATS_BY_SPORT);
+
+  // Configuración deportiva activa (Fútbol por defecto)
   const [selectedSport, setSelectedSport] = useState('futbol');
   const [selectedFormat, setSelectedFormat] = useState('6v6');
 
+  // Sincronizar catálogo con la API del servidor
+  useEffect(() => {
+    api.getSports().then((res) => {
+      if (res?.sports && Array.isArray(res.sports)) {
+        let mappedSports = res.sports.map((s) => ({
+          id: s.id,
+          name: s.name.toUpperCase(),
+          icon: s.icon,
+          active: s.active !== false
+        }));
+        if (ENABLE_ONLY_FUTBOL) {
+          mappedSports = mappedSports.filter((s) => s.id === 'futbol');
+        }
+        setSportsList(mappedSports);
+
+        const mappedFormats = {};
+        res.sports.forEach((s) => {
+          mappedFormats[s.id] = (s.formats || [])
+            .filter((f) => f.active !== false)
+            .map((f) => ({
+              id: f.id,
+              label: f.id,
+              sub: f.name.replace(/^[0-9v]+\s*/i, '').replace(/[()]/g, '').trim() || f.name,
+              desc: f.desc || f.name,
+              playersPerTeam: f.playersPerTeam,
+              popular: f.popular || f.id === '6v6' || f.id === '5v5'
+            }));
+        });
+        setFormatsBySport((prev) => ({ ...prev, ...mappedFormats }));
+      }
+    }).catch((err) => {
+      console.log('[RADAR] Usando formatos por defecto:', err.message);
+    });
+
+    const socket = socketService.getSocket();
+    if (socket) {
+      const handleSportsUpdated = (data) => {
+        if (data?.sports && Array.isArray(data.sports)) {
+          const mappedFormats = {};
+          data.sports.forEach((s) => {
+            mappedFormats[s.id] = (s.formats || [])
+              .filter((f) => f.active !== false)
+              .map((f) => ({
+                id: f.id,
+                label: f.id,
+                sub: f.name.replace(/^[0-9v]+\s*/i, '').replace(/[()]/g, '').trim() || f.name,
+                desc: f.desc || f.name,
+                playersPerTeam: f.playersPerTeam,
+                popular: f.popular || f.id === '6v6' || f.id === '5v5'
+              }));
+          });
+          setFormatsBySport((prev) => ({ ...prev, ...mappedFormats }));
+        }
+      };
+      socket.on('sportsUpdated', handleSportsUpdated);
+      return () => {
+        socket.off('sportsUpdated', handleSportsUpdated);
+      };
+    }
+  }, []);
+
   // Sincronizar automáticamente la modalidad al cambiar de deporte
   useEffect(() => {
-    const formats = FORMATS_BY_SPORT[selectedSport] || FORMATS_BY_SPORT.futbol;
+    const formats = formatsBySport[selectedSport] || formatsBySport.futbol || [];
     const exists = formats.some((f) => f.id === selectedFormat);
-    if (!exists) {
+    if (!exists && formats.length > 0) {
       const defaultFmt = formats.find((f) => f.popular) || formats[0];
       setSelectedFormat(defaultFmt.id);
     }
-  }, [selectedSport]);
+  }, [selectedSport, formatsBySport]);
 
   // Modo de juego: Buscar Solo vs Crear Equipo
   const [mode, setMode] = useState('solo'); // 'solo' | 'squad'
@@ -83,7 +157,7 @@ export default function RadarScreen({
   const sweepAnim = useRef(new Animated.Value(0)).current;
   const timerRef = useRef(null);
 
-  const availableFormats = FORMATS_BY_SPORT[selectedSport] || FORMATS_BY_SPORT.futbol;
+  const availableFormats = formatsBySport[selectedSport] || formatsBySport.futbol || [];
   const currentFormatObj = availableFormats.find((f) => f.id === selectedFormat) || availableFormats[0];
 
   useEffect(() => {
@@ -162,6 +236,16 @@ export default function RadarScreen({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     } catch (e) {}
 
+    // Gating obligatorio: Ficha biométrica y Test de Nivel completados
+    if (!user?.hasCompletedProfile || !user?.hasCompletedTest) {
+      if (onRequireProfileSetup) {
+        onRequireProfileSetup();
+      } else if (onStartFootballTest) {
+        onStartFootballTest();
+      }
+      return;
+    }
+
     const socket = socketService.getSocket();
 
     if (!isSearching) {
@@ -211,6 +295,16 @@ export default function RadarScreen({
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (e) {}
+
+    // Gating obligatorio: Ficha biométrica y Test de Nivel completados
+    if (!user?.hasCompletedProfile || !user?.hasCompletedTest) {
+      if (onRequireProfileSetup) {
+        onRequireProfileSetup();
+      } else if (onStartFootballTest) {
+        onStartFootballTest();
+      }
+      return;
+    }
 
     const socket = socketService.getSocket();
     if (socket && user) {
@@ -347,36 +441,60 @@ export default function RadarScreen({
           </View>
         </View>
 
-        {/* 4. SELECTOR DE DEPORTE (Sin el texto 'ACTIVO', diseño limpio) */}
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionHeader}>DEPORTE</Text>
-          <View style={styles.chipsRow}>
-            {SPORTS.map((sport) => {
-              const active = selectedSport === sport.id;
-              return (
-                <TouchableOpacity
-                  key={sport.id}
-                  style={[styles.sportChip, active && styles.sportChipActive]}
-                  onPress={() => {
-                    try { Haptics.selectionAsync(); } catch (e) {}
-                    setSelectedSport(sport.id);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.sportChipIcon}>{sport.icon}</Text>
-                  <Text style={[styles.sportChipLabel, active && styles.sportChipLabelActive]}>
-                    {sport.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* 5. SELECTOR DE MODALIDAD (Segmented Control Compacto) */}
+        {/* 4. DEPORTE: FÚTBOL (Enfoque exclusivo para esta etapa del MVP) */}
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>MODALIDAD</Text>
+            <Text style={styles.sectionHeader}>DEPORTE</Text>
+            <View style={styles.activeSportBadge}>
+              <Text style={styles.activeSportBadgeText}>TEMPORADA EXCLUSIVA</Text>
+            </View>
+          </View>
+
+          {sportsList.length <= 1 ? (
+            <View style={styles.singleSportCard}>
+              <View style={styles.singleSportLeft}>
+                <View style={styles.singleSportIconBox}>
+                  <Text style={styles.singleSportIcon}>⚽</Text>
+                </View>
+                <View>
+                  <Text style={styles.singleSportTitle}>FÚTBOL</Text>
+                  <Text style={styles.singleSportSubtitle}>9 Modalidades activas • Canchas y Losas en Lima</Text>
+                </View>
+              </View>
+              <View style={styles.activeStatusPill}>
+                <View style={styles.activeDot} />
+                <Text style={styles.activeStatusText}>ACTIVO</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.chipsRow}>
+              {sportsList.map((sport) => {
+                const active = selectedSport === sport.id;
+                return (
+                  <TouchableOpacity
+                    key={sport.id}
+                    style={[styles.sportChip, active && styles.sportChipActive]}
+                    onPress={() => {
+                      try { Haptics.selectionAsync(); } catch (e) {}
+                      setSelectedSport(sport.id);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.sportChipIcon}>{sport.icon}</Text>
+                    <Text style={[styles.sportChipLabel, active && styles.sportChipLabelActive]}>
+                      {sport.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* 5. SELECTOR DE TODAS LAS MODALIDADES DE FÚTBOL (Scroll Horizontal de Alta Densidad) */}
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeader}>MODALIDADES DISPONIBLES ({availableFormats.length})</Text>
             {currentFormatObj?.popular && (
               <View style={styles.popularBadge}>
                 <Text style={styles.popularBadgeText}>MÁS JUGADA EN LIMA</Text>
@@ -384,61 +502,118 @@ export default function RadarScreen({
             )}
           </View>
 
-          {/* Segmented Control Ultracompacto */}
-          <View style={styles.segmentedControlTrack}>
+          {/* Carrusel Horizontal de Modalidades para mostrar todas (1v1 a 11v11) sin recortes */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.formatsScrollContainer}
+          >
             {availableFormats.map((fmt) => {
               const active = selectedFormat === fmt.id;
               return (
                 <TouchableOpacity
                   key={fmt.id}
-                  style={[styles.segmentedItem, active && styles.segmentedItemActive]}
+                  style={[styles.formatCardChip, active && styles.formatCardChipActive]}
                   onPress={() => {
                     try { Haptics.selectionAsync(); } catch (e) {}
                     setSelectedFormat(fmt.id);
                   }}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.segmentedLabel, active && styles.segmentedLabelActive]}>
-                    {fmt.label}
+                  <View style={styles.formatCardTop}>
+                    <Text style={[styles.formatCardLabel, active && styles.formatCardLabelActive]}>
+                      {fmt.label}
+                    </Text>
+                    {fmt.popular && (
+                      <View style={[styles.dotPopular, active && styles.dotPopularActive]} />
+                    )}
+                  </View>
+                  <Text style={[styles.formatCardSub, active && styles.formatCardSubActive]} numberOfLines={1}>
+                    {fmt.sub}
                   </Text>
-                  {fmt.popular && !active && (
-                    <View style={styles.dotPopular} />
-                  )}
+                  <View style={[styles.formatPlayersTag, active && styles.formatPlayersTagActive]}>
+                    <Text style={[styles.formatPlayersText, active && styles.formatPlayersTextActive]}>
+                      {fmt.playersPerTeam}v{fmt.playersPerTeam}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           {/* Breve descripción contextual de la modalidad seleccionada */}
-          <Text style={styles.formatExplanationText}>
-            ℹ️ {currentFormatObj?.desc || ''}
-          </Text>
+          <View style={styles.formatDescBox}>
+            <Text style={styles.formatExplanationText}>
+              ℹ️ <Text style={{ fontWeight: '800', color: '#F8FAFC' }}>{currentFormatObj?.label} ({currentFormatObj?.sub}):</Text> {currentFormatObj?.desc || ''} ({currentFormatObj?.playersPerTeam * 2} jugadores en cancha).
+            </Text>
+          </View>
         </View>
 
-        {/* 6. TARJETA DE ESTADO DE RATING: "CALIBRANDO" (Sin puntaje por defecto) */}
-        <View style={styles.ratingCard}>
+        {/* 6. AVISO OFICIAL: CALIBRACIÓN AUTOMÁTICA DEL SISTEMA (Sin edición manual de puntuación) */}
+        <View style={[styles.ratingCard, !user?.hasCompletedTest && styles.ratingCardPending]}>
           <View style={styles.ratingInfo}>
             <View style={styles.ratingScoreRow}>
-              <View style={styles.calibratingBadge}>
-                <Text style={styles.calibratingBadgeText}>🎯 CALIBRANDO</Text>
+              <View style={[styles.calibratingBadge, !user?.hasCompletedTest && styles.calibratingBadgePending]}>
+                <Text style={[styles.calibratingBadgeText, !user?.hasCompletedTest && styles.calibratingBadgeTextPending]}>
+                  {!user?.hasCompletedTest
+                    ? '⚠️ TEST PENDIENTE'
+                    : (user?.matchesPlayed || 0) >= 3
+                    ? '🏆 OFICIAL CALIBRADO'
+                    : `🎯 CALIBRANDO (${user?.matchesPlayed || 0}/3 PJ)`}
+                </Text>
               </View>
-              <View style={styles.levelTag}>
-                <Text style={styles.levelTagText}>{userLevel}</Text>
+              <View style={styles.systemTag}>
+                <Text style={styles.systemTagText}>Glicko-2 & Peer Review</Text>
               </View>
             </View>
-            <Text style={styles.calibratingDescText}>
-              Juega tus primeros 3 partidos para asignar tu Elo oficial
-            </Text>
-            <Text style={styles.recordText}>0V - 0D • Calibración (3 restantes)</Text>
+
+            {!user?.hasCompletedTest ? (
+              <View style={{ gap: 8 }}>
+                <Text style={styles.calibratingDescText}>
+                  Para calibrar tu nivel y buscar partidos, primero debes completar tu <Text style={{ fontWeight: '800', color: '#FFF' }}>Test de Fútbol (14 preguntas)</Text> y luego disputar tus primeros <Text style={{ fontWeight: '800', color: THEME.colors.primary }}>3 partidos</Text> en cancha.
+                </Text>
+                <TouchableOpacity
+                  style={styles.startTestDirectBtn}
+                  onPress={onStartFootballTest}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.startTestDirectText}>📝 REALIZAR TEST DE NIVEL AHORA ➔</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.calibratingDescText}>
+                  {(user?.matchesPlayed || 0) >= 3
+                    ? `Puntuación consolidada: ${user?.ratingOverall || 1500} pts (OVR ${user?.futStats?.ovr || 75}).`
+                    : `Test completado: ${user?.testScore || 64}/100 pts (${user?.testLevel || 'Intermedio'}). Juega tus 3 partidos para fijar tu rating oficial Glicko-2.`}
+                </Text>
+
+                {/* Stepper visual de progreso de calibración */}
+                <View style={styles.miniStepperRow}>
+                  <View style={styles.stepperPills}>
+                    <View style={[styles.stepperPill, (user?.matchesPlayed || 0) >= 1 ? styles.stepperPillDone : styles.stepperPillActive]} />
+                    <View style={[styles.stepperPill, (user?.matchesPlayed || 0) >= 2 ? styles.stepperPillDone : (user?.matchesPlayed || 0) === 1 ? styles.stepperPillActive : styles.stepperPillPending]} />
+                    <View style={[styles.stepperPill, (user?.matchesPlayed || 0) >= 3 ? styles.stepperPillDone : (user?.matchesPlayed || 0) === 2 ? styles.stepperPillActive : styles.stepperPillPending]} />
+                  </View>
+                  <Text style={styles.recordText}>
+                    {(user?.matchesPlayed || 0) >= 3
+                      ? `${user?.matchesPlayed} PJ • Calibrado`
+                      : `${user?.matchesPlayed || 0} de 3 partidos disputados`}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
 
-          <TouchableOpacity
-            style={styles.calibrateBtn}
-            onPress={onOpenCalibration}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.calibrateBtnText}>Calibrar ➔</Text>
-          </TouchableOpacity>
+          {user?.hasCompletedTest && (
+            <TouchableOpacity
+              style={styles.calibrateInfoBtn}
+              onPress={onOpenCalibration}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.calibrateInfoBtnText}>ℹ️ Auditoría</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 7. SELECTOR DE MODO: BUSCAR SOLO VS CREAR EQUIPO */}
@@ -916,6 +1091,84 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  activeSportBadge: {
+    backgroundColor: 'rgba(0, 230, 118, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.4)',
+  },
+  activeSportBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: THEME.colors.primary,
+    letterSpacing: 0.6,
+  },
+  singleSportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1.2,
+    borderColor: 'rgba(0, 230, 118, 0.35)',
+  },
+  singleSportLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  singleSportIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  singleSportIcon: {
+    fontSize: 20,
+  },
+  singleSportTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+  },
+  singleSportSubtitle: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  activeStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: THEME.radius.pill,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.primary,
+  },
+  activeStatusText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: THEME.colors.primary,
+    letterSpacing: 0.5,
+  },
   popularBadge: {
     backgroundColor: 'rgba(0, 230, 118, 0.12)',
     paddingHorizontal: 6,
@@ -930,52 +1183,89 @@ const styles = StyleSheet.create({
     color: THEME.colors.primary,
     letterSpacing: 0.5,
   },
-  segmentedControlTrack: {
+
+  // CARRUSEL HORIZONTAL DE MODALIDADES (1v1 a 11v11)
+  formatsScrollContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  formatCardChip: {
+    backgroundColor: THEME.colors.cardBg,
     borderRadius: 10,
-    padding: 3,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: THEME.colors.border,
-    height: 40,
+    minWidth: 78,
+    alignItems: 'center',
+    gap: 2,
   },
-  segmentedItem: {
-    flex: 1,
+  formatCardChipActive: {
+    backgroundColor: 'rgba(0, 230, 118, 0.14)',
+    borderColor: THEME.colors.primary,
+  },
+  formatCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
     gap: 4,
   },
-  segmentedItemActive: {
-    backgroundColor: THEME.colors.primary,
-    shadowColor: THEME.colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  segmentedLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: THEME.colors.textSecondary,
-  },
-  segmentedLabelActive: {
-    color: '#00210B',
+  formatCardLabel: {
+    fontSize: 13,
     fontWeight: '900',
+    color: '#CBD5E1',
+  },
+  formatCardLabelActive: {
+    color: THEME.colors.primary,
+  },
+  formatCardSub: {
+    fontSize: 9.5,
+    color: THEME.colors.textMuted,
+    fontWeight: '700',
+  },
+  formatCardSubActive: {
+    color: '#FFFFFF',
+  },
+  formatPlayersTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+    marginTop: 2,
+  },
+  formatPlayersTagActive: {
+    backgroundColor: 'rgba(0, 230, 118, 0.25)',
+  },
+  formatPlayersText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: THEME.colors.textMuted,
+  },
+  formatPlayersTextActive: {
+    color: THEME.colors.primary,
   },
   dotPopular: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F59E0B',
+  },
+  dotPopularActive: {
     backgroundColor: THEME.colors.primary,
+  },
+  formatDescBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    marginTop: 2,
   },
   formatExplanationText: {
     fontSize: 10.5,
-    color: THEME.colors.textSecondary,
-    fontStyle: 'italic',
-    paddingHorizontal: 2,
-    marginTop: 2,
+    color: '#94A3B8',
+    lineHeight: 14,
   },
 
   // TARJETA DE ESTADO DE RATING: "CALIBRANDO"
@@ -990,8 +1280,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
     borderColor: 'rgba(0, 230, 118, 0.25)',
   },
+  ratingCardPending: {
+    borderColor: 'rgba(245, 158, 11, 0.45)',
+    backgroundColor: '#1C1917',
+  },
   ratingInfo: {
-    gap: 3,
+    gap: 4,
     flex: 1,
   },
   ratingScoreRow: {
@@ -1007,45 +1301,92 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.4)',
   },
+  calibratingBadgePending: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
   calibratingBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: THEME.colors.goldLight,
     letterSpacing: 0.5,
   },
-  levelTag: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  calibratingBadgeTextPending: {
+    color: '#EF4444',
+  },
+  startTestDirectBtn: {
+    backgroundColor: THEME.colors.primary,
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  startTestDirectText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#00210B',
+  },
+  systemTag: {
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
   },
-  levelTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: THEME.colors.textSecondary,
+  systemTagText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#06B6D4',
   },
   calibratingDescText: {
     fontSize: 10.5,
     color: '#CBD5E1',
     lineHeight: 14,
-    marginTop: 1,
+  },
+  miniStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  stepperPills: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  stepperPill: {
+    width: 14,
+    height: 6,
+    borderRadius: 3,
+  },
+  stepperPillActive: {
+    backgroundColor: '#F59E0B',
+  },
+  stepperPillDone: {
+    backgroundColor: THEME.colors.primary,
+  },
+  stepperPillPending: {
+    backgroundColor: '#334155',
   },
   recordText: {
     fontSize: 10,
     color: THEME.colors.textMuted,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  calibrateBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 12,
+  calibrateInfoBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: THEME.colors.border,
     marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  calibrateBtnText: {
-    fontSize: 11,
+  calibrateInfoBtnText: {
+    fontSize: 10.5,
     fontWeight: '800',
     color: THEME.colors.primary,
   },

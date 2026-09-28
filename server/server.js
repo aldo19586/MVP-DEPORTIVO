@@ -107,6 +107,14 @@ app.get('/api/sports', (req, res) => {
 });
 
 // Bolsa de Suplentes (Salas incompletas o con cancelaciones urgentes)
+// Listado de Salas de Convocatoria activas (Filtros: sportId, district, status)
+app.get('/api/lobbies', (req, res) => {
+  const { sportId, district, status } = req.query;
+  const lobbies = db.getAllActiveLobbies({ sportId, district, status });
+  res.json({ lobbies });
+});
+
+// Bolsa de Suplentes (Salas incompletas o con cancelaciones urgentes)
 app.get('/api/lobbies/replacements', (req, res) => {
   const { sportId, district } = req.query;
   const lobbies = db.getReplacementMarketLobbies({ sportId, district });
@@ -170,19 +178,48 @@ app.post('/api/auth/pin-login', authRateLimiter, (req, res) => {
 });
 
 app.post('/api/auth/pin-register', authRateLimiter, (req, res) => {
-  const { name, pin, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
+  const { name, pin, country, department, district, reference, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
   if (!name || name.trim().length < 2) {
     return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
   }
   if (!pin || !/^\d{4}$/.test(String(pin).trim())) {
     return res.status(400).json({ error: 'El PIN debe ser exactamente de 4 dígitos numéricos' });
   }
-  const result = db.registerWithPin({ name, pin, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel });
+  const result = db.registerWithPin({ name, pin, country, department, district, reference, avatar, bio, favoriteSports, primarySport, position, declaredLevel });
   if (result.error) {
     return res.status(409).json({ error: result.error });
   }
   const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
   res.json({ user: result.user, token });
+});
+
+// Completar Ficha Deportiva Biometrica del Jugador
+app.post('/api/user/complete-profile', authRateLimiter, (req, res) => {
+  const { userId, age, weight, height, position, reference, department, district, country, primarySport } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId es requerido' });
+  }
+  const result = db.completeUserProfile(userId, { age, weight, height, position, reference, department, district, country, primarySport });
+  if (result.error) {
+    return res.status(404).json({ error: result.error });
+  }
+  res.json({ success: true, user: result.user });
+});
+
+// Enviar Respuestas del Test Oficial de Fútbol Amateur (14 preguntas)
+app.post('/api/user/submit-football-test', authRateLimiter, (req, res) => {
+  const { userId, answers, position } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId es requerido' });
+  }
+  if (!answers || !Array.isArray(answers)) {
+    return res.status(400).json({ error: 'answers (array de 14 respuestas) es requerido' });
+  }
+  const result = db.submitFootballTest(userId, { answers, position });
+  if (result.error) {
+    return res.status(404).json({ error: result.error });
+  }
+  res.json({ success: true, user: result.user, result: result.result });
 });
 
 // Autenticación administrativa para SuperAdmin
@@ -370,7 +407,14 @@ app.get('/api/admin/metrics', (req, res) => {
 });
 
 app.get('/api/admin/users', (req, res) => {
-  const usersList = Array.from(db.users.values());
+  const usersList = Array.from(db.users.values()).map(u => {
+    const matchesCount = db.getUserMatchHistory(u.id)?.length || u.matchesPlayed || 0;
+    return {
+      ...u,
+      matchesPlayed: matchesCount,
+      isCalibrated: matchesCount >= 3
+    };
+  });
   res.json({ users: usersList });
 });
 
@@ -388,6 +432,7 @@ app.post('/api/admin/sport/format', (req, res) => {
   const { sportId, formatId, active } = req.body;
   const updated = db.toggleSportFormat(sportId, formatId, active);
   if (!updated) return res.status(404).json({ error: 'Deporte o formato no encontrado' });
+  io.emit('sportsUpdated', { sports: db.getSports() });
   res.json({ success: true, format: updated });
 });
 
@@ -734,6 +779,25 @@ io.on('connection', (socket) => {
   // ==========================================
   // EVENTOS DE SALAS DE CONVOCATORIA (LOBBY)
   // ==========================================
+  const broadcastLobbiesUpdate = (specificLobby = null) => {
+    try {
+      const allActive = db.getAllActiveLobbies();
+      io.emit('lobbyListUpdated', { lobbies: allActive });
+
+      if (specificLobby && specificLobby.status === 'FALTA_1') {
+        const districtName = specificLobby.district || specificLobby.venue_district || 'Lima';
+        io.emit('lobbyNeedsOne', {
+          lobbyCode: specificLobby.code,
+          lobby: specificLobby,
+          district: districtName,
+          message: `🔥 ¡Último cupo disponible en ${districtName}! Falta solo 1 jugador para sala #${specificLobby.code} (${specificLobby.sportId || 'Fútbol'} ${specificLobby.formatId || '5v5'}).`
+        });
+      }
+    } catch (e) {
+      console.error('[BROADCAST LOBBIES] Error:', e.message);
+    }
+  };
+
   socket.on('createLobby', ({ hostUser, sportId, formatId }) => {
     if (!hostUser) return;
 
@@ -764,6 +828,7 @@ io.on('connection', (socket) => {
 
     socket.emit('lobbyCreated', { lobby });
     io.to(`lobby_${lobby.code}`).emit('lobbyUpdated', { lobby });
+    broadcastLobbiesUpdate(lobby);
     console.log(`[LOBBY] Sala ${lobby.code} creada por ${hostUser.name} (${lobby.sportId} ${lobby.formatId})`);
   });
 
@@ -796,6 +861,7 @@ io.on('connection', (socket) => {
 
     socket.emit('lobbyUpdated', { lobby: res.lobby });
     io.to(`lobby_${res.lobby.code}`).emit('lobbyUpdated', { lobby: res.lobby });
+    broadcastLobbiesUpdate(res.lobby);
     console.log(`[LOBBY] ${user.name} se unió a sala ${res.lobby.code}`);
   });
 
@@ -827,6 +893,7 @@ io.on('connection', (socket) => {
       entry.details = 'En Radar principal';
       broadcastOnlineUsers();
     }
+    broadcastLobbiesUpdate(lobby);
     console.log(`[LOBBY] Jugador ${userId} salió de sala ${lobbyCode || ''}`);
   });
 
@@ -835,6 +902,7 @@ io.on('connection', (socket) => {
     const lobby = db.toggleLobbyReady(code, userId);
     if (lobby) {
       io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      broadcastLobbiesUpdate(lobby);
     }
   });
 
@@ -881,6 +949,11 @@ io.on('connection', (socket) => {
 
     const updatedList = db.getReplacementMarketLobbies();
     io.emit('replacementMarketUpdated', { lobbies: updatedList });
+    if (result && result.lobby) {
+      broadcastLobbiesUpdate(result.lobby);
+    } else {
+      broadcastLobbiesUpdate();
+    }
     socket.emit('attendanceCancelledSuccess', { ok: true });
     console.log(`[SUPLENTES] Jugador ${userId} canceló asistencia ("${reason}").`);
   });
@@ -909,6 +982,7 @@ io.on('connection', (socket) => {
 
     const updatedList = db.getReplacementMarketLobbies();
     io.emit('replacementMarketUpdated', { lobbies: updatedList });
+    broadcastLobbiesUpdate(result.lobby);
     console.log(`[SUPLENTES] ${user.name} se unió como suplente a #${result.lobby.code}`);
   });
 
@@ -917,6 +991,7 @@ io.on('connection', (socket) => {
     const lobby = db.switchLobbyTeam(code, userId, targetTeam);
     if (lobby) {
       io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      broadcastLobbiesUpdate(lobby);
     }
   });
 
@@ -925,6 +1000,7 @@ io.on('connection', (socket) => {
     const lobby = db.changeLobbyFormat(code, formatId);
     if (lobby) {
       io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      broadcastLobbiesUpdate(lobby);
       console.log(`[SERVER] [LOBBY] Modalidad de sala ${code} cambiada a: ${formatId} (${lobby.formatName})`);
     }
   });
@@ -942,6 +1018,7 @@ io.on('connection', (socket) => {
     const lobby = db.fillLobbyDemos(code);
     if (lobby) {
       io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      broadcastLobbiesUpdate(lobby);
     }
   });
 

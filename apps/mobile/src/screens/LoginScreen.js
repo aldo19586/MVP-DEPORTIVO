@@ -99,7 +99,7 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
           position,
           avatar: avatarUri,
           primarySport: 'futbol',
-          declaredLevel: expIndex === 2 ? 'avanzado' : expIndex === 1 ? 'intermedio' : 'principiante'
+          declaredLevel: 'Calibrando'
         });
       } else {
         result = await api.pinLogin(name.trim(), pin.trim());
@@ -213,10 +213,10 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>🔒 PIN DE SEGURIDAD (4 DÍGITOS)</Text>
+              <Text style={styles.inputLabel}>🔒 CREA TU PIN DE 4 DÍGITOS</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="1234"
+                placeholder="Ej. 1234"
                 placeholderTextColor={THEME.colors.textMuted}
                 value={pin}
                 onChangeText={setPin}
@@ -224,10 +224,17 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
                 maxLength={4}
                 secureTextEntry
               />
+              <Text style={styles.inputHelper}>Este PIN te servirá para ingresar siempre desde cualquier dispositivo.</Text>
             </View>
 
+            {/* Selector de Ubicación: País, Departamento y Distrito */}
             <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>📍 DISTRITO DE RESIDENCIA (SEDE PREFERENTE)</Text>
+              <Text style={styles.inputLabel}>📍 UBICACIÓN PRINCIPAL</Text>
+              <View style={styles.locationTagsRow}>
+                <View style={styles.locationTag}><Text style={styles.locationTagText}>🇵🇪 Perú</Text></View>
+                <View style={styles.locationTag}><Text style={styles.locationTagText}>Lima</Text></View>
+              </View>
+              <Text style={[styles.inputLabel, { marginTop: 8, fontSize: 10 }]}>SELECCIONA TU DISTRITO:</Text>
               <View style={styles.districtChipsScroll}>
                 {QUICK_DISTRICTS.map((d) => (
                   <TouchableOpacity
@@ -239,100 +246,14 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
                     }}
                   >
                     <Text style={[styles.districtChipText, district === d && styles.districtChipTextActive]}>
-                      {d.split(' ')[0]}
+                      {d.split(',')[0]}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>⚽ POSICIÓN FAVORITA EN CANCHA</Text>
-              <View style={styles.positionsRow}>
-                {POSITIONS.map((p) => {
-                  const isActive = position === p.key;
-                  return (
-                    <TouchableOpacity
-                      key={p.key}
-                      style={[styles.posButton, isActive && styles.posButtonActive]}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setPosition(p.key);
-                      }}
-                    >
-                      <Text style={[styles.posButtonTitle, isActive && styles.posButtonTitleActive]}>
-                        {p.label}
-                      </Text>
-                      <Text style={[styles.posButtonSub, isActive && styles.posButtonSubActive]}>
-                        {p.sub}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Calculadora de Elo Inicial */}
-            <View style={styles.calculatorCard}>
-              <View style={styles.calcHeader}>
-                <View>
-                  <Text style={styles.calcTitle}>Calculadora de Elo Inicial</Text>
-                  <Text style={styles.calcSubtitle}>Calibración táctica de tu primer ranking</Text>
-                </View>
-                <View style={styles.eaBadge}>
-                  <Text style={styles.eaBadgeText}>⚡ Algoritmo EA</Text>
-                </View>
-              </View>
-
-              {/* Pregunta 1 */}
-              <View style={styles.calcItem}>
-                <View style={styles.calcItemHeader}>
-                  <Text style={styles.calcItemLabel}>1. Frecuencia de juego semanal:</Text>
-                  <Text style={styles.calcItemValue}>{FREQ_LABELS[freqIndex]}</Text>
-                </View>
-                <View style={styles.selectorRow}>
-                  {FREQ_LABELS.map((label, idx) => (
-                    <TouchableOpacity
-                      key={label}
-                      style={[styles.stepDot, freqIndex === idx && styles.stepDotActive]}
-                      onPress={() => setFreqIndex(idx)}
-                    />
-                  ))}
-                </View>
-              </View>
-
-              {/* Pregunta 2 */}
-              <View style={styles.calcItem}>
-                <View style={styles.calcItemHeader}>
-                  <Text style={styles.calcItemLabel}>2. Experiencia competitiva:</Text>
-                  <Text style={styles.calcItemValue}>{EXP_LABELS[expIndex]}</Text>
-                </View>
-                <View style={styles.selectorRow}>
-                  {EXP_LABELS.map((label, idx) => (
-                    <TouchableOpacity
-                      key={label}
-                      style={[styles.stepDot, expIndex === idx && styles.stepDotActive]}
-                      onPress={() => setExpIndex(idx)}
-                    />
-                  ))}
-                </View>
-              </View>
-
-              {/* Resumen Calculado */}
-              <View style={styles.calcResultRow}>
-                <View>
-                  <Text style={styles.calcResultLabel}>RATING BASE ESTIMADO</Text>
-                  <Text style={styles.calcResultValue}>
-                    {calculatedElo} <Text style={styles.bracketLabel}>Plata I</Text>
-                  </Text>
-                </View>
-                <View style={styles.calibratedBadge}>
-                  <Text style={styles.calibratedText}>✓ Calibrado</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Botón Principal de Registro */}
+            {/* Botón Principal de Registro Directo */}
             <TouchableOpacity
               style={styles.mainSubmitBtn}
               onPress={handleSubmit}
@@ -342,7 +263,7 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
               {loading ? (
                 <ActivityIndicator color="#00210B" />
               ) : (
-                <Text style={styles.mainSubmitText}>⚽ CREAR MI CARTA FUT & ENTRAR</Text>
+                <Text style={styles.mainSubmitText}>⚡ CREAR CUENTA Y ENTRAR</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -653,6 +574,29 @@ const styles = StyleSheet.create({
   },
   districtChipTextActive: {
     color: THEME.colors.primary,
+  },
+  locationTagsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 4,
+  },
+  locationTag: {
+    backgroundColor: THEME.colors.cardElevated,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: THEME.radius.sm,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  locationTagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textPrimary,
+  },
+  inputHelper: {
+    fontSize: 10,
+    color: THEME.colors.textMuted,
+    marginTop: 3,
   },
   positionsRow: {
     flexDirection: 'row',

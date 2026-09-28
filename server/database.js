@@ -91,6 +91,17 @@ function createTables() {
       name TEXT NOT NULL,
       avatar TEXT,
       district TEXT,
+      country TEXT DEFAULT 'Perú',
+      department TEXT DEFAULT 'Lima',
+      reference TEXT DEFAULT '',
+      age INTEGER,
+      weight REAL,
+      height INTEGER,
+      has_completed_profile INTEGER DEFAULT 0,
+      has_completed_test INTEGER DEFAULT 0,
+      test_score INTEGER,
+      test_level TEXT,
+      test_breakdown_json TEXT DEFAULT '{}',
       bio TEXT,
       position TEXT DEFAULT 'DEL',
       role TEXT DEFAULT 'player',
@@ -105,16 +116,33 @@ function createTables() {
     )
   `);
 
-  // Migración segura: verificar y añadir columna pin_hash si no existe
+  // Migración segura: verificar y añadir nuevas columnas si no existen
   try {
     const tableInfo = _db.exec("PRAGMA table_info(users)");
     const cols = tableInfo[0]?.values?.map(v => v[1]) || [];
-    if (!cols.includes('pin_hash')) {
-      _db.run('ALTER TABLE users ADD COLUMN pin_hash TEXT');
-      console.log('[SQLite] Columna pin_hash agregada a tabla users');
+    const newCols = [
+      { name: 'pin_hash', type: 'TEXT' },
+      { name: 'country', type: "TEXT DEFAULT 'Perú'" },
+      { name: 'department', type: "TEXT DEFAULT 'Lima'" },
+      { name: 'reference', type: "TEXT DEFAULT ''" },
+      { name: 'age', type: 'INTEGER' },
+      { name: 'weight', type: 'REAL' },
+      { name: 'height', type: 'INTEGER' },
+      { name: 'has_completed_profile', type: 'INTEGER DEFAULT 0' },
+      { name: 'has_completed_test', type: 'INTEGER DEFAULT 0' },
+      { name: 'test_score', type: 'INTEGER' },
+      { name: 'test_level', type: 'TEXT' },
+      { name: 'test_breakdown_json', type: "TEXT DEFAULT '{}'" }
+    ];
+
+    for (const c of newCols) {
+      if (!cols.includes(c.name)) {
+        _db.run(`ALTER TABLE users ADD COLUMN ${c.name} ${c.type}`);
+        console.log(`[SQLite] Columna ${c.name} agregada a tabla users`);
+      }
     }
   } catch (e) {
-    console.error('[SQLite] Error verificando columna pin_hash:', e.message);
+    console.error('[SQLite] Error en migración de columnas en users:', e.message);
   }
 
   _db.run(`
@@ -236,9 +264,11 @@ export function sqlGetAllUsers() {
 export function sqlInsertUser(user) {
   _db.run(`
     INSERT OR REPLACE INTO users 
-    (id, email, password, pin_hash, name, avatar, district, bio, position, role, verified_dni,
+    (id, email, password, pin_hash, name, avatar, district, country, department, reference,
+     age, weight, height, has_completed_profile, has_completed_test, test_score, test_level, test_breakdown_json,
+     bio, position, role, verified_dni,
      rating_overall, likes_count, fut_stats_json, favorite_sports_json, primary_sport, declared_level, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     user.id,
     user.email,
@@ -247,6 +277,17 @@ export function sqlInsertUser(user) {
     user.name,
     user.avatar || null,
     user.district || null,
+    user.country || 'Perú',
+    user.department || 'Lima',
+    user.reference || '',
+    user.age !== undefined && user.age !== null ? user.age : null,
+    user.weight !== undefined && user.weight !== null ? user.weight : null,
+    user.height !== undefined && user.height !== null ? user.height : null,
+    user.hasCompletedProfile || user.has_completed_profile ? 1 : 0,
+    user.hasCompletedTest || user.has_completed_test ? 1 : 0,
+    user.testScore !== undefined && user.testScore !== null ? user.testScore : null,
+    user.testLevel || user.test_level || null,
+    JSON.stringify(user.testBreakdown || user.test_breakdown || {}),
     user.bio || null,
     user.position || 'DEL',
     user.role || 'player',
@@ -497,6 +538,17 @@ function rowToUser(resultSet, rowIndex = 0) {
     name: obj.name,
     avatar: obj.avatar,
     district: obj.district,
+    country: obj.country || 'Perú',
+    department: obj.department || 'Lima',
+    reference: obj.reference || '',
+    age: obj.age !== null && obj.age !== undefined ? obj.age : null,
+    weight: obj.weight !== null && obj.weight !== undefined ? obj.weight : null,
+    height: obj.height !== null && obj.height !== undefined ? obj.height : null,
+    hasCompletedProfile: !!obj.has_completed_profile,
+    hasCompletedTest: !!obj.has_completed_test,
+    testScore: obj.test_score !== null && obj.test_score !== undefined ? obj.test_score : null,
+    testLevel: obj.test_level || null,
+    testBreakdown: obj.test_breakdown_json ? JSON.parse(obj.test_breakdown_json) : null,
     bio: obj.bio,
     position: obj.position || 'DEL',
     role: obj.role || 'player',

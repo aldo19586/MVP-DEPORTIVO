@@ -168,11 +168,36 @@ export default function PlayerAuditView() {
                 </td>
                 <td>{u.district || 'Lima'}</td>
                 <td>
-                  <div style={{ fontWeight: '800', color: '#10b981', fontSize: '14px' }}>
-                    {u.ratingOverall || 1500} pts
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#06b6d4' }}>
-                    OVR: {u.futStats?.ovr || 75}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontWeight: '800', color: '#10b981', fontSize: '13px' }}>
+                        {u.ratingOverall || 1500} pts
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: '700' }}>
+                        OVR {u.futStats?.ovr || 75}
+                      </span>
+                    </div>
+                    {u.isCalibrated ? (
+                      <span className="badge badge-lime" style={{ fontSize: '10px', width: 'fit-content' }}>
+                        ✅ Calibrado ({u.matchesPlayed} PJ)
+                      </span>
+                    ) : (
+                      <span className="badge badge-amber" style={{ fontSize: '10px', width: 'fit-content' }}>
+                        🎯 En Calibración ({u.matchesPlayed || 0}/3 PJ)
+                      </span>
+                    )}
+                    {u.hasCompletedTest ? (
+                      <span className="badge badge-cyan" style={{ fontSize: '10px', width: 'fit-content' }}>
+                        📝 Test: {u.testScore} pts ({u.testLevel})
+                      </span>
+                    ) : (
+                      <span className="badge badge-slate" style={{ fontSize: '10px', width: 'fit-content', color: '#94a3b8' }}>
+                        ⚠️ Test pendiente
+                      </span>
+                    )}
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>
+                      Cálculo Glicko-2 automático
+                    </span>
                   </div>
                 </td>
                 <td>

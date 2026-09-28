@@ -60,6 +60,17 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Listado oficial de Salas de Convocatoria (Lobbies en vivo)
+  async getLobbies(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.sportId) params.append('sportId', filters.sportId);
+    if (filters.district) params.append('district', filters.district);
+    if (filters.status) params.append('status', filters.status);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE_URL}/lobbies${queryString}`);
+    return handleResponse(res);
+  },
+
   // Bolsa de Suplentes (Salas incompletas)
   async getReplacementLobbies(sportId = null, district = null) {
     const params = new URLSearchParams();
@@ -93,6 +104,26 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ matchId, evaluatorId, attributeTag })
+    });
+    return handleResponse(res);
+  },
+
+  // Ficha Deportiva Biometrica
+  async completeProfile(profileData) {
+    const res = await fetch(`${API_BASE_URL}/user/complete-profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profileData)
+    });
+    return handleResponse(res);
+  },
+
+  // Test Oficial de Fútbol Amateur (14 preguntas)
+  async submitFootballTest(testData) {
+    const res = await fetch(`${API_BASE_URL}/user/submit-football-test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testData)
     });
     return handleResponse(res);
   }

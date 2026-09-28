@@ -44,8 +44,27 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
   const [chatMessages, setChatMessages] = useState(currentLobby.chatMessages || []);
 
   const totalPlayers = (currentLobby.teamA?.length || 0) + (currentLobby.teamB?.length || 0);
-  const targetPlayers = 10;
-  const quorumPercent = Math.min(100, Math.floor((totalPlayers / targetPlayers) * 100));
+  const targetPlayers = currentLobby.totalSlots || ((currentLobby.playersPerTeam || 5) * 2);
+  const maxPerTeam = currentLobby.playersPerTeam || Math.ceil(targetPlayers / 2);
+  const quorumPercent = Math.min(100, Math.floor((totalPlayers / Math.max(1, targetPlayers)) * 100));
+
+  const getStatusBadge = () => {
+    const status = currentLobby.status || (targetPlayers - totalPlayers === 1 ? 'FALTA_1' : totalPlayers >= targetPlayers ? 'EN_ACUERDO' : 'RECLUTANDO');
+    switch (status) {
+      case 'FALTA_1':
+        return { text: '🔥 ¡FALTA 1 PARA COMPLETAR!', bg: '#FF3B3022', border: '#FF3B30', color: '#FF453A' };
+      case 'EN_ACUERDO':
+        return { text: '🟡 EN ACUERDO (CANCHA / HORA)', bg: '#FFD60A22', border: '#FFD60A', color: '#FFD60A' };
+      case 'EN_CANCHA':
+        return { text: '⚽ EN CANCHA / PARTIDO EN VIVO', bg: '#00F59B22', border: '#00F59B', color: '#00F59B' };
+      case 'FINALIZADA':
+        return { text: '🏁 PARTIDO FINALIZADO', bg: '#8E8E9322', border: '#8E8E93', color: '#8E8E93' };
+      default:
+        return { text: '🟢 CONVOCANDO JUGADORES', bg: '#00F59B15', border: '#00F59B', color: '#00F59B' };
+    }
+  };
+
+  const statusBadge = getStatusBadge();
 
   useEffect(() => {
     const socket = socketService.getSocket();
@@ -134,7 +153,7 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
                 SALA <Text style={styles.roomCodeGreen}>#{currentLobby.code}</Text>
               </Text>
               <Text style={styles.venueDistrict}>
-                📍 {currentLobby.venueDistrict || 'Manuel Bonilla, Miraflores'}
+                📍 {currentLobby.venueDistrict || currentLobby.venue_name || currentLobby.district || 'Manuel Bonilla, Miraflores'}
               </Text>
             </View>
             <TouchableOpacity style={styles.copyBtn} onPress={handleCopyCode}>
@@ -143,8 +162,15 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
             </TouchableOpacity>
           </View>
 
+          {/* Status Badge */}
+          <View style={[styles.statusBadgeBanner, { backgroundColor: statusBadge.bg, borderColor: statusBadge.border }]}>
+            <Text style={[styles.statusBadgeText, { color: statusBadge.color }]}>{statusBadge.text}</Text>
+          </View>
+
           <View style={styles.modalidadRow}>
-            <Text style={styles.modalidadText}>MODALIDAD: FÚTBOL 5V5</Text>
+            <Text style={styles.modalidadText}>
+              MODALIDAD: {((currentLobby.sportId || currentLobby.sport_id || 'Fútbol')).toUpperCase()} {((currentLobby.formatId || currentLobby.format_id || '5v5')).toUpperCase()}
+            </Text>
             <Text style={styles.playersBadge}>🟢 {totalPlayers}/{targetPlayers} JUGADORES</Text>
           </View>
 
@@ -153,7 +179,9 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
             <View style={[styles.progressFill, { width: `${quorumPercent}%` }]} />
           </View>
           <View style={styles.quorumRow}>
-            <Text style={styles.quorumSub}>Faltan {Math.max(0, targetPlayers - totalPlayers)} para el silbatazo</Text>
+            <Text style={styles.quorumSub}>
+              {targetPlayers - totalPlayers === 1 ? '🔥 ¡Solo falta 1 cupo!' : targetPlayers - totalPlayers <= 0 ? '¡Quórum completo!' : `Faltan ${targetPlayers - totalPlayers} para el silbatazo`}
+            </Text>
             <Text style={styles.quorumVal}>QUÓRUM {quorumPercent}%</Text>
           </View>
         </View>
@@ -175,7 +203,7 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
           <View style={[styles.teamCol, styles.teamACol]}>
             <View style={styles.teamColHeader}>
               <Text style={styles.teamATitle}>🔵 EQ. A</Text>
-              <Text style={styles.teamCountBadge}>{currentLobby.teamA?.length || 0}/5</Text>
+              <Text style={styles.teamCountBadge}>{currentLobby.teamA?.length || 0}/{maxPerTeam}</Text>
             </View>
 
             {currentLobby.teamA?.map((p, idx) => (
@@ -192,7 +220,7 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
               </View>
             ))}
 
-            {(currentLobby.teamA?.length || 0) < 5 && (
+            {(currentLobby.teamA?.length || 0) < maxPerTeam && (
               <TouchableOpacity style={styles.inviteSlotBtn}>
                 <Text style={styles.inviteSlotText}>👤+ INVITAR</Text>
               </TouchableOpacity>
@@ -203,7 +231,7 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
           <View style={[styles.teamCol, styles.teamBCol]}>
             <View style={styles.teamColHeader}>
               <Text style={styles.teamBTitle}>🔴 EQ. B</Text>
-              <Text style={styles.teamCountBadge}>{currentLobby.teamB?.length || 0}/5</Text>
+              <Text style={styles.teamCountBadge}>{currentLobby.teamB?.length || 0}/{maxPerTeam}</Text>
             </View>
 
             {currentLobby.teamB?.map((p, idx) => (
@@ -222,7 +250,7 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
               </View>
             ))}
 
-            {(currentLobby.teamB?.length || 0) < 5 && (
+            {(currentLobby.teamB?.length || 0) < maxPerTeam && (
               <TouchableOpacity style={styles.inviteSlotBtn}>
                 <Text style={styles.inviteSlotText}>👤+ INVITAR</Text>
               </TouchableOpacity>
@@ -386,6 +414,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: THEME.colors.primary,
+  },
+  statusBadgeBanner: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: THEME.radius.sm,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   modalidadRow: {
     flexDirection: 'row',

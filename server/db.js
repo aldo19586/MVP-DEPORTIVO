@@ -17,6 +17,16 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Estados oficiales del ciclo de vida de una Sala de Convocatoria (Lobby)
+export const LOBBY_STATUS = {
+  RECLUTANDO: 'RECLUTANDO',   // 🟢 Convocatoria abierta buscando jugadores
+  FALTA_1: 'FALTA_1',         // 🔥 ¡Último cupo! Alta urgencia distrital
+  EN_ACUERDO: 'EN_ACUERDO',   // 🟡 Quórum 100%, coordinando cancha y split
+  EN_CANCHA: 'EN_CANCHA',     // ⚽ Partido en vivo en la cancha
+  FINALIZADA: 'FINALIZADA',   // 🏁 Concluido, en ventana de Peer-Review
+  CANCELADA: 'CANCELADA'      // ⚫ Cancelada o expirada
+};
+
 // Deportes y Formatos configurables (Sección 8 de la guía)
 const INITIAL_SPORTS = [
   {
@@ -25,11 +35,15 @@ const INITIAL_SPORTS = [
     icon: '⚽',
     description: 'Fútbol césped y losa sintética',
     formats: [
-      { id: '1v1', name: '1v1 (Rey de la Pista)', playersPerTeam: 1, active: true },
-      { id: '2v2', name: '2v2 (Duelo de Parejas)', playersPerTeam: 2, active: true },
-      { id: '3v3', name: '3v3 (Squad Callejero)', playersPerTeam: 3, active: true },
-      { id: '5v5', name: '5v5 (Futsal / Cancha Chica)', playersPerTeam: 5, active: true },
-      { id: '7v7', name: '7v7 (Fútbol 7 Tradicional)', playersPerTeam: 7, active: true }
+      { id: '1v1', name: '1v1 (Rey de la Pista)', playersPerTeam: 1, active: true, desc: 'Duelo individual mano a mano o caño' },
+      { id: '2v2', name: '2v2 (Duelo de Parejas)', playersPerTeam: 2, active: true, desc: 'Parejas en arco chico sin arquero fijo' },
+      { id: '3v3', name: '3v3 (Squad Callejero)', playersPerTeam: 3, active: true, desc: 'Mini losa o fútbol callejero rápido' },
+      { id: '5v5', name: '5v5 (Futsal / Cancha Chica)', playersPerTeam: 5, active: true, popular: true, desc: 'Fútbol 5 en losa o césped sintético' },
+      { id: '6v6', name: '6v6 (Sintético Pichanguero)', playersPerTeam: 6, active: true, popular: true, desc: 'Fútbol 6 en césped sintético (Modalidad reina en Lima)' },
+      { id: '7v7', name: '7v7 (Fútbol 7 Tradicional)', playersPerTeam: 7, active: true, desc: 'Canchas medianas de fútbol 7 tradicional' },
+      { id: '8v8', name: '8v8 (Fútbol 8 Sintético)', playersPerTeam: 8, active: true, desc: 'Canchas amplias de fútbol 8' },
+      { id: '9v9', name: '9v9 (Fútbol 9 Táctico)', playersPerTeam: 9, active: true, desc: 'Formato táctico intermedio' },
+      { id: '11v11', name: '11v11 (Reglamentario Oficial)', playersPerTeam: 11, active: true, desc: 'Fútbol 11 oficial en campo completo' }
     ]
   },
   {
@@ -407,10 +421,22 @@ class Database {
     await initDatabase();
     this._sqliteReady = true;
 
-    // Cargar configuración persistente
+    // Cargar y sincronizar deportes con INITIAL_SPORTS
     const savedSports = sqlGetConfig('sports');
-    if (savedSports) {
-      this.sports = savedSports;
+    if (savedSports && Array.isArray(savedSports)) {
+      this.sports = INITIAL_SPORTS.map(initSport => {
+        const existing = savedSports.find(s => s.id === initSport.id);
+        if (!existing) return initSport;
+        const mergedFormats = initSport.formats.map(initFmt => {
+          const exFmt = existing.formats?.find(f => f.id === initFmt.id);
+          return exFmt ? { ...initFmt, active: exFmt.active !== undefined ? exFmt.active : initFmt.active } : initFmt;
+        });
+        return { ...initSport, ...existing, formats: mergedFormats };
+      });
+      sqlSetConfig('sports', this.sports);
+    } else {
+      this.sports = INITIAL_SPORTS;
+      sqlSetConfig('sports', this.sports);
     }
     const savedQuestionnaires = sqlGetConfig('questionnaires');
     if (savedQuestionnaires) {
@@ -427,6 +453,10 @@ class Database {
     }
 
     console.log(`[DB] Inicialización completa: ${this.users.size} usuarios, ${this.profiles.size} perfiles, ${this.matches.size} partidos cargados.`);
+
+    if (this.lobbies.size === 0) {
+      this._seedSampleLobbies();
+    }
 
     // Limpieza periódica de vestuarios y salas obsoletas (Garbage Collector automático)
     this.purgeOldLobbies(6);
@@ -574,6 +604,123 @@ class Database {
     console.log('[DB] Datos iniciales sembrados y persistidos en SQLite.');
   }
 
+  _seedSampleLobbies() {
+    const sampleLobbies = [
+      {
+        code: 'SUR-9182',
+        name: 'Pichanga Nocturna Bonilla 5v5',
+        venue: 'Manuel Bonilla, Miraflores',
+        district: 'Miraflores, Lima',
+        sportId: 'futbol',
+        formatId: '5v5',
+        formatName: '5v5 (Futsal / Cancha Chica)',
+        playersPerTeam: 5,
+        totalSlots: 10,
+        time: '08:30 PM',
+        status: LOBBY_STATUS.FALTA_1, // 🔥 ¡Falta 1!
+        hostUserId: 'demo_user_1',
+        hostName: 'Mateo Ramos',
+        teamA: [
+          { id: 'u1', name: 'Mateo Ramos', position: 'DEL', rating: 1840, isReady: true, isHost: true },
+          { id: 'u2', name: 'Carlos Vega', position: 'POR', rating: 1780, isReady: true },
+          { id: 'u3', name: 'J. Morales', position: 'DEL', rating: 1860, isReady: true },
+          { id: 'u4', name: 'D. Paredes', position: 'DEF', rating: 1590, isReady: true },
+          { id: 'u5', name: 'R. Quispe', position: 'MED', rating: 1720, isReady: true }
+        ],
+        teamB: [
+          { id: 'u6', name: 'K. Barreto', position: 'DEF', rating: 1730, isReady: true },
+          { id: 'u7', name: 'S. Rojas', position: 'MED', rating: 1610, isReady: true },
+          { id: 'u8', name: 'L. Benítez', position: 'DEL', rating: 1800, isReady: true },
+          { id: 'u9', name: 'A. Flores', position: 'POR', rating: 1690, isReady: true }
+          // Falta 1 jugador en el equipo B
+        ],
+        chatMessages: [
+          { senderName: 'Carlos', text: 'Llevo chalecos naranjas por si acaso 🎽', timestamp: '08:10 PM' },
+          { senderName: 'Mateo', text: '¡Solo falta 1 jugador para arrancar exacto a las 8:30!', timestamp: '08:15 PM' }
+        ],
+        createdAt: Date.now() - 15 * 60 * 1000
+      },
+      {
+        code: 'SUR-4401',
+        name: 'Reta Sintética El Golazo 6v6',
+        venue: 'Cancha Sintética El Golazo, Surco',
+        district: 'Surco, Lima',
+        sportId: 'futbol',
+        formatId: '6v6',
+        formatName: '6v6 (Sintético Pichanguero)',
+        playersPerTeam: 6,
+        totalSlots: 12,
+        time: '09:00 PM',
+        status: LOBBY_STATUS.RECLUTANDO, // 🟢 Convocatoria abierta
+        hostUserId: 'demo_user_2',
+        hostName: 'Diego Gambeta',
+        teamA: [
+          { id: 'u10', name: 'Diego Gambeta', position: 'DEL', rating: 1650, isReady: true, isHost: true },
+          { id: 'u11', name: 'Marcos Soto', position: 'MED', rating: 1580, isReady: true },
+          { id: 'u12', name: 'Franco C.', position: 'DEF', rating: 1610, isReady: true },
+          { id: 'u13', name: 'G. Valera', position: 'DEL', rating: 1700, isReady: true }
+        ],
+        teamB: [
+          { id: 'u14', name: 'C. Ramos', position: 'DEF', rating: 1590, isReady: true },
+          { id: 'u15', name: 'P. Guerrero', position: 'DEL', rating: 1750, isReady: true },
+          { id: 'u16', name: 'E. Peña', position: 'MED', rating: 1620, isReady: true }
+        ],
+        chatMessages: [
+          { senderName: 'Diego', text: 'Cancha reservada en El Golazo. ¡Súmense que quedan 5 cupos!', timestamp: '07:45 PM' }
+        ],
+        createdAt: Date.now() - 35 * 60 * 1000
+      },
+      {
+        code: 'BOR-7720',
+        name: 'Fútbol 7 Tradicional Limatambo',
+        venue: 'Polideportivo Limatambo, San Borja',
+        district: 'San Borja, Lima',
+        sportId: 'futbol',
+        formatId: '7v7',
+        formatName: '7v7 (Fútbol 7 Tradicional)',
+        playersPerTeam: 7,
+        totalSlots: 14,
+        time: '07:00 PM',
+        status: LOBBY_STATUS.EN_ACUERDO, // 🟡 Quórum 100%, coordinando
+        hostUserId: 'demo_user_3',
+        hostName: 'Sandro Polo',
+        teamA: Array.from({ length: 7 }, (_, i) => ({ id: `sa_${i}`, name: `Jugador A${i + 1}`, position: 'MED', rating: 1600, isReady: true })),
+        teamB: Array.from({ length: 7 }, (_, i) => ({ id: `sb_${i}`, name: `Jugador B${i + 1}`, position: 'DEF', rating: 1620, isReady: true })),
+        chatMessages: [
+          { senderName: 'Sandro', text: '¡Quórum completo 14/14! Ya dividimos el pago por Yape.', timestamp: '06:50 PM' }
+        ],
+        createdAt: Date.now() - 50 * 60 * 1000
+      },
+      {
+        code: 'ISID-5510',
+        name: 'Duelo Nocturno San Isidro 5v5',
+        venue: 'Complejo Deportivo San Isidro',
+        district: 'San Isidro, Lima',
+        sportId: 'futbol',
+        formatId: '5v5',
+        formatName: '5v5 (Futsal / Cancha Chica)',
+        playersPerTeam: 5,
+        totalSlots: 10,
+        time: 'Min 28\' • Marcador 3 - 2',
+        status: LOBBY_STATUS.EN_CANCHA, // ⚽ Partido en vivo
+        hostUserId: 'demo_user_4',
+        hostName: 'Alonso Prado',
+        teamA: Array.from({ length: 5 }, (_, i) => ({ id: `ia_${i}`, name: `Titular A${i + 1}`, position: 'DEL', rating: 1710, isReady: true })),
+        teamB: Array.from({ length: 5 }, (_, i) => ({ id: `ib_${i}`, name: `Titular B${i + 1}`, position: 'MED', rating: 1690, isReady: true })),
+        chatMessages: [
+          { senderName: 'Árbitro', text: 'Partido iniciado en Cancha 2. Segundo tiempo en marcha.', timestamp: '08:00 PM' }
+        ],
+        createdAt: Date.now() - 70 * 60 * 1000
+      }
+    ];
+
+    for (const lobby of sampleLobbies) {
+      this.lobbies.set(lobby.code, lobby);
+      this._persistLobby(lobby);
+    }
+    console.log(`[DB] ${sampleLobbies.length} salas de convocatoria de muestra cargadas en memoria y SQLite.`);
+  }
+
   // ==========================================
   // PERSISTENCIA: Helpers para sincronizar caché <-> SQLite
   // ==========================================
@@ -701,7 +848,13 @@ class Database {
   registerWithPin({
     name,
     pin,
+    country = 'Perú',
+    department = 'Lima',
     district = 'Surco, Lima',
+    reference = '',
+    age = null,
+    weight = null,
+    height = null,
     avatar = null,
     bio = 'Listo para competir con juego limpio.',
     favoriteSports = ['futbol'],
@@ -747,7 +900,18 @@ class Database {
       pinHash,
       name: cleanName,
       avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanName)}`,
+      country: country || 'Perú',
+      department: department || 'Lima',
       district: district || 'Surco, Lima',
+      reference: reference || '',
+      age: age || null,
+      weight: weight || null,
+      height: height || null,
+      hasCompletedProfile: false,
+      hasCompletedTest: false,
+      testScore: null,
+      testLevel: null,
+      testBreakdown: null,
       bio: bio || 'Listo para competir con juego limpio.',
       favoriteSports: Array.isArray(favoriteSports) && favoriteSports.length > 0 ? favoriteSports : [primarySport || 'futbol'],
       primarySport: primarySport || 'futbol',
@@ -771,7 +935,124 @@ class Database {
     return { user };
   }
 
-  createUser({ email, password, name, avatar, district, bio, favoriteSports = ['futbol'], primarySport = 'futbol', position = 'DEL', declaredLevel = 'Intermedio' }) {
+  completeUserProfile(userId, { age, weight, height, position, reference, department, district, country, primarySport = 'futbol' }) {
+    const user = this.getUser(userId);
+    if (!user) return { error: 'Usuario no encontrado' };
+
+    if (age !== undefined && age !== null && age !== '') user.age = parseInt(age, 10);
+    if (weight !== undefined && weight !== null && weight !== '') user.weight = parseFloat(weight);
+    if (height !== undefined && height !== null && height !== '') user.height = parseInt(height, 10);
+    if (position) user.position = position;
+    if (reference !== undefined) user.reference = reference;
+    if (department) user.department = department;
+    if (district) user.district = district;
+    if (country) user.country = country;
+    user.primarySport = primarySport || 'futbol';
+    user.hasCompletedProfile = true;
+
+    this.users.set(userId, user);
+    this._persistUser(user);
+    return { user };
+  }
+
+  submitFootballTest(userId, { answers = [], position }) {
+    const user = this.getUser(userId);
+    if (!user) return { error: 'Usuario no encontrado' };
+
+    // answers: array de 14 valores (letras A-E o números 1-5)
+    // P1, P2, P3: FÍSICO (20%)
+    // P4, P5, P6: TÉCNICA (25%)
+    // P7, P8, P9: LECTURA DE JUEGO (20%)
+    // P10, P11, P12, P13, P14: POSICIÓN (35%)
+    const letterToPoints = (val) => {
+      if (typeof val === 'number') return Math.min(5, Math.max(1, val));
+      const map = { A: 1, B: 2, C: 3, D: 4, E: 5, a: 1, b: 2, c: 3, d: 4, e: 5 };
+      return map[val] || 3;
+    };
+
+    const numAnswers = (answers || []).map(letterToPoints);
+    while (numAnswers.length < 14) numAnswers.push(3);
+
+    // Categoría 1: FÍSICO (P1, P2, P3) -> peso 20%
+    const avgFisico = (numAnswers[0] + numAnswers[1] + numAnswers[2]) / 3;
+    const fisicoScore = ((avgFisico - 1) / 4) * 100;
+
+    // Categoría 2: TÉCNICA (P4, P5, P6) -> peso 25%
+    const avgTecnica = (numAnswers[3] + numAnswers[4] + numAnswers[5]) / 3;
+    const tecnicaScore = ((avgTecnica - 1) / 4) * 100;
+
+    // Categoría 3: LECTURA DE JUEGO (P7, P8, P9) -> peso 20%
+    const avgLectura = (numAnswers[6] + numAnswers[7] + numAnswers[8]) / 3;
+    const lecturaScore = ((avgLectura - 1) / 4) * 100;
+
+    // Categoría 4: POSICIÓN (P10..P14) -> peso 35%
+    const avgPosicion = (numAnswers[9] + numAnswers[10] + numAnswers[11] + numAnswers[12] + numAnswers[13]) / 5;
+    const posicionScore = ((avgPosicion - 1) / 4) * 100;
+
+    // Puntaje final exacto según la fórmula
+    const puntajeFinalRaw = (fisicoScore * 0.20) + (tecnicaScore * 0.25) + (lecturaScore * 0.20) + (posicionScore * 0.35);
+    const puntajeFinal = Math.min(100, Math.max(0, Math.round(puntajeFinalRaw)));
+
+    // Determinar Nivel oficial
+    let testLevel = 'Intermedio';
+    if (puntajeFinal <= 24) testLevel = 'Principiante';
+    else if (puntajeFinal <= 44) testLevel = 'Recreativo';
+    else if (puntajeFinal <= 64) testLevel = 'Intermedio';
+    else if (puntajeFinal <= 84) testLevel = 'Avanzado';
+    else testLevel = 'Élite amateur';
+
+    const categories = [
+      { name: 'Físico', score: Math.round(fisicoScore) },
+      { name: 'Técnica', score: Math.round(tecnicaScore) },
+      { name: 'Lectura de juego', score: Math.round(lecturaScore) },
+      { name: `Posición (${position || user.position || 'Delantero'})`, score: Math.round(posicionScore) }
+    ];
+    categories.sort((a, b) => b.score - a.score);
+    const strongPoint = categories[0].name;
+    const weakPoint = categories[categories.length - 1].name;
+
+    user.hasCompletedTest = true;
+    user.testScore = puntajeFinal;
+    user.testLevel = testLevel;
+    if (position) user.position = position;
+    user.testBreakdown = {
+      fisico: Math.round(fisicoScore),
+      tecnica: Math.round(tecnicaScore),
+      lectura: Math.round(lecturaScore),
+      posicion: Math.round(posicionScore),
+      strongPoint,
+      weakPoint
+    };
+
+    // Rating Glicko inicial estimado a partir del test
+    user.ratingOverall = Math.round(1100 + (puntajeFinal * 8));
+    user.declaredLevel = testLevel;
+
+    this.users.set(userId, user);
+    this._persistUser(user);
+
+    // Actualizar perfiles activos de fútbol
+    const formats = ['1v1', '5v5', '6v6', '7v7', '8v8', '11v11'];
+    for (const fmt of formats) {
+      const prof = this.getProfile(userId, 'futbol', fmt);
+      if (prof && prof.matchesPlayed === 0) {
+        prof.rating = user.ratingOverall;
+        prof.declaredLevel = testLevel;
+        this.setProfile(userId, 'futbol', fmt, prof);
+      }
+    }
+
+    return {
+      user,
+      result: {
+        score: puntajeFinal,
+        level: testLevel,
+        breakdown: user.testBreakdown
+      }
+    };
+  }
+
+  createUser({ email, password, name, avatar, district, country = 'Perú', department = 'Lima', reference = '', bio, favoriteSports = ['futbol'], primarySport = 'futbol', position = 'DEL', declaredLevel = 'Intermedio' }) {
     const existing = this.getUserByEmail(email);
     if (existing) return existing;
 
@@ -1503,17 +1784,22 @@ class Database {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const code = `${sportId.substring(0, 3).toUpperCase()}-${randomSuffix}`;
     const hostProfile = this.getProfile(hostUser.id, sportId, formatId);
+    const totalSlots = playersPerTeam * 2;
 
     const lobby = {
       code,
+      name: `Pichanga #${code} (${format.name || formatId})`,
       sportId,
       formatId,
       formatName: format.name || formatId,
       playersPerTeam,
-      totalSlots: playersPerTeam * 2,
+      totalSlots,
       hostUserId: hostUser.id,
       hostName: hostUser.name,
-      status: 'waiting', // waiting, ready, starting
+      district: hostUser.district || 'Surco, Lima',
+      venue: 'Cancha Sintética El Golazo',
+      time: '08:30 PM',
+      status: (totalSlots === 2) ? LOBBY_STATUS.FALTA_1 : LOBBY_STATUS.RECLUTANDO,
       teamA: [
         {
           id: hostUser.id,
@@ -1521,9 +1807,9 @@ class Database {
           name: hostUser.name,
           avatar: hostUser.avatar,
           position: hostUser.position || 'MED',
-          rating: hostProfile.rating || 1400,
-          rd: hostProfile.rd || 300,
-          isReady: false,
+          rating: hostProfile?.rating || 1400,
+          rd: hostProfile?.rd || 300,
+          isReady: true,
           isHost: true
         }
       ],
@@ -1533,7 +1819,7 @@ class Database {
           id: `msg_welcome_${Date.now()}`,
           senderId: 'system',
           senderName: 'MatchSport Bot',
-          text: `🎮 Sala de Convocatoria #${code} creada. Invita amigos o inicia búsqueda de rivales.`,
+          text: `🎮 Sala de Convocatoria #${code} creada. Estado: Convocatoria abierta.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           isPrivate: false
         }
@@ -1542,6 +1828,7 @@ class Database {
     };
 
     this.lobbies.set(code, lobby);
+    this._persistLobby(lobby);
     return lobby;
   }
 
@@ -1863,16 +2150,22 @@ class Database {
   }
 
   _updateLobbyStatus(lobby) {
-    const total = lobby.teamA.length + lobby.teamB.length;
-    const isFull = total === lobby.totalSlots;
-    const allReady = isFull && [...lobby.teamA, ...lobby.teamB].every(p => p.isReady);
+    if (!lobby) return;
+    const total = (lobby.teamA?.length || 0) + (lobby.teamB?.length || 0);
+    const max = lobby.totalSlots || ((lobby.playersPerTeam || 2) * 2);
 
-    if (isFull && allReady) {
-      lobby.status = 'ready';
-    } else if (lobby.hadCancellation || total < lobby.totalSlots) {
-      lobby.status = lobby.hadCancellation ? 'waiting_replacement' : 'waiting';
+    // Si ya está en cancha, finalizada o cancelada, respetar ese estado
+    if (lobby.status === LOBBY_STATUS.EN_CANCHA || lobby.status === LOBBY_STATUS.FINALIZADA || lobby.status === LOBBY_STATUS.CANCELADA) {
+      this._persistLobby(lobby);
+      return;
+    }
+
+    if (total >= max) {
+      lobby.status = LOBBY_STATUS.EN_ACUERDO; // Quórum 100%, coordinando detalles
+    } else if (total === max - 1 && max > 2) {
+      lobby.status = LOBBY_STATUS.FALTA_1; // 🔥 ¡Último cupo! Alta urgencia
     } else {
-      lobby.status = 'waiting';
+      lobby.status = LOBBY_STATUS.RECLUTANDO; // 🟢 Convocatoria abierta
     }
     this._persistLobby(lobby);
   }
@@ -1993,6 +2286,57 @@ class Database {
       if (a.hadCancellation && !b.hadCancellation) return -1;
       if (!a.hadCancellation && b.hadCancellation) return 1;
       return b.createdAt - a.createdAt;
+    });
+  }
+
+  // Obtener todas las salas activas ordenadas por prioridad de estado
+  getAllActiveLobbies({ sportId = null, district = null, status = null } = {}) {
+    const list = [];
+    for (const lobby of this.lobbies.values()) {
+      if (lobby.status === LOBBY_STATUS.CANCELADA || lobby.status === LOBBY_STATUS.FINALIZADA) continue;
+
+      if (sportId && sportId !== 'todos' && sportId !== 'all' && lobby.sportId !== sportId) {
+        continue;
+      }
+      if (district && district !== 'todos' && district !== 'all' && lobby.district && !lobby.district.toLowerCase().includes(district.toLowerCase())) {
+        continue;
+      }
+      if (status && status !== 'todos' && status !== 'all' && lobby.status !== status) {
+        continue;
+      }
+
+      const total = (lobby.teamA?.length || 0) + (lobby.teamB?.length || 0);
+      const max = lobby.totalSlots || ((lobby.playersPerTeam || 2) * 2);
+
+      list.push({
+        code: lobby.code,
+        name: lobby.name || `Pichanga #${lobby.code} (${lobby.formatName || lobby.formatId})`,
+        sportId: lobby.sportId || 'futbol',
+        formatId: lobby.formatId || '5v5',
+        formatName: lobby.formatName || lobby.formatId,
+        playersPerTeam: lobby.playersPerTeam || 5,
+        totalSlots: max,
+        currentPlayers: total,
+        neededPlayers: Math.max(0, max - total),
+        status: lobby.status || LOBBY_STATUS.RECLUTANDO,
+        hostUserId: lobby.hostUserId,
+        hostName: lobby.hostName || 'Capitán',
+        district: lobby.district || 'Surco, Lima',
+        venue: lobby.venue || 'Cancha Sintética El Golazo',
+        time: lobby.time || '08:30 PM',
+        teamA: lobby.teamA || [],
+        teamB: lobby.teamB || [],
+        createdAt: lobby.createdAt || Date.now()
+      });
+    }
+
+    // Ordenar con máxima prioridad a salas con FALTA_1 (al tope de la lista), luego RECLUTANDO, EN_ACUERDO y EN_CANCHA
+    const priority = { [LOBBY_STATUS.FALTA_1]: 0, [LOBBY_STATUS.RECLUTANDO]: 1, [LOBBY_STATUS.EN_ACUERDO]: 2, [LOBBY_STATUS.EN_CANCHA]: 3 };
+    return list.sort((a, b) => {
+      const pA = priority[a.status] ?? 4;
+      const pB = priority[b.status] ?? 4;
+      if (pA !== pB) return pA - pB;
+      return (b.createdAt || 0) - (a.createdAt || 0);
     });
   }
 

@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, SafeAreaView, ActivityIndicator } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
 import { storage } from './src/services/storage';
 import { socketService } from './src/services/socket';
+import { notificationService } from './src/services/notificationService';
 import { THEME } from './src/theme';
 
 // Pantallas
@@ -23,18 +23,11 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import CalibrationScreen from './src/screens/CalibrationScreen';
 import LocationSettingsScreen from './src/screens/LocationSettingsScreen';
 import JoinCodeScreen from './src/screens/JoinCodeScreen';
+import PlayerBiometricsScreen from './src/screens/PlayerBiometricsScreen';
+import FootballLevelTestScreen from './src/screens/FootballLevelTestScreen';
 
 // Componentes
 import BottomNavBar from './src/components/BottomNavBar';
-
-// Configurar comportamiento de Notificaciones Push nativas
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false
-  })
-});
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -47,7 +40,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'SALAS' | 'RANKING' | 'PERFIL'
   
   // Sub-pantallas Nativas (Navegación Stack sin modales)
-  const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE'
+  const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE' | 'BIOMETRICS' | 'FOOTBALL_TEST'
   const [currentRadius, setCurrentRadius] = useState(8);
   const [currentDistrict, setCurrentDistrict] = useState('SURCO, LIMA');
   const [userDeclaredLevel, setUserDeclaredLevel] = useState('Intermedio');
@@ -63,7 +56,7 @@ export default function App() {
     // 1. Permisos de Notificaciones Push
     (async () => {
       try {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const status = await notificationService.requestPermissions();
         if (status === 'granted') {
           console.log('[NOTIFICATIONS] Permisos push otorgados.');
         }
@@ -100,18 +93,11 @@ export default function App() {
       console.log('[APP] ⚡ Desafío encontrado - Abriendo pantalla de 20s:', data);
       setAcceptanceData(data);
 
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '¡RIVAL ENCONTRADO EN MATCHSPORT! ⚽',
-            body: `Tienes 20 segundos para aceptar el partido de ${data.sportId?.toUpperCase() || 'cancha'}.`,
-            data: { pendingMatchId: data.pendingMatchId }
-          },
-          trigger: null
-        });
-      } catch (e) {
-        console.log('[NOTIFICATIONS] Notificación local omitida:', e);
-      }
+      await notificationService.scheduleLocalNotification({
+        title: '¡RIVAL ENCONTRADO EN MATCHSPORT! ⚽',
+        body: `Tienes 20 segundos para aceptar el partido de ${data.sportId?.toUpperCase() || 'cancha'}.`,
+        data: { pendingMatchId: data.pendingMatchId },
+      });
     });
 
     // Partido oficial iniciado
@@ -334,8 +320,6 @@ export default function App() {
     return (
       <CalibrationScreen
         user={currentUser}
-        currentLevel={userDeclaredLevel}
-        onSaveLevel={(lvl) => setUserDeclaredLevel(lvl)}
         onBack={() => setActiveSubScreen(null)}
       />
     );
@@ -370,6 +354,36 @@ export default function App() {
     );
   }
 
+  if (activeSubScreen === 'BIOMETRICS') {
+    return (
+      <PlayerBiometricsScreen
+        user={currentUser}
+        onCompleteProfile={(updatedUser) => {
+          setCurrentUser(updatedUser);
+          setActiveSubScreen('FOOTBALL_TEST');
+        }}
+        onCancel={() => setActiveSubScreen(null)}
+      />
+    );
+  }
+
+  if (activeSubScreen === 'FOOTBALL_TEST') {
+    return (
+      <FootballLevelTestScreen
+        user={currentUser}
+        onFinishTest={() => {
+          // Recargar el usuario con el test completado
+          storage.getUserSession().then((u) => {
+            if (u) setCurrentUser(u);
+          });
+          setActiveSubScreen(null);
+          setActiveTab('JUGAR');
+        }}
+        onCancel={() => setActiveSubScreen(null)}
+      />
+    );
+  }
+
   // ==========================================
   // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (4 TABS)
   // ==========================================
@@ -388,6 +402,20 @@ export default function App() {
             onOpenCalibration={() => setActiveSubScreen('CALIBRATION')}
             onOpenLocationSettings={() => setActiveSubScreen('LOCATION_SETTINGS')}
             onOpenJoinCode={() => setActiveSubScreen('JOIN_CODE')}
+            onStartFootballTest={() => {
+              if (!currentUser?.hasCompletedProfile) {
+                setActiveSubScreen('BIOMETRICS');
+              } else {
+                setActiveSubScreen('FOOTBALL_TEST');
+              }
+            }}
+            onRequireProfileSetup={() => {
+              if (!currentUser?.hasCompletedProfile) {
+                setActiveSubScreen('BIOMETRICS');
+              } else if (!currentUser?.hasCompletedTest) {
+                setActiveSubScreen('FOOTBALL_TEST');
+              }
+            }}
             onNavigateToLobbies={() => setActiveTab('SALAS')}
             onSelectLobby={(lobby) => setSelectedLobby(lobby)}
             onLogout={handleLogout}
@@ -398,10 +426,18 @@ export default function App() {
           <LobbyListScreen
             onEnterLobby={(lobby) => setSelectedLobby(lobby)}
             onCreateLobbyPress={() => {
+              if (!currentUser?.hasCompletedProfile) {
+                setActiveSubScreen('BIOMETRICS');
+                return;
+              }
+              if (!currentUser?.hasCompletedTest) {
+                setActiveSubScreen('FOOTBALL_TEST');
+                return;
+              }
               setSelectedLobby({
                 code: 'NEW1',
                 name: 'Mi Convocatoria',
-                venueDistrict: 'Manuel Bonilla, Miraflores',
+                venueDistrict: currentUser.district || 'Manuel Bonilla, Miraflores',
                 sportId: 'futbol',
                 formatId: '5v5',
                 teamA: [{ id: currentUser.id, name: currentUser.name, position: currentUser.position, isMe: true, isCaptain: true, isReady: true }],
