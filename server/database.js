@@ -10,11 +10,9 @@
 import initSqlJs from 'sql.js';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { runtimeConfig } from './config.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, '..', 'matchsport.db');
+const DB_PATH = runtimeConfig.dbPath;
 
 let _db = null;
 let _SQL = null;
@@ -51,6 +49,7 @@ function forceSave() {
 export async function initDatabase() {
   if (_initialized) return _db;
 
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   _SQL = await initSqlJs();
 
   // Si ya existe el archivo, cargarlo; si no, crear uno nuevo

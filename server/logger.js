@@ -1,13 +1,10 @@
 import winston from 'winston';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { runtimeConfig } from './config.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Asegurar existencia del directorio logs en la raíz del proyecto
-const logsDir = path.resolve(__dirname, '../logs');
+// Los logs de pruebas quedan junto a su base aislada.
+const logsDir = runtimeConfig.logDir;
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }

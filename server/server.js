@@ -9,6 +9,7 @@ import { calculateGlicko2Match, getInitialGlicko } from './glicko2.js';
 import { logger } from './logger.js';
 import { signToken, verifyToken, requireAuth, requireAdmin, authRateLimiter } from './auth.js';
 import { VENUES, getVenueSlots } from './venues.js';
+import { runtimeConfig } from './config.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -1826,7 +1827,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = runtimeConfig.port;
+
+// IPC is only available to the isolated test runner, never as an HTTP endpoint.
+if (runtimeConfig.isTest && process.send) {
+  process.on('message', (message) => {
+    if (message?.type === 'shutdown') process.exit(0); // SQLite exit handler flushes data.
+  });
+  process.on('disconnect', () => process.exit(0));
+}
 
 // Inicialización asíncrona: cargar SQLite antes de aceptar conexiones
 async function startServer() {
@@ -1838,11 +1847,15 @@ async function startServer() {
     process.exit(1);
   }
 
-  server.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, runtimeConfig.host, () => {
+    const boundPort = server.address().port;
+    if (runtimeConfig.isTest && process.send) {
+      process.send({ type: 'ready', port: boundPort });
+    }
     const localIp = getLocalIp();
     console.log(`\n============================================================`);
     console.log(`🏆 MATCHMAKING DEPORTIVO - SERVIDOR ACTIVO (con SQLite)`);
-    console.log(`📡 Backend Socket.IO: http://localhost:${PORT}`);
+    console.log(`📡 Backend Socket.IO: http://localhost:${boundPort}`);
     console.log(`📱 En tu PC:          http://localhost:3000`);
     console.log(`📲 En tu Celular/LAN: http://${localIp}:3000`);
     console.log(`============================================================\n`);

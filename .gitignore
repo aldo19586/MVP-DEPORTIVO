@@ -37,3 +37,9 @@ logs/
 # Expo
 .expo/
 *.expo/
+
+# Caché npm local en D:
+.npm-cache/
+
+# Bases y logs temporales de las pruebas aisladas
+.test-runs/

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
+import { runtimeConfig } from './config.js';
 import { getInitialGlicko } from './glicko2.js';
 import {
   initDatabase,
@@ -11,7 +12,7 @@ import {
   sqlInsertLobby, sqlGetLobby, sqlGetAllLobbies, sqlDeleteLobby, sqlGetOpenReplacementLobbies,
   sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
   sqlGetConfig, sqlSetConfig,
-  sqlHasSeedData, forceSave
+  forceSave
 } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -415,7 +416,7 @@ class Database {
 
   /**
    * Inicialización asíncrona — DEBE llamarse antes de usar la DB.
-   * Carga datos de SQLite o siembra datos iniciales si la DB está vacía.
+   * Carga SQLite. Solo siembra demos si se solicita explícitamente.
    */
   async initAsync() {
     await initDatabase();
@@ -443,18 +444,17 @@ class Database {
       this.questionnaires = savedQuestionnaires;
     }
 
-    // Si la DB tiene datos de semilla, cargarlos al caché en memoria
-    if (sqlHasSeedData()) {
-      console.log('[DB] Cargando datos persistentes desde SQLite...');
-      this._loadFromSqlite();
-    } else {
-      console.log('[DB] Base de datos vacía, sembrando datos iniciales...');
+    // Siempre recuperar los datos existentes; las demos son opt-in.
+    console.log('[DB] Cargando datos persistentes desde SQLite...');
+    this._loadFromSqlite();
+    if (this.users.size === 0 && runtimeConfig.seedDemo) {
+      console.log('[DB] Semilla demo solicitada explícitamente...');
       this._seedInitialData();
     }
 
     console.log(`[DB] Inicialización completa: ${this.users.size} usuarios, ${this.profiles.size} perfiles, ${this.matches.size} partidos cargados.`);
 
-    if (this.lobbies.size === 0) {
+    if (runtimeConfig.seedDemo && this.lobbies.size === 0) {
       this._seedSampleLobbies();
     }
 
