@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { db } from './db.js';
 
 export function resolveJwtSecret(env = process.env) {
   if (typeof env.JWT_SECRET === 'string' && Buffer.byteLength(env.JWT_SECRET) >= 32) return env.JWT_SECRET;
@@ -10,6 +11,19 @@ export function resolveJwtSecret(env = process.env) {
 }
 
 const JWT_SECRET = resolveJwtSecret();
+
+export function issueToken(user) {
+  return signToken({ userId: user.id, role: user.role || 'player', version: user.sessionVersion || 0 });
+}
+
+export function authenticate(token) {
+  const claims = verifyToken(token);
+  if (!claims || !Number.isSafeInteger(claims.version)) return null;
+  const user = db.getUser(claims.userId);
+  if (!user || claims.version !== (user.sessionVersion || 0)) return null;
+  if (user.isBanned && user.bannedUntil > Date.now()) return null;
+  return user;
+}
 
 /**
  * Firma un JSON Web Token (JWT) estándar RFC 7519 usando HMAC SHA-256.
@@ -65,12 +79,12 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Token de autorización requerido' });
   }
 
-  const payload = verifyToken(authHeader);
-  if (!payload) {
+  const user = authenticate(authHeader);
+  if (!user) {
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 
-  req.user = payload;
+  req.user = { userId: user.id, role: user.role || 'player' };
   next();
 }
 
@@ -78,17 +92,11 @@ export function requireAuth(req, res, next) {
  * Middleware para validar rol administrativo (SuperAdmin).
  */
 export function requireAdmin(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Autorización administrativa requerida' });
-  }
-
-  const payload = verifyToken(authHeader);
-  if (!payload || payload.role !== 'admin') {
+  if (!req.user) return requireAuth(req, res, () => requireAdmin(req, res, next));
+  if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Administrador' });
   }
 
-  req.user = payload;
   next();
 }
 

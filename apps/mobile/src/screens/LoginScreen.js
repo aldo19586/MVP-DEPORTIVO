@@ -106,7 +106,7 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
       }
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await storage.saveUserSession(result.user);
+      await storage.saveUserSession(result.user, result.token);
       onLoginSuccess(result.user);
     } catch (err) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

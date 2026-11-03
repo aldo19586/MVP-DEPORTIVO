@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 y MS-02 Hechos**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01, MS-02 y MS-03 Hechos**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -9,7 +9,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-00 | P1 / S | Resolver decisiones D-01…D-07 por etapa | Responsable del producto | Cada decisión necesaria tiene opción y motivo registrados; no bloquear fixes de seguridad por decisiones comerciales |
 | MS-01 | P1 / M | **Hecho:** entorno de tests aislado, configuración DB/puerto y seed explícito | — | Base temporal por caso; rutas protegidas rechazadas; arranque sin demos por defecto; aislamiento y reinicio comprobados. Ver evidencia debajo |
 | MS-02 | P0 / M | **Hecho:** identidad, roles y credenciales de servidor | MS-01 | Registro público siempre player; alta admin por operador; secretos requeridos fuera de dev; DTO sin password/hash; tokens probados. Límites de migración/visibilidad en IDENTIDAD.md |
-| MS-03 | P0 / L | Autenticación REST y clientes | MS-02 | Inventario de rutas públicas/protegidas; permisos por propietario/rol; mobile guarda y envía sesión segura; admin maneja 401/403; jugador A no modifica B; anónimo no usa admin. A-01/A-05 |
+| MS-03 | P0 / L | **Hecho:** autenticación REST y clientes | MS-02 | Inventario de rutas públicas/protegidas; permisos por propietario/rol; mobile guarda y envía sesión segura; admin maneja 401/403; jugador A no modifica B; anónimo no usa admin. A-01/A-05 |
 | MS-04 | P0 / L | Identidad y permisos Socket.IO | MS-02/MS-03 | Handshake autenticado; eventos usan actor del servidor; admin solo en canal protegido; no miembro no lee/escribe chat ni cambia sala; sesión revocada/baneada no reconecta. A-03 |
 | MS-05 | P1 / M | Reglas y contratos de salas/partidos | MS-00: D-01/D-04 | Tabla de estados/transiciones/roles, payloads y errores; regla para cupo, abandono, cancelación, empate y ausencia del capitán. Contrato compartido de prueba, sin duplicar lógica de autoridad |
 | MS-06 | P1 / L | Persistencia durable y recuperación | MS-01, D-05 antes del piloto | Elegir almacenamiento con decisión escrita; migraciones; backups y restauración comprobada; interrupción de escritura sin pérdida silenciosa; tests sobre archivo aislado. A-11 |
@@ -26,7 +26,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 
 ## Primera entrega técnica propuesta
 
-MS-01 y MS-02 completados. Siguen MS-03 y MS-04. Las correcciones de autorización deben integrarse con ambos clientes para no dejar una API protegida con una app incapaz de usarla. El entorno de desarrollo debe continuar permitiendo verificar el trabajo localmente.
+MS-01, MS-02 y MS-03 completados. Sigue MS-04. Las correcciones de autorización deben integrarse con ambos clientes para no dejar una API protegida con una app incapaz de usarla. El entorno de desarrollo debe continuar permitiendo verificar el trabajo localmente.
 
 ### Evidencia MS-01 — 2 de noviembre de 2026
 
@@ -44,6 +44,14 @@ MS-01 y MS-02 completados. Siguen MS-03 y MS-04. Las correcciones de autorizaci�
 - Suite completa: 17 tests aprobados. Base personal con SHA-256 sin cambios.
 - Alcance y límites: [IDENTIDAD.md](IDENTIDAD.md). Los permisos REST y Socket.IO siguen pendientes; la base personal no fue migrada ni auditada cuenta por cuenta.
 - Commit/PR: ver commit que incorpora esta evidencia en `codex/mvp-base`; publicación se confirma al cerrar la entrega.
+
+### Evidencia MS-03 — 2 de noviembre de 2026
+
+- Permisos REST por defecto, titular/membresía/rol; sesión verificada al abrir los clientes; token móvil en SecureStore; errores administrativos visibles.
+- Logout/reset/ban invalidan sesiones y persisten sanciones/versiones. Ranking, partidos e historial excluyen credenciales y datos privados de otros jugadores.
+- Suite conjunta: 27 pruebas aprobadas; build del panel y exportación iOS/Hermes aprobadas. Base personal sin cambios por SHA-256.
+- Contrato, inventario de rutas, actualización y limitaciones: [SESIONES_Y_PERMISOS.md](SESIONES_Y_PERMISOS.md). Prueba física en iPhone pendiente; sockets aún pendientes en MS-04.
+- Commit/PR: commit de esta evidencia en la rama `codex/mvp-base`; publicación confirmada al cerrar la entrega.
 
 Después se entrega una convocatoria real entre dos o más cuentas (MS-05/MS-07/MS-08), se cierra resultado/persistencia y se integra el onboarding simplificado. El diseño puede definirse mientras se corrigen permisos, pero no se declara listo antes de conectarlo al servidor.
 

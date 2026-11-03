@@ -1,130 +1,44 @@
 import { API_BASE_URL } from '../config';
+import { storage } from './storage';
+import { createHttpClient } from '../../../../shared/httpClient.mjs';
 
-async function handleResponse(res) {
-  const json = await res.json();
-  if (!res.ok) {
-    const errorMsg = json.error || `Error HTTP ${res.status}`;
-    throw new Error(errorMsg);
-  }
-  return json;
+const listeners = new Set();
+export function onSessionExpired(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+const request = createHttpClient({
+  baseUrl: API_BASE_URL,
+  getToken: storage.getToken,
+  invalidate: async token => {
+    if (await storage.clearUserSession(token)) for (const listener of listeners) listener();
+  },
+});
+const post = (path, body, publicAccess = false) => request(path, { method: 'POST', body, publicAccess });
+const id = encodeURIComponent;
+function query(values) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) if (value) params.append(key, value);
+  const encoded = params.toString();
+  return encoded ? `?${encoded}` : '';
 }
 
 export const api = {
-  // Autenticación por PIN de 4 dígitos
-  async pinLogin(name, pin) {
-    const res = await fetch(`${API_BASE_URL}/auth/pin-login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, pin })
-    });
-    return handleResponse(res);
-  },
-
-  async pinRegister(userData) {
-    const res = await fetch(`${API_BASE_URL}/auth/pin-register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userData)
-    });
-    return handleResponse(res);
-  },
-
-  async checkName(name) {
-    const res = await fetch(`${API_BASE_URL}/auth/check-name/${encodeURIComponent(name)}`);
-    return handleResponse(res);
-  },
-
-  // Perfil y Datos de Usuario
-  async getUser(userId) {
-    const res = await fetch(`${API_BASE_URL}/user/${userId}`);
-    return handleResponse(res);
-  },
-
-  async getUserMatches(userId) {
-    const res = await fetch(`${API_BASE_URL}/user/${userId}/matches`);
-    return handleResponse(res);
-  },
-
-  // Deportes y Formatos
-  async getSports() {
-    const res = await fetch(`${API_BASE_URL}/sports`);
-    return handleResponse(res);
-  },
-
-  // Distritos de Perú con filtro geográfico
-  async getDistricts(query = '') {
-    const url = query
-      ? `${API_BASE_URL}/districts?query=${encodeURIComponent(query)}`
-      : `${API_BASE_URL}/districts`;
-    const res = await fetch(url);
-    return handleResponse(res);
-  },
-
-  // Listado oficial de Salas de Convocatoria (Lobbies en vivo)
-  async getLobbies(filters = {}) {
-    const params = new URLSearchParams();
-    if (filters.sportId) params.append('sportId', filters.sportId);
-    if (filters.district) params.append('district', filters.district);
-    if (filters.status) params.append('status', filters.status);
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${API_BASE_URL}/lobbies${queryString}`);
-    return handleResponse(res);
-  },
-
-  // Bolsa de Suplentes (Salas incompletas)
-  async getReplacementLobbies(sportId = null, district = null) {
-    const params = new URLSearchParams();
-    if (sportId) params.append('sportId', sportId);
-    if (district) params.append('district', district);
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${API_BASE_URL}/lobbies/replacements${queryString}`);
-    return handleResponse(res);
-  },
-
-  // Datos de Partido
-  async getMatch(matchId) {
-    const res = await fetch(`${API_BASE_URL}/match/${matchId}`);
-    return handleResponse(res);
-  },
-
-  // Leaderboard
-  async getLeaderboard(sportId, formatId) {
-    const res = await fetch(`${API_BASE_URL}/leaderboard/${sportId}/${formatId}`);
-    return handleResponse(res);
-  },
-
-  // Peer-Review Circular (Post-Partido 1-Toque)
-  async getPeerReviewAssignment(matchId, userId) {
-    const res = await fetch(`${API_BASE_URL}/match/${matchId}/peer-review/${userId}`);
-    return handleResponse(res);
-  },
-
-  async submitPeerReview({ matchId, evaluatorId, attributeTag }) {
-    const res = await fetch(`${API_BASE_URL}/match/peer-review`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchId, evaluatorId, attributeTag })
-    });
-    return handleResponse(res);
-  },
-
-  // Ficha Deportiva Biometrica
-  async completeProfile(profileData) {
-    const res = await fetch(`${API_BASE_URL}/user/complete-profile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profileData)
-    });
-    return handleResponse(res);
-  },
-
-  // Test Oficial de Fútbol Amateur (14 preguntas)
-  async submitFootballTest(testData) {
-    const res = await fetch(`${API_BASE_URL}/user/submit-football-test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(testData)
-    });
-    return handleResponse(res);
-  }
+  me: () => request('/auth/me'),
+  logout: () => post('/auth/logout', {}),
+  pinLogin: (name, pin) => post('/auth/pin-login', { name, pin }, true),
+  pinRegister: data => post('/auth/pin-register', data, true),
+  checkName: name => request(`/auth/check-name/${id(name)}`, { publicAccess: true }),
+  getUser: userId => request(`/user/${id(userId)}`),
+  getUserMatches: userId => request(`/user/${id(userId)}/matches`),
+  getSports: () => request('/sports', { publicAccess: true }),
+  getDistricts: (text = '') => request(`/districts${query({ query: text })}`, { publicAccess: true }),
+  getLobbies: ({ sportId, district, status } = {}) => request(`/lobbies${query({ sportId, district, status })}`),
+  getReplacementLobbies: (sportId = null, district = null) => request(`/lobbies/replacements${query({ sportId, district })}`),
+  getMatch: matchId => request(`/match/${id(matchId)}`),
+  getLeaderboard: (sportId, formatId) => request(`/leaderboard/${id(sportId)}/${id(formatId)}`),
+  getPeerReviewAssignment: (matchId, userId) => request(`/match/${id(matchId)}/peer-review/${id(userId)}`),
+  submitPeerReview: ({ matchId, evaluatorId, attributeTag }) => post('/match/peer-review', { matchId, evaluatorId, attributeTag }),
+  completeProfile: data => post('/user/complete-profile', data),
+  submitFootballTest: data => post('/user/submit-football-test', data),
 };

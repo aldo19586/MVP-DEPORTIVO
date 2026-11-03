@@ -7,10 +7,11 @@ import { db } from './db.js';
 import { MatchmakingEngine } from './matchmakingEngine.js';
 import { calculateGlicko2Match, getInitialGlicko } from './glicko2.js';
 import { logger } from './logger.js';
-import { signToken, verifyToken, requireAuth, requireAdmin, authRateLimiter } from './auth.js';
+import { issueToken, verifyToken, authRateLimiter } from './auth.js';
+import { apiAccess, ownParam, ownRead, ownBody, matchAccess, isParticipant } from './access.js';
 import { VENUES, getVenueSlots } from './venues.js';
 import { runtimeConfig } from './config.js';
-import { toClientUser } from './userDto.js';
+import { toClientUser, toPublicUser, toResource } from './userDto.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -27,6 +28,7 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+app.use('/api', apiAccess);
 
 const matchmakingEngine = new MatchmakingEngine(io);
 matchmakingEngine.start();
@@ -81,6 +83,12 @@ function broadcastPeerReviewAssignments(match) {
 
 // ---------------- REST API ----------------
 
+app.get('/api/auth/me', (req, res) => res.json({ user: toClientUser(db.getUser(req.user.userId)) }));
+app.post('/api/auth/logout', (req, res) => {
+  db.revokeSessions(req.user.userId);
+  res.json({ success: true });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -113,14 +121,14 @@ app.get('/api/sports', (req, res) => {
 app.get('/api/lobbies', (req, res) => {
   const { sportId, district, status } = req.query;
   const lobbies = db.getAllActiveLobbies({ sportId, district, status });
-  res.json({ lobbies });
+  res.json({ lobbies: lobbies.map(toResource) });
 });
 
 // Bolsa de Suplentes (Salas incompletas o con cancelaciones urgentes)
 app.get('/api/lobbies/replacements', (req, res) => {
   const { sportId, district } = req.query;
   const lobbies = db.getReplacementMarketLobbies({ sportId, district });
-  res.json({ lobbies });
+  res.json({ lobbies: lobbies.map(toResource) });
 });
 
 
@@ -133,7 +141,7 @@ app.post('/api/auth/login', authRateLimiter, (req, res) => {
   if (result.error) {
     return res.status(401).json({ error: result.error });
   }
-  const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
+  const token = issueToken(result.user);
   res.json({ user: toClientUser(result.user), token });
 });
 
@@ -150,7 +158,7 @@ app.post('/api/auth/register', authRateLimiter, (req, res) => {
     return res.status(409).json({ error: 'Este correo ya tiene una cuenta registrada. Por favor inicia sesión.' });
   }
   const user = db.createUser({ email: email.trim(), password, name, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel });
-  const token = signToken({ userId: user.id, role: user.role || 'player', name: user.name });
+  const token = issueToken(user);
   res.json({ user: toClientUser(user), token });
 });
 
@@ -164,7 +172,7 @@ app.post('/api/auth/pin-login', authRateLimiter, (req, res) => {
   if (result.error) {
     return res.status(401).json({ error: result.error });
   }
-  const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
+  const token = issueToken(result.user);
   res.json({ user: toClientUser(result.user), token });
 });
 
@@ -180,12 +188,12 @@ app.post('/api/auth/pin-register', authRateLimiter, (req, res) => {
   if (result.error) {
     return res.status(409).json({ error: result.error });
   }
-  const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
+  const token = issueToken(result.user);
   res.json({ user: toClientUser(result.user), token });
 });
 
 // Completar Ficha Deportiva Biometrica del Jugador
-app.post('/api/user/complete-profile', authRateLimiter, (req, res) => {
+app.post('/api/user/complete-profile', ownBody(), authRateLimiter, (req, res) => {
   const { userId, age, weight, height, position, reference, department, district, country, primarySport } = req.body;
   if (!userId) {
     return res.status(400).json({ error: 'userId es requerido' });
@@ -198,7 +206,7 @@ app.post('/api/user/complete-profile', authRateLimiter, (req, res) => {
 });
 
 // Enviar Respuestas del Test Oficial de Fútbol Amateur (14 preguntas)
-app.post('/api/user/submit-football-test', authRateLimiter, (req, res) => {
+app.post('/api/user/submit-football-test', ownBody(), authRateLimiter, (req, res) => {
   const { userId, answers, position } = req.body;
   if (!userId) {
     return res.status(400).json({ error: 'userId es requerido' });
@@ -226,7 +234,7 @@ app.post('/api/auth/admin-login', authRateLimiter, (req, res) => {
   if (result.user.role !== 'admin') {
     return res.status(403).json({ error: 'Acceso restringido únicamente a Administradores' });
   }
-  const token = signToken({ userId: result.user.id, role: 'admin', name: result.user.name });
+  const token = issueToken(result.user);
   res.json({ user: toClientUser(result.user), token });
 });
 
@@ -236,13 +244,13 @@ app.get('/api/auth/check-name/:name', (req, res) => {
 });
 
 // Actualización de Perfil y Notificaciones Push
-app.put('/api/user/:userId', (req, res) => {
+app.put('/api/user/:userId', ownParam, (req, res) => {
   const updatedUser = db.updateUserProfile(req.params.userId, req.body);
   if (!updatedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
   res.json({ success: true, user: toClientUser(updatedUser) });
 });
 
-app.post('/api/user/push-token', (req, res) => {
+app.post('/api/user/push-token', ownBody(), (req, res) => {
   const { userId, pushToken } = req.body;
   if (!userId || !pushToken) return res.status(400).json({ error: 'userId y pushToken son requeridos' });
   const user = db.setUserPushToken(userId, pushToken);
@@ -271,38 +279,23 @@ app.get('/api/venues/:id', (req, res) => {
 });
 
 app.post('/api/venues/:id/book', (req, res) => {
-  const { slotId, userId, matchId } = req.body;
-  const venue = VENUES.find(v => v.id === req.params.id);
-  if (!venue) return res.status(404).json({ error: 'Complejo no encontrado' });
-  res.json({
-    success: true,
-    booking: {
-      id: `booking_${Date.now()}`,
-      venueId: venue.id,
-      venueName: venue.name,
-      slotId,
-      userId,
-      matchId,
-      status: 'confirmed',
-      timestamp: Date.now()
-    }
-  });
+  res.status(410).json({ error: 'Las reservas de canchas no están disponibles en el MVP' });
 });
 
-app.get('/api/user/:userId', (req, res) => {
+app.get('/api/user/:userId', ownRead, (req, res) => {
   const user = db.getUser(req.params.userId);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
   res.json({ user: toClientUser(user) });
 });
 
-app.get('/api/profile/:userId/:sportId/:formatId', (req, res) => {
+app.get('/api/profile/:userId/:sportId/:formatId', ownRead, (req, res) => {
   const { userId, sportId, formatId } = req.params;
   const profile = db.getProfile(userId, sportId, formatId);
   const user = db.getUser(userId);
   res.json({ profile, futStats: user?.futStats || null });
 });
 
-app.post('/api/profile/questionnaire', (req, res) => {
+app.post('/api/profile/questionnaire', ownBody(), (req, res) => {
   const { userId, sportId, formatId, declaredLevel, customScore } = req.body;
   const glicko = getInitialGlicko(declaredLevel);
   const profile = db.setProfile(userId, sportId, formatId, {
@@ -319,14 +312,14 @@ app.post('/api/profile/questionnaire', (req, res) => {
   res.json({ profile, user: toClientUser(user) });
 });
 
-app.get('/api/match/:matchId', (req, res) => {
+app.get('/api/match/:matchId', matchAccess, (req, res) => {
   const match = db.getMatch(req.params.matchId);
   if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
-  res.json({ match });
+  res.json({ match: toResource(match, req.user) });
 });
 
 // Obtener asignación circular de Peer-Review para un usuario en un partido
-app.get('/api/match/:matchId/peer-review/:userId', (req, res) => {
+app.get('/api/match/:matchId/peer-review/:userId', ownRead, matchAccess, (req, res) => {
   const { matchId, userId } = req.params;
   const review = db.getPeerReviewForUser(matchId, userId);
   if (!review) {
@@ -336,7 +329,7 @@ app.get('/api/match/:matchId/peer-review/:userId', (req, res) => {
 });
 
 // Enviar voto de 1-toque en Peer-Review post-partido
-app.post('/api/match/peer-review', (req, res) => {
+app.post('/api/match/peer-review', ownBody('evaluatorId'), matchAccess, (req, res) => {
   const { matchId, evaluatorId, attributeTag } = req.body;
   if (!matchId || !evaluatorId || !attributeTag) {
     return res.status(400).json({ error: 'matchId, evaluatorId y attributeTag son requeridos.' });
@@ -366,22 +359,22 @@ app.post('/api/match/peer-review', (req, res) => {
 });
 
 // Historial de Partidas del Usuario (Estilo MOBA / Dota 2)
-app.get('/api/user/:userId/matches', (req, res) => {
+app.get('/api/user/:userId/matches', ownRead, (req, res) => {
   const history = db.getUserMatchHistory(req.params.userId);
-  res.json({ matches: history });
+  res.json({ matches: history.map(match => toResource(match, req.user)) });
 });
 
 // Todas las partidas para el Dueño / Admin (En vivo e Historial)
 app.get('/api/admin/matches', (req, res) => {
   const all = db.getAllMatches();
-  res.json({ matches: all });
+  res.json({ matches: all.map(match => toResource(match, req.user)) });
 });
 
 // Leaderboard por Deporte y Modo de Juego (1v1, 2v2, 3v3)
 app.get('/api/leaderboard/:sportId/:formatId', (req, res) => {
   const { sportId, formatId } = req.params;
   const leaderboard = db.getLeaderboard(sportId, formatId);
-  res.json({ leaderboard });
+  res.json({ leaderboard: leaderboard.map(entry => ({ ...entry, user: toPublicUser(entry.user) })) });
 });
 
 // Cuestionarios por Deporte
@@ -449,7 +442,7 @@ app.get('/api/admin/live-activity', (req, res) => {
   res.json({
     onlineCount: connectedUsers.size,
     onlineUsers: Array.from(connectedUsers.values()),
-    activeMatches: liveMatches
+    activeMatches: liveMatches.map(match => toResource(match, req.user))
   });
 });
 
@@ -458,13 +451,16 @@ app.get('/api/admin/disputes', (req, res) => {
   const disputed = Array.from(db.matches.values()).filter(
     (m) => m.status === 'disputed' || m.disputeAlert
   );
-  res.json({ disputes: disputed });
+  res.json({ disputes: disputed.map(match => toResource(match, req.user)) });
 });
 
 app.post('/api/admin/disputes/resolve', (req, res) => {
-  const { matchId, winnerTeam, adminUserId = 'demo_user_admin' } = req.body;
+  const { matchId, winnerTeam } = req.body;
+  const adminUserId = req.user.userId;
+  if (!['teamA', 'teamB'].includes(winnerTeam)) return res.status(400).json({ error: 'Equipo ganador inválido' });
   const match = db.getMatch(matchId);
   if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+  if (match.status !== 'disputed' && !match.disputeAlert) return res.status(409).json({ error: 'El partido no tiene una disputa pendiente' });
 
   match.status = 'finished';
   match.resultFinal = winnerTeam;
@@ -503,11 +499,14 @@ app.post('/api/admin/disputes/resolve', (req, res) => {
 
   broadcastPeerReviewAssignments(match);
 
-  res.json({ success: true, match, ratingUpdates });
+  res.json({ success: true, match: toResource(match, req.user), ratingUpdates });
 });
 
 app.post('/api/admin/user/:userId/ban', (req, res) => {
   const { hours = 24, reason } = req.body;
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 8760 || (reason !== undefined && typeof reason !== 'string')) {
+    return res.status(400).json({ error: 'Duración o motivo de sanción inválido' });
+  }
   const user = db.setUserBanned(req.params.userId, hours, reason);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
@@ -525,6 +524,7 @@ app.post('/api/admin/user/:userId/ban', (req, res) => {
 
 app.post('/api/admin/user/:userId/reset-pin', (req, res) => {
   const { newPin = '1234' } = req.body;
+  if (typeof newPin !== 'string' || !/^\d{4}$/.test(newPin)) return res.status(400).json({ error: 'El PIN debe tener cuatro dígitos' });
   const user = db.resetUserPin(req.params.userId, newPin);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
   res.json({ success: true, user: toClientUser(user) });
@@ -542,11 +542,14 @@ app.get('/api/lobby/:code', (req, res) => {
   if (!lobby) {
     return res.status(404).json({ error: 'Sala no encontrada' });
   }
-  res.json({ lobby });
+  if (req.user.role !== 'admin' && !isParticipant(lobby, req.user.userId)) {
+    return res.status(403).json({ error: 'Debes pertenecer a esta sala para ver su contenido' });
+  }
+  res.json({ lobby: toResource(lobby, req.user) });
 });
 
 // Endpoint para abandonar sala de convocatoria (usado por beacon/fetch al salir de la app)
-app.post('/api/lobby/leave', (req, res) => {
+app.post('/api/lobby/leave', ownBody(), (req, res) => {
   const { code, userId } = req.body || {};
   if (userId) {
     let lobbyCode = code;

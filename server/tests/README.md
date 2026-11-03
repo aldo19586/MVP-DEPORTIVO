@@ -9,7 +9,7 @@ npm run test:server
 Alternativa sin depender del ejecutable npm del equipo:
 
 ```powershell
-node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js
+node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js
 ```
 
 Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previo ni descarga dependencias adicionales. Requiere las dependencias ya instaladas y Node compatible con el proyecto (verificado aquí con Node 22.17.0).
@@ -28,7 +28,7 @@ Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previ
 
 Comprueba guardas de configuración, arranque vacío con catálogos, creación y aislamiento entre servidores, persistencia tras salida controlada/reinicio y seed explícito sin duplicar usuarios.
 
-No comprueba todavía pérdida de energía, reemplazo atómico del archivo, seguridad de rutas de negocio, push, chat ni el ciclo de un partido. Las consultas administrativas actuales se utilizan para observar el contenido de bases sintéticas: cuando MS-03 proteja estas rutas, los fixtures deberán autenticarse y las pruebas de permisos deberán exigir el rechazo correspondiente.
+No comprueba todavía pérdida de energía, reemplazo atómico del archivo, seguridad de rutas de negocio, push, chat ni el ciclo de un partido. El aislamiento se observa con sesiones propias y snapshots de bases temporales después de detener su escritor. Las rutas administrativas se consultan con un administrador de prueba, y los tests negativos exigen 401/403.
 
 ## Configuración de desarrollo
 
@@ -48,6 +48,6 @@ Usar esa configuración solo en una terminal de desarrollo y retirar las variabl
 
 ## Scripts históricos
 
-La suite vigente incluye también identidad (MS-02): registro sin elevación de rol, rechazo de contraseñas inválidas/ausentes, DTO sin credenciales, hashes persistidos, migración heredada, alta administrativa y tokens válidos/alterados/expirados. La autorización completa de rutas y sockets sigue pendiente en MS-03/MS-04.
+La suite vigente incluye también identidad (MS-02): registro sin elevación de rol, rechazo de contraseñas inválidas/ausentes, DTO sin credenciales, hashes persistidos, migración heredada, alta administrativa y tokens válidos/alterados/expirados. MS-03 añade autorización REST, sesiones revocables, DTO públicos, almacenamiento móvil y manejo 401/403 en ambos clientes: 27 tests conjuntos. El inventario de rutas se extrae del servidor para probar que toda ruta nueva exige autenticación salvo la lista pública explícita. Los fixtures administrativos y de partidos se crean en un proceso aislado antes de arrancar el servidor. Socket.IO sigue pendiente en MS-04.
 
 Los archivos `scripts/test_*.js` son pruebas heredadas. Varias apuntan a localhost:3001 y modifican datos; **no ejecutarlas contra el servidor personal o el piloto**. Ya no son el destino de `npm test` del backend. Su migración completa y ampliación de cobertura están en MS-13. La nueva suite no certifica los mensajes de éxito de aquellas pruebas.

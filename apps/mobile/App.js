@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, SafeAreaView, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, SafeAreaView, ActivityIndicator, Text, Pressable } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
+import { api, onSessionExpired } from './src/services/api';
 import { storage } from './src/services/storage';
 import { socketService } from './src/services/socket';
 import { notificationService } from './src/services/notificationService';
@@ -31,6 +32,8 @@ import BottomNavBar from './src/components/BottomNavBar';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState('');
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   
   // Flujo Auth
@@ -65,25 +68,26 @@ export default function App() {
       }
     })();
 
-    // 2. Restaurar sesión persistida
+    let mounted = true;
+    const unsubscribe = onSessionExpired(() => { if (mounted) resetSession(); });
+    setLoading(true);
+    setSessionError('');
     (async () => {
       try {
-        const session = await storage.getUserSession();
-        if (session && session.id) {
-          setCurrentUser(session);
-          initSocketSession(session);
-          setActiveTab('JUGAR');
-        } else {
-          setAuthScreen('SPLASH');
-        }
-      } catch (e) {
-        console.error('[APP] Error cargando sesión:', e);
-        setAuthScreen('SPLASH');
-      } finally {
-        setLoading(false);
-      }
+        const token = await storage.getToken();
+        if (!token) { await storage.clearUserSession(); return; }
+        const { user } = await api.me();
+        if (!mounted) return;
+        await storage.saveUserSession(user);
+        if (!mounted) return;
+        setCurrentUser(user);
+        initSocketSession(user);
+      } catch (error) {
+        if (mounted && error.status !== 401) setSessionError('No pudimos verificar tu sesión. Revisa tu conexión y vuelve a intentar.');
+      } finally { if (mounted) setLoading(false); }
     })();
-  }, []);
+    return () => { mounted = false; unsubscribe(); socketService.disconnect(); };
+  }, [restoreAttempt]);
 
   const initSocketSession = (user) => {
     const socket = socketService.connect(user.id, user);
@@ -158,8 +162,7 @@ export default function App() {
     setActiveTab('JUGAR');
   };
 
-  const handleLogout = async () => {
-    await storage.clearUserSession();
+  const resetSession = () => {
     socketService.disconnect();
     setCurrentUser(null);
     setActiveMatch(null);
@@ -167,6 +170,19 @@ export default function App() {
     setPeerReviewMatch(null);
     setSummaryData(null);
     setAuthScreen('SPLASH');
+    setAcceptanceData(null);
+    setActiveSubScreen(null);
+    setSessionError('');
+  };
+
+  const handleLogout = async () => {
+    // Always close this device; server revocation is attempted while its token exists.
+    setLoading(true);
+    resetSession();
+    try { await api.logout(); } catch (error) { console.warn('[SESSION] Cierre remoto no confirmado:', error.message); }
+    try { await storage.clearUserSession(); }
+    catch { setSessionError('No pudimos limpiar la sesión guardada. Vuelve a intentar.'); }
+    finally { setLoading(false); }
   };
 
   const handleAcceptMatchPrompt = () => {
@@ -189,6 +205,15 @@ export default function App() {
     }
     setAcceptanceData(null);
   };
+
+  if (sessionError) return (
+    <SafeAreaView style={styles.loadingContainer}>
+      <Text style={{ color: '#fff', textAlign: 'center', margin: 24 }}>{sessionError}</Text>
+      <Pressable accessibilityRole="button" onPress={() => setRestoreAttempt(value => value + 1)}>
+        <Text style={{ color: THEME.colors.primary, padding: 16 }}>Reintentar</Text>
+      </Pressable>
+    </SafeAreaView>
+  );
 
   if (loading) {
     return (

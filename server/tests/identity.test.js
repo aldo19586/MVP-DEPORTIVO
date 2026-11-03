@@ -88,8 +88,8 @@ test('public registration cannot grant admin and password login cannot bypass cr
     const pin = await post(server, '/auth/pin-register', { name: 'PIN player', pin: '5678' });
     assertNoCredentials(pin.data.user);
     assert.equal((await post(server, '/auth/login', { email: pin.data.user.email, password: 'anything' })).status, 401);
-    assertNoCredentials((await request(server, `/user/${pin.data.user.id}`)).user);
-    for (const user of (await request(server, '/admin/users')).users) assertNoCredentials(user);
+    assertNoCredentials((await request(server, `/user/${pin.data.user.id}`, undefined, pin.data.token)).user);
+
   } finally {
     await server.stop();
   }
@@ -141,6 +141,7 @@ test('operator can create an admin without credentials in output; existing accou
     assert.equal(login.status, 200);
     assert.equal(login.data.user.role, 'admin');
     assertNoCredentials(login.data.user);
+    for (const user of (await request(server, '/admin/users', undefined, login.data.token)).users) assertNoCredentials(user);
     assert.equal((await post(server, '/auth/admin-login', { ...credentials, password: 'wrong' })).status, 401);
   } finally { await server.stop(); }
   const playerServer = await startTestServer(sandbox);

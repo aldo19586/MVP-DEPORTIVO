@@ -8,11 +8,16 @@ export default function PlayerAuditView() {
   const [districtFilter, setDistrictFilter] = useState('all');
   const [actionSuccess, setActionSuccess] = useState('');
 
+  const [loadError, setLoadError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    let mounted = true;
+    setLoadError('');
     fetchAdminUsers().then((res) => {
-      if (res.users) setUsers(res.users);
-    });
-  }, []);
+      if (mounted && res.users) setUsers(res.users);
+    }).catch(error => { if (mounted) setLoadError(error.message); });
+    return () => { mounted = false; };
+  }, [attempt]);
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -67,6 +72,7 @@ export default function PlayerAuditView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {loadError && <p role="alert">{loadError} <button onClick={() => setAttempt(value => value + 1)}>Reintentar</button></p>}
       <div>
         <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Auditoría y Gestión de Jugadores</h2>
         <p style={{ color: '#94a3b8', fontSize: '13px' }}>

@@ -6,11 +6,16 @@ export default function SportsConfigView() {
   const [sports, setSports] = useState([]);
   const [syncStatus, setSyncStatus] = useState('');
 
+  const [loadError, setLoadError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    let mounted = true;
+    setLoadError('');
     fetchSports().then((res) => {
-      if (res.sports) setSports(res.sports);
-    });
-  }, []);
+      if (mounted && res.sports) setSports(res.sports);
+    }).catch(error => { if (mounted) setLoadError(error.message); });
+    return () => { mounted = false; };
+  }, [attempt]);
 
   const handleToggle = async (sportId, formatId, currentActive) => {
     const nextActive = !currentActive;
@@ -31,12 +36,14 @@ export default function SportsConfigView() {
       setSyncStatus(`Formato ${formatId} de ${sportId} actualizado a ${nextActive ? 'ACTIVO' : 'INACTIVO'} en vivo.`);
       setTimeout(() => setSyncStatus(''), 4000);
     } catch (err) {
-      console.error('Error toggling format:', err);
+      setLoadError(err.message);
+      setSports(previous => previous.map(sport => sport.id === sportId ? { ...sport, formats: sport.formats.map(format => format.id === formatId ? { ...format, active: currentActive } : format) } : sport));
     }
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {loadError && <p role="alert">{loadError} <button onClick={() => setAttempt(value => value + 1)}>Reintentar</button></p>}
       <div>
         <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Gestión de Deportes y Formatos en Vivo</h2>
         <p style={{ color: '#94a3b8', fontSize: '13px' }}>

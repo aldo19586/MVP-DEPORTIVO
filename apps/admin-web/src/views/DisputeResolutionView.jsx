@@ -1,77 +1,33 @@
 import React, { useState } from 'react';
 import { Scale, CheckCircle, XCircle, AlertTriangle, MessageSquare, ShieldAlert } from 'lucide-react';
-import { adminSocket } from '../services/socket';
 import { resolveDisputeApi } from '../services/api';
 
 export default function DisputeResolutionView({ activeMatches = [] }) {
   // Buscar partidos con estado 'disputed'
   const disputedMatches = activeMatches.filter((m) => m.status === 'disputed' || m.disputeAlert);
 
-  // Muestra de demostración si aún no hay disputas abiertas en vivo
-  const fallbackDispute = {
-    id: 'match_disp_sample_882',
-    sportId: 'futbol',
-    formatId: '1v1',
-    status: 'disputed',
-    createdAt: new Date().toISOString(),
-    disputeAlert: {
-      reportedBy: 'demo_user_3',
-      reason: 'El rival marcó que ganó 5-4, pero el resultado real fue 5-3 a mi favor en Cancha El Golazo de Surco.',
-      timestamp: Date.now() - 1000 * 60 * 15
-    },
-    teamA: [
-      {
-        id: 'demo_user_1',
-        name: 'Carlos Mendoza',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-        district: 'Surco, Lima',
-        rating: 1820,
-        claim: 'Victoria Equipo A (Carlos Mendoza)'
-      }
-    ],
-    teamB: [
-      {
-        id: 'demo_user_3',
-        name: 'Franco Benítez',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-        district: 'San Borja, Lima',
-        rating: 1780,
-        claim: 'Victoria Equipo B (Franco Benítez)'
-      }
-    ],
-    chatMessages: [
-      { id: '1', senderName: 'Carlos Mendoza', text: 'Nos vemos 8pm en cancha El Golazo.' },
-      { id: '2', senderName: 'Franco Benítez', text: 'Listo, llevo balón número 5.' },
-      { id: '3', senderName: 'Carlos Mendoza', text: 'Buen partido, gané 5-4.' },
-      { id: '4', senderName: 'Franco Benítez', text: '¿Qué hablas? El último gol fue mío en tiempo añadido. Quedamos 5-3 yo.' }
-    ]
-  };
-
-  const list = disputedMatches.length > 0 ? disputedMatches : [fallbackDispute];
-  const [selectedMatch, setSelectedMatch] = useState(list[0]);
+  const [resolvedIds, setResolvedIds] = useState([]);
+  const selectedMatch = disputedMatches.find(match => !resolvedIds.includes(match.id));
   const [resolvedStatus, setResolvedStatus] = useState(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleResolve = async (winnerTeam) => {
-    if (!selectedMatch) return;
+    if (!selectedMatch || saving) return;
+    setSaving(true); setError('');
 
     try {
-      // 1. Emitir resolución por socket
-      adminSocket.emit('adminResolveDispute', {
-        matchId: selectedMatch.id,
-        winnerTeam,
-        adminUserId: 'demo_user_admin'
-      });
-
-      // 2. Persistir en backend por API REST
-      await resolveDisputeApi(selectedMatch.id, winnerTeam, 'demo_user_admin');
+      await resolveDisputeApi(selectedMatch.id, winnerTeam);
+      setResolvedIds(ids => [...ids, selectedMatch.id]);
 
       setResolvedStatus(`Disputa resuelta a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}. Puntos asignados (+35 pts) y rating actualizado.`);
       setTimeout(() => setResolvedStatus(null), 6000);
     } catch (e) {
-      console.warn('Resolución via socket ejecutada, aviso API:', e);
-      setResolvedStatus(`Disputa resuelta a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}.`);
-    }
+      setError(e.message);
+    } finally { setSaving(false); }
   };
+
+  if (!selectedMatch) return <p role="status">{resolvedStatus || 'No hay disputas pendientes.'}</p>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -95,6 +51,7 @@ export default function DisputeResolutionView({ activeMatches = [] }) {
         </div>
       )}
 
+      {error && <p role="alert">No se resolvió la disputa: {error}</p>}
       {/* Disputa Activa: Comparativa en 2 Columnas */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
         
@@ -135,6 +92,7 @@ export default function DisputeResolutionView({ activeMatches = [] }) {
           <button
             className="btn btn-primary"
             style={{ width: '100%', justifyContent: 'center' }}
+            disabled={saving}
             onClick={() => handleResolve('teamA')}
           >
             <CheckCircle size={16} /> Declarar Ganador Oficial: Equipo A (+35 pts)
@@ -178,6 +136,7 @@ export default function DisputeResolutionView({ activeMatches = [] }) {
           <button
             className="btn btn-primary"
             style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+            disabled={saving}
             onClick={() => handleResolve('teamB')}
           >
             <CheckCircle size={16} /> Declarar Ganador Oficial: Equipo B (+35 pts)

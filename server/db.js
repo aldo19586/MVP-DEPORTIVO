@@ -1130,6 +1130,15 @@ class Database {
     return user;
   }
 
+  revokeSessions(userId) {
+    const user = this.getUser(userId);
+    if (!user) return null;
+    user.sessionVersion = (user.sessionVersion || 0) + 1;
+    this._persistUser(user);
+    forceSave();
+    return user;
+  }
+
   setUserBanned(userId, hours = 24, reason = 'Infracción al código deportivo') {
     const user = this.getUser(userId);
     if (!user) return null;
@@ -1137,8 +1146,7 @@ class Database {
     user.isBanned = true;
     user.bannedUntil = Date.now() + Number(hours) * 3600 * 1000;
     user.banReason = reason;
-
-    this._persistUser(user);
+    this.revokeSessions(userId);
     return user;
   }
 
@@ -1147,8 +1155,7 @@ class Database {
     if (!user) return null;
 
     user.pinHash = bcrypt.hashSync(String(newPin).trim(), 10);
-
-    this._persistUser(user);
+    this.revokeSessions(userId);
     return user;
   }
 

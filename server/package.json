@@ -9,7 +9,7 @@
     "start": "node server.js",
     "seed": "node seed.js",
     "admin:create": "node create-admin.js",
-    "test": "node --test --test-concurrency=1 tests/config.test.js tests/isolation.test.js tests/identity.test.js"
+    "test": "node --test --test-concurrency=1 tests/config.test.js tests/isolation.test.js tests/identity.test.js tests/access.test.js tests/client-session.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

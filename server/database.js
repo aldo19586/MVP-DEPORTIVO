@@ -121,6 +121,10 @@ function createTables() {
     const tableInfo = _db.exec("PRAGMA table_info(users)");
     const cols = tableInfo[0]?.values?.map(v => v[1]) || [];
     const newCols = [
+      { name: 'session_version', type: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'is_banned', type: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'banned_until', type: 'REAL' },
+      { name: 'ban_reason', type: 'TEXT' },
       { name: 'pin_hash', type: 'TEXT' },
       { name: 'country', type: "TEXT DEFAULT 'Perú'" },
       { name: 'department', type: "TEXT DEFAULT 'Lima'" },
@@ -268,8 +272,9 @@ export function sqlInsertUser(user) {
     (id, email, password, pin_hash, name, avatar, district, country, department, reference,
      age, weight, height, has_completed_profile, has_completed_test, test_score, test_level, test_breakdown_json,
      bio, position, role, verified_dni,
-     rating_overall, likes_count, fut_stats_json, favorite_sports_json, primary_sport, declared_level, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     rating_overall, likes_count, fut_stats_json, favorite_sports_json, primary_sport, declared_level, created_at,
+     session_version, is_banned, banned_until, ban_reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     user.id,
     user.email,
@@ -299,7 +304,11 @@ export function sqlInsertUser(user) {
     JSON.stringify(user.favoriteSports || ['futbol']),
     user.primarySport || 'futbol',
     user.declaredLevel || 'Intermedio',
-    user.createdAt || new Date().toISOString()
+    user.createdAt || new Date().toISOString(),
+    user.sessionVersion || 0,
+    user.isBanned ? 1 : 0,
+    user.bannedUntil || null,
+    user.banReason || null
   ]);
   scheduleSave();
 }
@@ -536,6 +545,10 @@ function rowToUser(resultSet, rowIndex = 0) {
     email: obj.email,
     password: obj.password,
     pinHash: obj.pin_hash || null,
+    sessionVersion: obj.session_version || 0,
+    isBanned: !!obj.is_banned,
+    bannedUntil: obj.banned_until,
+    banReason: obj.ban_reason,
     name: obj.name,
     avatar: obj.avatar,
     district: obj.district,

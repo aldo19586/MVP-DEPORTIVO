@@ -3,6 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fork } from 'node:child_process';
 import { PROJECT_ROOT, TEST_ROOT } from '../config.js';
+import initSqlJs from 'sql.js';
+
+// Read snapshots only after stop(): sql.js is a single-writer database.
+export async function readSnapshot(sandbox, query) {
+  const SQL = await initSqlJs();
+  const database = new SQL.Database(fs.readFileSync(sandbox.dbPath));
+  try { return database.exec(query)[0]?.values || []; }
+  finally { database.close(); }
+}
 
 export function createSandbox(t) {
   fs.mkdirSync(TEST_ROOT, { recursive: true });
@@ -78,13 +87,13 @@ export async function startTestServer(sandbox, overrides = {}) {
   }
 }
 
-export async function request(server, endpoint, body) {
+export async function request(server, endpoint, body, token) {
   const response = await fetch(`${server.url}/api${endpoint}`, {
     ...(body ? {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     } : {}),
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     signal: AbortSignal.timeout(5000),
   });
   assert.ok(response.ok, `Unexpected HTTP ${response.status} at ${endpoint}`);
