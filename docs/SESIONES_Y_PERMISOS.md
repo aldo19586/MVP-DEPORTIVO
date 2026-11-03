@@ -1,6 +1,6 @@
 # MS-03 — Sesiones y permisos REST
 
-Entrega técnica del 2 de noviembre de 2026. La autorización de Socket.IO continúa en MS-04; proteger REST por sí solo no habilita un piloto con usuarios reales.
+Entrega técnica del 2 de noviembre de 2026. Documento histórico de la entrega REST. La autorización de Socket.IO se completó después en [MS-04](TIEMPO_REAL.md); las limitaciones de sockets indicadas abajo corresponden al cierre de MS-03. El piloto todavía requiere las entregas pendientes del backlog.
 
 ## Contrato de acceso
 

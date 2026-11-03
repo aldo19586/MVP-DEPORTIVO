@@ -8,7 +8,7 @@ import DisputeResolutionView from './views/DisputeResolutionView';
 import PlayerAuditView from './views/PlayerAuditView';
 import SportsConfigView from './views/SportsConfigView';
 import { adminSocket, connectAdmin } from './services/socket';
-import { fetchAdminMetrics, fetchLiveActivity, fetchDisputes, restoreAdmin, logoutAdmin, onAdminSessionExpired, getAdminToken } from './services/api';
+import { fetchAdminMetrics, fetchLiveActivity, fetchDisputes, restoreAdmin, logoutAdmin, onAdminSessionExpired } from './services/api';
 
 export default function App() {
   const [adminUser, setAdminUser] = useState(null);
@@ -38,9 +38,9 @@ export default function App() {
   useEffect(() => {
     if (!adminUser) return;
 
-    const disconnect = connectAdmin(adminUser, getAdminToken());
     let mounted = true;
     const showError = error => { if (mounted) setDataError(error.message); };
+    const disconnect = connectAdmin(showError);
     setDataError('');
     const loadDisputes = () => fetchDisputes().then(res => { if (mounted) setDisputes(res.disputes); }).catch(showError);
     loadDisputes();

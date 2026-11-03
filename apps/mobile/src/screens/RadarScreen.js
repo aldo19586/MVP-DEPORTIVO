@@ -274,23 +274,6 @@ export default function RadarScreen({
     }
   };
 
-  const handleForceDemoMatch = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (e) {}
-
-    setIsSearching(true);
-    setSearchSeconds(0);
-    const socket = socketService.getSocket();
-    if (socket && user) {
-      socket.emit('forceDemoMatch', {
-        userId: user.id,
-        sportId: selectedSport,
-        formatId: selectedFormat
-      });
-    }
-  };
-
   const handleCreateSquadLobby = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -669,16 +652,8 @@ export default function RadarScreen({
             </TouchableOpacity>
           )}
 
-          {/* Botones de acción secundaria: Bot de prueba y Unirse con código (Navegación nativa) */}
+          {/* Unirse con código */}
           <View style={styles.secondaryActionsRow}>
-            <TouchableOpacity
-              style={styles.botDemoBtn}
-              onPress={handleForceDemoMatch}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.botDemoIcon}>🤖</Text>
-              <Text style={styles.botDemoText}>Rival de Prueba (Bot)</Text>
-            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.joinCodeBtn}
@@ -1459,26 +1434,6 @@ const styles = StyleSheet.create({
   secondaryActionsRow: {
     flexDirection: 'row',
     gap: 8,
-  },
-  botDemoBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: THEME.colors.cardBg,
-    height: 44,
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    gap: 6,
-  },
-  botDemoIcon: {
-    fontSize: 14,
-  },
-  botDemoText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textSecondary,
   },
   joinCodeBtn: {
     flex: 1,

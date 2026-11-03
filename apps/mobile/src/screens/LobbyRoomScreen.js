@@ -70,17 +70,20 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
     const socket = socketService.getSocket();
     if (!socket) return;
 
-    socket.on('lobbyUpdated', (data) => {
-      if (data && data.lobby) {
-        setCurrentLobby(data.lobby);
-        if (data.lobby.chatMessages) setChatMessages(data.lobby.chatMessages);
-      }
-    });
-
-    socket.on('lobbyChatMessage', (msg) => {
-      setChatMessages((prev) => [...prev, msg]);
-    });
-  }, []);
+    const updateLobby = data => {
+      if (data?.lobby?.code !== lobby.code) return;
+      setCurrentLobby(data.lobby);
+      setChatMessages(data.lobby.chatMessages || []);
+      const me = [...data.lobby.teamA, ...data.lobby.teamB].find(p => (p.userId || p.id) === user.id);
+      setIsReady(!!me?.isReady);
+    };
+    const addMessage = ({ code, message }) => {
+      if (code === lobby.code) setChatMessages(previous => previous.some(item => item.id === message.id) ? previous : [...previous, message]);
+    };
+    socket.on('lobbyUpdated', updateLobby);
+    socket.on('newLobbyChatMessage', addMessage);
+    return () => { socket.off('lobbyUpdated', updateLobby); socket.off('newLobbyChatMessage', addMessage); };
+  }, [lobby.code, user.id]);
 
   const handleCopyCode = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
@@ -89,7 +92,6 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
 
   const handleToggleReady = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    setIsReady(!isReady);
     const socket = socketService.getSocket();
     if (socket) {
       socket.emit('toggleLobbyReady', { code: currentLobby.code, userId: user.id });
@@ -100,21 +102,17 @@ export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     const socket = socketService.getSocket();
     if (socket) {
-      socket.emit('switchLobbyTeam', { code: currentLobby.code, userId: user.id });
+      const inA = currentLobby.teamA.some(p => (p.userId || p.id) === user.id);
+      socket.emit('switchLobbyTeam', { code: currentLobby.code, targetTeam: inA ? 'teamB' : 'teamA' });
     }
   };
 
   const handleSendChat = () => {
     if (!chatInput.trim()) return;
-    const newMsg = {
-      senderName: `${user?.name || 'Tú'}`,
-      text: chatInput.trim()
-    };
-    setChatMessages((prev) => [...prev, newMsg]);
     setChatInput('');
     const socket = socketService.getSocket();
     if (socket) {
-      socket.emit('sendLobbyChat', { code: currentLobby.code, message: chatInput.trim() });
+      socket.emit('sendLobbyChatMessage', { code: currentLobby.code, text: chatInput.trim() });
     }
   };
 

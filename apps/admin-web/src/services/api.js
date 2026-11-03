@@ -3,9 +3,10 @@ const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:30
 const TOKEN_KEY = 'matchsport_admin_token';
 const USER_KEY = 'matchsport_admin_user';
 const listeners = new Set();
+export function endAdminSessionView() { for (const listener of listeners) listener(); }
 export function onAdminSessionExpired(listener) { listeners.add(listener); return () => listeners.delete(listener); }
 export const getAdminToken = () => localStorage.getItem(TOKEN_KEY);
-function clearSession(expected) {
+export function clearSession(expected) {
   if (expected !== undefined && getAdminToken() !== expected) return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);

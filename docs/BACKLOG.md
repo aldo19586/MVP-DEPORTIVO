@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01, MS-02 y MS-03 Hechos**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-04 Hechos**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -10,7 +10,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-01 | P1 / M | **Hecho:** entorno de tests aislado, configuración DB/puerto y seed explícito | — | Base temporal por caso; rutas protegidas rechazadas; arranque sin demos por defecto; aislamiento y reinicio comprobados. Ver evidencia debajo |
 | MS-02 | P0 / M | **Hecho:** identidad, roles y credenciales de servidor | MS-01 | Registro público siempre player; alta admin por operador; secretos requeridos fuera de dev; DTO sin password/hash; tokens probados. Límites de migración/visibilidad en IDENTIDAD.md |
 | MS-03 | P0 / L | **Hecho:** autenticación REST y clientes | MS-02 | Inventario de rutas públicas/protegidas; permisos por propietario/rol; mobile guarda y envía sesión segura; admin maneja 401/403; jugador A no modifica B; anónimo no usa admin. A-01/A-05 |
-| MS-04 | P0 / L | Identidad y permisos Socket.IO | MS-02/MS-03 | Handshake autenticado; eventos usan actor del servidor; admin solo en canal protegido; no miembro no lee/escribe chat ni cambia sala; sesión revocada/baneada no reconecta. A-03 |
+| MS-04 | P0 / L | **Hecho:** identidad y permisos Socket.IO | MS-02/MS-03 | Handshake autenticado; eventos usan actor del servidor; admin solo en canal protegido; no miembro no lee/escribe chat ni cambia sala; sesión revocada/baneada no reconecta. A-03 |
 | MS-05 | P1 / M | Reglas y contratos de salas/partidos | MS-00: D-01/D-04 | Tabla de estados/transiciones/roles, payloads y errores; regla para cupo, abandono, cancelación, empate y ausencia del capitán. Contrato compartido de prueba, sin duplicar lógica de autoridad |
 | MS-06 | P1 / L | Persistencia durable y recuperación | MS-01, D-05 antes del piloto | Elegir almacenamiento con decisión escrita; migraciones; backups y restauración comprobada; interrupción de escritura sin pérdida silenciosa; tests sobre archivo aislado. A-11 |
 | MS-07 | P1 / L | Crear/unirse/salir de convocatorias reales | MS-03/MS-04/MS-05 | Todas las entradas usan servidor; código real copiable/compartible; última plaza con dos solicitudes da un único ganador; sin duplicar miembros; fecha/hora/zona persistidas; sala recuperable tras reinicio. A-06/A-08 |
@@ -26,7 +26,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 
 ## Primera entrega técnica propuesta
 
-MS-01, MS-02 y MS-03 completados. Sigue MS-04. Las correcciones de autorización deben integrarse con ambos clientes para no dejar una API protegida con una app incapaz de usarla. El entorno de desarrollo debe continuar permitiendo verificar el trabajo localmente.
+MS-01 a MS-04 completados. Sigue MS-05, con decisiones D-01/D-04 antes del recorrido completo de convocatorias. Las correcciones de autorización deben integrarse con ambos clientes para no dejar una API protegida con una app incapaz de usarla. El entorno de desarrollo debe continuar permitiendo verificar el trabajo localmente.
 
 ### Evidencia MS-01 — 2 de noviembre de 2026
 
@@ -52,6 +52,15 @@ MS-01, MS-02 y MS-03 completados. Sigue MS-04. Las correcciones de autorización
 - Suite conjunta: 27 pruebas aprobadas; build del panel y exportación iOS/Hermes aprobadas. Base personal sin cambios por SHA-256.
 - Contrato, inventario de rutas, actualización y limitaciones: [SESIONES_Y_PERMISOS.md](SESIONES_Y_PERMISOS.md). Prueba física en iPhone pendiente; sockets aún pendientes en MS-04.
 - Commit/PR: commit de esta evidencia en la rama `codex/mvp-base`; publicación confirmada al cerrar la entrega.
+
+### Evidencia MS-04 — 2 de noviembre de 2026
+
+- Autenticación Socket.IO, inventario de eventos por actor/membresía/rol y filtrado de entregas por destinatario. Presencia administrativa privada y chat filtrado por equipo.
+- Revocación/vencimiento desconectan conexiones; reconexión usa token actual y recupera aceptación propia. Handlers de demos y resolución administrativa duplicada retirados.
+- Integración en móvil/panel y correcciones de nombres de eventos, listeners y confirmaciones de servidor.
+- Verificación: 42 pruebas aprobadas; build del panel y exportación iOS aprobadas. Base personal sin cambios.
+- Contrato y límites: [TIEMPO_REAL.md](TIEMPO_REAL.md). Pendientes dispositivo físico, reglas de negocio completas, durabilidad y preparación del piloto.
+- Commit/PR: commit de esta evidencia en `codex/mvp-base`; publicación confirmada al cerrar la entrega.
 
 Después se entrega una convocatoria real entre dos o más cuentas (MS-05/MS-07/MS-08), se cierra resultado/persistencia y se integra el onboarding simplificado. El diseño puede definirse mientras se corrigen permisos, pero no se declara listo antes de conectarlo al servidor.
 

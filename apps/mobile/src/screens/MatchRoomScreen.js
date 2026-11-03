@@ -22,11 +22,7 @@ export default function MatchRoomScreen({ match, currentUser, onMatchFinished, o
   const [matchSeconds, setMatchSeconds] = useState(28);
   const [scoreA, setScoreA] = useState(3);
   const [scoreB, setScoreB] = useState(2);
-  const [messages, setMessages] = useState([
-    { sender: 'Carlos', text: 'Ya llegué a la cancha 👍 estoy calentando bajo el arco.', time: "34'" },
-    { sender: 'Joaquín', text: 'Estoy con camiseta blanca y short negro en la banda derecha.', time: "36'" },
-    { sender: 'Tú', text: '¡Faltan 5 minutos para el cambio! Mantengan la presión arriba.', time: "38'" }
-  ]);
+  const [messages, setMessages] = useState((match?.chatMessages || []).map(msg => ({ ...msg, sender: msg.senderName, time: msg.timestamp })));
   const [chatInput, setChatInput] = useState('');
 
   const teamAPlayers = match?.teamA || [
@@ -51,14 +47,20 @@ export default function MatchRoomScreen({ match, currentUser, onMatchFinished, o
 
     // Escuchar cuando el partido finaliza (disparado por backend)
     const handleMatchFinished = (data) => {
+      if (data.matchId !== match.id) return;
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
       onMatchFinished(data);
     };
 
+    const addMessage = ({ matchId, message }) => {
+      if (matchId === match.id) setMessages(previous => previous.some(item => item.id === message.id) ? previous : [...previous, { ...message, sender: message.senderName, time: message.timestamp }]);
+    };
+    socket.on('newChatMessage', addMessage);
     socket.on('matchFinished', handleMatchFinished);
 
     return () => {
       socket.off('matchFinished', handleMatchFinished);
+      socket.off('newChatMessage', addMessage);
     };
   }, [match?.id]);
 
@@ -81,8 +83,6 @@ export default function MatchRoomScreen({ match, currentUser, onMatchFinished, o
                 winnerTeam
               });
             }
-            // Navegar inmediatamente a la fase post-partido (Peer-Review)
-            onMatchFinished({ winnerTeam, matchId: match?.id });
           }
         }
       ]
@@ -91,10 +91,7 @@ export default function MatchRoomScreen({ match, currentUser, onMatchFinished, o
 
   const handleSendChat = () => {
     if (!chatInput.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { sender: 'Tú', text: chatInput.trim(), time: 'Ahora' }
-    ]);
+    socketService.getSocket()?.emit('sendChatMessage', { matchId: match.id, text: chatInput.trim() });
     setChatInput('');
   };
 

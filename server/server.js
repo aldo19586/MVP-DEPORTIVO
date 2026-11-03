@@ -7,10 +7,13 @@ import { db } from './db.js';
 import { MatchmakingEngine } from './matchmakingEngine.js';
 import { calculateGlicko2Match, getInitialGlicko } from './glicko2.js';
 import { logger } from './logger.js';
-import { issueToken, verifyToken, authRateLimiter } from './auth.js';
+import { issueToken, authRateLimiter } from './auth.js';
 import { apiAccess, ownParam, ownRead, ownBody, matchAccess, isParticipant } from './access.js';
 import { VENUES, getVenueSlots } from './venues.js';
 import { runtimeConfig } from './config.js';
+import { createRealtime, ADMIN_ROOM } from './realtime.js';
+import { sessionEvents } from './sessionEvents.js';
+import { installSocketAccess } from './socketAccess.js';
 import { toClientUser, toPublicUser, toResource } from './userDto.js';
 
 const app = express();
@@ -30,7 +33,8 @@ app.use(cors());
 app.use(express.json());
 app.use('/api', apiAccess);
 
-const matchmakingEngine = new MatchmakingEngine(io);
+const realtime = createRealtime(io);
+const matchmakingEngine = new MatchmakingEngine(io, realtime);
 matchmakingEngine.start();
 
 // Mapeo de usuario a socketId
@@ -62,7 +66,7 @@ function broadcastPeerReviewAssignments(match) {
   if (!assignments || assignments.length === 0) return;
 
   // Notificar a la sala del partido
-  io.to(match.id).emit('peerReviewsReady', {
+  realtime.to(match.id).emit('peerReviewsReady', {
     matchId: match.id,
     count: assignments.length
   });
@@ -73,7 +77,7 @@ function broadcastPeerReviewAssignments(match) {
     const socketId = userSocketMap.get(evaluatorId);
     const reviewData = db.getPeerReviewForUser(match.id, evaluatorId);
     if (socketId && reviewData) {
-      io.to(socketId).emit('peerReviewAssigned', {
+      realtime.to(socketId).emit('peerReviewAssigned', {
         matchId: match.id,
         ...reviewData
       });
@@ -130,7 +134,6 @@ app.get('/api/lobbies/replacements', (req, res) => {
   const lobbies = db.getReplacementMarketLobbies({ sportId, district });
   res.json({ lobbies: lobbies.map(toResource) });
 });
-
 
 app.post('/api/auth/login', authRateLimiter, (req, res) => {
   const { email, password, name, district } = req.body;
@@ -343,11 +346,11 @@ app.post('/api/match/peer-review', ownBody('evaluatorId'), matchAccess, (req, re
 
   const evaluatorSocketId = userSocketMap.get(evaluatorId);
   if (evaluatorSocketId) {
-    io.to(evaluatorSocketId).emit('peerReviewSubmitted', { matchId, ...result });
+    realtime.to(evaluatorSocketId).emit('peerReviewSubmitted', { matchId, ...result });
   }
   const targetSocketId = userSocketMap.get(result.targetUserId);
   if (targetSocketId) {
-    io.to(targetSocketId).emit('peerReviewReceived', {
+    realtime.to(targetSocketId).emit('peerReviewReceived', {
       matchId,
       statUpdated: result.statKey,
       newValue: result.newValue,
@@ -416,7 +419,7 @@ app.post('/api/admin/sport/format', (req, res) => {
   const { sportId, formatId, active } = req.body;
   const updated = db.toggleSportFormat(sportId, formatId, active);
   if (!updated) return res.status(404).json({ error: 'Deporte o formato no encontrado' });
-  io.emit('sportsUpdated', { sports: db.getSports() });
+  realtime.emit('sportsUpdated', { sports: db.getSports() });
   res.json({ success: true, format: updated });
 });
 
@@ -425,11 +428,22 @@ const connectedUsers = new Map(); // userId -> { userId, name, avatar, district,
 
 function broadcastOnlineUsers() {
   const usersArray = Array.from(connectedUsers.values());
-  io.emit('onlineUsersUpdate', {
+  realtime.emit('onlineUsersUpdate', {
     count: usersArray.length,
     users: usersArray
   });
 }
+
+sessionEvents.on('revoked', userId => {
+  if (disconnectGraceTimers.has(userId)) clearTimeout(disconnectGraceTimers.get(userId));
+  disconnectGraceTimers.delete(userId);
+  db.removeChallengeByUserId(userId);
+  const pending = matchmakingEngine.getPendingMatchForUser(userId);
+  if (pending) matchmakingEngine.cancelPendingMatch(pending.pendingMatchId, 'session_revoked', userId);
+  userSocketMap.delete(userId);
+  connectedUsers.delete(userId);
+  broadcastOnlineUsers();
+});
 
 matchmakingEngine.connectedUsers = connectedUsers;
 matchmakingEngine.broadcastOnlineUsers = broadcastOnlineUsers;
@@ -489,7 +503,7 @@ app.post('/api/admin/disputes/resolve', (req, res) => {
 
   db._persistMatch(match);
 
-  io.to(matchId).emit('matchFinished', {
+  realtime.to(matchId).emit('matchFinished', {
     matchId,
     winnerTeam,
     ratingUpdates,
@@ -512,7 +526,7 @@ app.post('/api/admin/user/:userId/ban', (req, res) => {
 
   const socketId = userSocketMap.get(req.params.userId);
   if (socketId) {
-    io.to(socketId).emit('userBannedNotification', {
+    realtime.to(socketId).emit('userBannedNotification', {
       hours,
       reason,
       bannedUntil: user.bannedUntil
@@ -564,7 +578,7 @@ app.post('/api/lobby/leave', ownBody(), (req, res) => {
       }
     }
     if (lobbyCode && updatedLobby) {
-      io.to(`lobby_${lobbyCode}`).emit('lobbyUpdated', { lobby: updatedLobby });
+      realtime.to(`lobby_${lobbyCode}`).emit('lobbyUpdated', { lobby: updatedLobby });
     }
     console.log(`[LOBBY] Usuario ${userId} abandonó sala #${lobbyCode || ''} via API`);
   }
@@ -574,8 +588,12 @@ app.post('/api/lobby/leave', ownBody(), (req, res) => {
 // ---------------- SOCKET.IO REALTIME ----------------
 
 io.on('connection', (socket) => {
-  // Cancelar temporizador de gracia si el socket envía userId en handshake auth
-  const authUserId = socket.handshake.auth?.userId;
+  const onEvent = installSocketAccess(socket, matchmakingEngine);
+  const verifiedUser = db.getUser(socket.data.userId);
+  if (!verifiedUser) return socket.disconnect(true);
+  if (verifiedUser.role === 'admin') socket.join(ADMIN_ROOM);
+  // Reconexión asociada únicamente a la identidad autenticada
+  const authUserId = socket.data.userId;
   if (authUserId && disconnectGraceTimers.has(authUserId)) {
     clearTimeout(disconnectGraceTimers.get(authUserId));
     disconnectGraceTimers.delete(authUserId);
@@ -583,12 +601,13 @@ io.on('connection', (socket) => {
   }
 
   // Enviar lista actual de usuarios autenticados conectados
-  socket.emit('onlineUsersUpdate', {
+  realtime.send(socket, 'onlineUsersUpdate', {
     count: connectedUsers.size,
     users: Array.from(connectedUsers.values())
   });
 
-  socket.on('registerUser', ({ userId, user: clientUser }) => {
+  const registerUser = () => {
+    const userId = socket.data.userId;
     if (!userId) return;
 
     // 0. Cancelar temporizador de gracia si este usuario estaba en desconexión temporal
@@ -600,16 +619,20 @@ io.on('connection', (socket) => {
 
     // 1. Exclusividad de sesión: Si ya existía una sesión en otro dispositivo/pestaña, notificar al socket viejo
     const oldSocketId = userSocketMap.get(userId);
+    userSocketMap.set(userId, socket.id);
     if (oldSocketId && oldSocketId !== socket.id) {
-      io.to(oldSocketId).emit('session_replaced', {
-        message: 'Has iniciado sesión en otro dispositivo. La sesión actual se ha transferido automáticamente.'
-      });
+      const oldSocket = io.sockets.sockets.get(oldSocketId);
+      if (oldSocket) {
+        realtime.send(oldSocket, 'session_replaced', { message: 'Tu conexión se trasladó a otro dispositivo' });
+        oldSocket.data.superseded = true;
+        oldSocket.disconnect(true);
+      }
     }
 
     userSocketMap.set(userId, socket.id);
     socket.userId = userId;
 
-    const u = clientUser || db.getUser(userId);
+    const u = db.getUser(userId);
     connectedUsers.set(userId, {
       userId,
       socketId: socket.id,
@@ -633,7 +656,7 @@ io.on('connection', (socket) => {
         entry.status = 'searching';
         entry.details = `Buscando ${activeChallenge.sportId} ${activeChallenge.formatId} (${activeChallenge.radiusKm}km)`;
       }
-      socket.emit('queueStatus', {
+      realtime.send(socket, 'queueStatus', {
         isSearching: true,
         challenge: activeChallenge
       });
@@ -650,7 +673,7 @@ io.on('connection', (socket) => {
         entry.status = 'in_chat';
         entry.details = `En sala de convocatoria #${activeLobby.code}`;
       }
-      socket.emit('lobbyRestored', { lobby: activeLobby });
+      realtime.send(socket, 'lobbyRestored', { lobby: activeLobby });
       broadcastOnlineUsers();
     }
 
@@ -663,15 +686,16 @@ io.on('connection', (socket) => {
         entry.status = activeMatch.status === 'in_progress' ? 'in_game' : 'in_chat';
         entry.details = activeMatch.status === 'in_progress' ? 'En cancha jugando' : 'Coordinando en sala privada';
       }
-      socket.emit('activeMatch', { match: activeMatch, autoReconnected: true });
+      realtime.send(socket, 'activeMatch', { match: activeMatch, autoReconnected: true });
       broadcastOnlineUsers();
     }
 
     // 5. Verificar si tiene una fase de confirmación pendiente (Aceptación estilo Dota 2)
     const pending = matchmakingEngine.getPendingMatchForUser(userId);
     if (pending) {
+      for (const player of [...pending.teamA, ...pending.teamB]) if ((player.userId || player.id) === userId) player.socketId = socket.id;
       const remainingSec = Math.max(1, Math.floor((pending.createdAt + 20000 - Date.now()) / 1000));
-      socket.emit('matchPromptAcceptance', {
+      realtime.send(socket, 'matchPromptAcceptance', {
         pendingMatchId: pending.pendingMatchId,
         sportId: pending.sportId,
         formatId: pending.formatId,
@@ -682,20 +706,10 @@ io.on('connection', (socket) => {
         expiresInSeconds: remainingSec
       });
     }
-  });
+  };
+  onEvent('registerUser', registerUser);
 
-  socket.on('unregisterUser', () => {
-    if (socket.userId) {
-      if (disconnectGraceTimers.has(socket.userId)) {
-        clearTimeout(disconnectGraceTimers.get(socket.userId));
-        disconnectGraceTimers.delete(socket.userId);
-      }
-      userSocketMap.delete(socket.userId);
-      connectedUsers.delete(socket.userId);
-      socket.userId = null;
-      broadcastOnlineUsers();
-    }
-  });
+  onEvent('unregisterUser', () => socket.disconnect(true));
 
   // Iniciar búsqueda de Desafío (cola de matchmaking con radio geoespacial)
   const handleStartQueue = ({ userId, sportId, formatId, mode = 'solo', lat, lng, radiusKm, district }) => {
@@ -705,7 +719,7 @@ io.on('connection', (socket) => {
     const cleaned = db.cleanUserFromAllLobbies(userId);
     for (const c of cleaned) {
       if (c.updatedLobby) {
-        io.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
+        realtime.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
       }
     }
 
@@ -738,7 +752,7 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
-    socket.emit('queueStarted', {
+    realtime.send(socket, 'queueStarted', {
       isSearching: true,
       challenge
     });
@@ -746,8 +760,8 @@ io.on('connection', (socket) => {
     matchmakingEngine.processQueue();
   };
 
-  socket.on('startQueue', handleStartQueue);
-  socket.on('startSearch', handleStartQueue);
+  onEvent('startQueue', handleStartQueue);
+  onEvent('startSearch', handleStartQueue);
 
   const handleCancelQueue = ({ userId }) => {
     const removed = db.removeChallengeByUserId(userId);
@@ -764,11 +778,11 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
-    socket.emit('queueCancelled', { isSearching: false });
+    realtime.send(socket, 'queueCancelled', { isSearching: false });
   };
 
-  socket.on('cancelQueue', handleCancelQueue);
-  socket.on('cancelSearch', handleCancelQueue);
+  onEvent('cancelQueue', handleCancelQueue);
+  onEvent('cancelSearch', handleCancelQueue);
 
   // ==========================================
   // EVENTOS DE SALAS DE CONVOCATORIA (LOBBY)
@@ -776,11 +790,11 @@ io.on('connection', (socket) => {
   const broadcastLobbiesUpdate = (specificLobby = null) => {
     try {
       const allActive = db.getAllActiveLobbies();
-      io.emit('lobbyListUpdated', { lobbies: allActive });
+      realtime.emit('lobbyListUpdated', { lobbies: allActive });
 
       if (specificLobby && specificLobby.status === 'FALTA_1') {
         const districtName = specificLobby.district || specificLobby.venue_district || 'Lima';
-        io.emit('lobbyNeedsOne', {
+        realtime.emit('lobbyNeedsOne', {
           lobbyCode: specificLobby.code,
           lobby: specificLobby,
           district: districtName,
@@ -792,7 +806,7 @@ io.on('connection', (socket) => {
     }
   };
 
-  socket.on('createLobby', ({ hostUser, sportId, formatId }) => {
+  onEvent('createLobby', ({ hostUser, sportId, formatId }) => {
     if (!hostUser) return;
 
     // Desalojar de cualquier cola de radar o salas previas
@@ -800,13 +814,13 @@ io.on('connection', (socket) => {
     const cleaned = db.cleanUserFromAllLobbies(hostUser.id);
     for (const c of cleaned) {
       if (c.updatedLobby) {
-        io.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
+        realtime.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
       }
     }
 
     const res = db.createLobby({ hostUser, sportId, formatId });
     if (res.error) {
-      socket.emit('lobbyError', { message: res.error });
+      realtime.send(socket, 'lobbyError', { message: res.error });
       return;
     }
     const lobby = res;
@@ -820,13 +834,13 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
-    socket.emit('lobbyCreated', { lobby });
-    io.to(`lobby_${lobby.code}`).emit('lobbyUpdated', { lobby });
+    realtime.send(socket, 'lobbyCreated', { lobby });
+    realtime.to(`lobby_${lobby.code}`).emit('lobbyUpdated', { lobby });
     broadcastLobbiesUpdate(lobby);
     console.log(`[LOBBY] Sala ${lobby.code} creada por ${hostUser.name} (${lobby.sportId} ${lobby.formatId})`);
   });
 
-  socket.on('joinLobby', ({ code, user, targetTeam }) => {
+  onEvent('joinLobby', ({ code, user, targetTeam }) => {
     if (!code || !user) return;
 
     // Desalojar de cualquier cola de radar o salas previas
@@ -834,13 +848,13 @@ io.on('connection', (socket) => {
     const cleaned = db.cleanUserFromAllLobbies(user.id);
     for (const c of cleaned) {
       if (c.code !== code && c.updatedLobby) {
-        io.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
+        realtime.to(`lobby_${c.code}`).emit('lobbyUpdated', { lobby: c.updatedLobby });
       }
     }
 
     const res = db.joinLobby(code, user, targetTeam);
     if (res.error) {
-      socket.emit('lobbyError', { message: res.error });
+      realtime.send(socket, 'lobbyError', { message: res.error });
       return;
     }
     socket.join(`lobby_${res.lobby.code}`);
@@ -853,13 +867,13 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
-    socket.emit('lobbyUpdated', { lobby: res.lobby });
-    io.to(`lobby_${res.lobby.code}`).emit('lobbyUpdated', { lobby: res.lobby });
+    realtime.send(socket, 'lobbyUpdated', { lobby: res.lobby });
+    realtime.to(`lobby_${res.lobby.code}`).emit('lobbyUpdated', { lobby: res.lobby });
     broadcastLobbiesUpdate(res.lobby);
     console.log(`[LOBBY] ${user.name} se unió a sala ${res.lobby.code}`);
   });
 
-  socket.on('leaveLobby', ({ code, userId }) => {
+  onEvent('leaveLobby', ({ code, userId }) => {
     if (!userId) return;
     const lobbyCode = code || socket.lobbyCode;
     let lobby = null;
@@ -867,7 +881,7 @@ io.on('connection', (socket) => {
       lobby = db.leaveLobby(lobbyCode, userId);
       socket.leave(`lobby_${lobbyCode}`);
       if (lobby) {
-        io.to(`lobby_${lobbyCode}`).emit('lobbyUpdated', { lobby });
+        realtime.to(`lobby_${lobbyCode}`).emit('lobbyUpdated', { lobby });
       }
     } else {
       const res = db.leaveAllLobbiesForUser(userId);
@@ -875,7 +889,7 @@ io.on('connection', (socket) => {
         lobby = res.updatedLobby;
         socket.leave(`lobby_${res.lobbyCode}`);
         if (lobby) {
-          io.to(`lobby_${res.lobbyCode}`).emit('lobbyUpdated', { lobby });
+          realtime.to(`lobby_${res.lobbyCode}`).emit('lobbyUpdated', { lobby });
         }
       }
     }
@@ -891,11 +905,11 @@ io.on('connection', (socket) => {
     console.log(`[LOBBY] Jugador ${userId} salió de sala ${lobbyCode || ''}`);
   });
 
-  socket.on('toggleLobbyReady', ({ code, userId }) => {
+  onEvent('toggleLobbyReady', ({ code, userId }) => {
     if (!code || !userId) return;
     const lobby = db.toggleLobbyReady(code, userId);
     if (lobby) {
-      io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      realtime.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
       broadcastLobbiesUpdate(lobby);
     }
   });
@@ -905,27 +919,27 @@ io.on('connection', (socket) => {
   // ==========================================
 
   // Obtener listado actual de salas que buscan suplentes
-  socket.on('getReplacementLobbies', ({ sportId, district } = {}) => {
+  onEvent('getReplacementLobbies', ({ sportId, district } = {}) => {
     const list = db.getReplacementMarketLobbies({ sportId, district });
-    socket.emit('replacementLobbiesList', { lobbies: list });
+    realtime.send(socket, 'replacementLobbiesList', { lobbies: list });
   });
 
   // Cancelar asistencia (liberar cupo a la bolsa de suplentes)
-  socket.on('cancelAttendance', ({ code, matchId, userId, reason = 'No podré asistir' }) => {
+  onEvent('cancelAttendance', ({ code, matchId, userId, reason = 'No podré asistir' }) => {
     if (!userId) return;
     let result = null;
 
     if (code) {
       result = db.markPlayerCancelledInLobby(code, userId, reason);
       if (result && result.lobby) {
-        io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby: result.lobby });
+        realtime.to(`lobby_${code}`).emit('lobbyUpdated', { lobby: result.lobby });
         socket.leave(`lobby_${code}`);
         socket.lobbyCode = null;
       }
     } else if (matchId) {
       result = db.markPlayerCancelledInMatch(matchId, userId, reason);
       if (result && result.lobby) {
-        io.to(matchId).emit('matchCancelledAndConverted', {
+        realtime.to(matchId).emit('matchCancelledAndConverted', {
           matchId,
           lobby: result.lobby,
           message: 'Un jugador canceló su asistencia. El partido se convirtió en Sala de Convocatoria para encontrar suplente.'
@@ -942,22 +956,22 @@ io.on('connection', (socket) => {
     }
 
     const updatedList = db.getReplacementMarketLobbies();
-    io.emit('replacementMarketUpdated', { lobbies: updatedList });
+    realtime.emit('replacementMarketUpdated', { lobbies: updatedList });
     if (result && result.lobby) {
       broadcastLobbiesUpdate(result.lobby);
     } else {
       broadcastLobbiesUpdate();
     }
-    socket.emit('attendanceCancelledSuccess', { ok: true });
+    realtime.send(socket, 'attendanceCancelledSuccess', { ok: true });
     console.log(`[SUPLENTES] Jugador ${userId} canceló asistencia ("${reason}").`);
   });
 
   // Unirse a una sala desde la Bolsa de Suplentes
-  socket.on('joinReplacementSlot', ({ code, user, targetTeam }) => {
+  onEvent('joinReplacementSlot', ({ code, user, targetTeam }) => {
     if (!code || !user) return;
     const result = db.joinReplacementSlot(code, user, targetTeam);
     if (result.error) {
-      socket.emit('lobbyError', { message: result.error });
+      realtime.send(socket, 'lobbyError', { message: result.error });
       return;
     }
 
@@ -971,134 +985,51 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
 
-    socket.emit('lobbyUpdated', { lobby: result.lobby });
-    io.to(`lobby_${result.lobby.code}`).emit('lobbyUpdated', { lobby: result.lobby });
+    realtime.send(socket, 'lobbyUpdated', { lobby: result.lobby });
+    realtime.to(`lobby_${result.lobby.code}`).emit('lobbyUpdated', { lobby: result.lobby });
 
     const updatedList = db.getReplacementMarketLobbies();
-    io.emit('replacementMarketUpdated', { lobbies: updatedList });
+    realtime.emit('replacementMarketUpdated', { lobbies: updatedList });
     broadcastLobbiesUpdate(result.lobby);
     console.log(`[SUPLENTES] ${user.name} se unió como suplente a #${result.lobby.code}`);
   });
 
-  socket.on('switchLobbyTeam', ({ code, userId, targetTeam }) => {
+  onEvent('switchLobbyTeam', ({ code, userId, targetTeam }) => {
     if (!code || !userId || !targetTeam) return;
     const lobby = db.switchLobbyTeam(code, userId, targetTeam);
     if (lobby) {
-      io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      realtime.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
       broadcastLobbiesUpdate(lobby);
     }
   });
 
-  socket.on('changeLobbyFormat', ({ code, formatId }) => {
+  onEvent('changeLobbyFormat', ({ code, formatId }) => {
     if (!code || !formatId) return;
     const lobby = db.changeLobbyFormat(code, formatId);
     if (lobby) {
-      io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
+      realtime.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
       broadcastLobbiesUpdate(lobby);
       console.log(`[SERVER] [LOBBY] Modalidad de sala ${code} cambiada a: ${formatId} (${lobby.formatName})`);
     }
   });
 
-  socket.on('sendLobbyChatMessage', ({ code, senderId, senderName, team, isPrivate, text }) => {
+  onEvent('sendLobbyChatMessage', ({ code, senderId, senderName, team, isPrivate, text }) => {
     if (!code || !text) return;
     const msg = db.addLobbyChatMessage(code, { senderId, senderName, team, isPrivate, text });
     if (msg) {
-      io.to(`lobby_${code}`).emit('newLobbyChatMessage', { code, message: msg });
+      db._persistLobby(db.getLobby(code));
+      realtime.to(`lobby_${code}`).emit('newLobbyChatMessage', { code, message: msg });
     }
   });
 
-  socket.on('fillLobbyDemos', ({ code }) => {
-    if (!code) return;
-    const lobby = db.fillLobbyDemos(code);
-    if (lobby) {
-      io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
-      broadcastLobbiesUpdate(lobby);
-    }
-  });
-
-  socket.on('searchLobbyOpponentOnline', ({ code }) => {
-    if (!code) return;
-    const lobby = db.getLobby(code);
-    if (!lobby) return;
-
-    // Verificar jugadores de Team A
-    const teamAPlayers = [...lobby.teamA];
-    if (teamAPlayers.length === 0) {
-      socket.emit('lobbyError', { message: 'Tu equipo debe tener al menos 1 jugador para buscar rivales.' });
-      return;
-    }
-
-    const sport = db.getSports().find(s => s.id === lobby.sportId);
-    const format = sport?.formats?.find(f => f.id === lobby.formatId);
-    const playersPerTeam = format ? format.playersPerTeam : lobby.playersPerTeam;
-
-    // Si a Team A le faltan jugadores para la modalidad, completamos compañeros
-    const demoCandidates = Array.from(db.users.values()).filter(u => u.id.startsWith('demo_user_'));
-    let demoIdx = 0;
-    const positions = ['POR', 'DEF', 'MED', 'DEL'];
-
-    while (teamAPlayers.length < playersPerTeam) {
-      const d = demoCandidates[demoIdx % demoCandidates.length];
-      demoIdx++;
-      const pProfile = db.getProfile(d.id, lobby.sportId, lobby.formatId);
-      teamAPlayers.push({
-        id: `${d.id}_teammate_${Date.now()}_${teamAPlayers.length}`,
-        userId: d.id,
-        name: `${d.name} (Compañero)`,
-        avatar: d.avatar,
-        district: d.district || 'Lima',
-        position: d.position || positions[teamAPlayers.length % positions.length],
-        rating: pProfile.rating || 1450,
-        rd: pProfile.rd || 300,
-        isDemo: true,
-        isReady: true
-      });
-    }
-
-    // Crear Equipo Rival B completo de la misma modalidad
-    const teamB = [];
-    while (teamB.length < playersPerTeam) {
-      const d = demoCandidates[demoIdx % demoCandidates.length];
-      demoIdx++;
-      const pProfile = db.getProfile(d.id, lobby.sportId, lobby.formatId);
-      teamB.push({
-        id: `${d.id}_rival_${Date.now()}_${teamB.length}`,
-        userId: d.id,
-        name: d.name,
-        avatar: d.avatar,
-        district: d.district || 'Lima',
-        position: d.position || positions[teamB.length % positions.length],
-        rating: pProfile.rating || 1450,
-        rd: pProfile.rd || 300,
-        isDemo: true,
-        isReady: true
-      });
-    }
-
-    lobby.teamA = teamAPlayers;
-    lobby.teamB = teamB;
-    db._updateLobbyStatus(lobby);
-    lobby.status = 'ready';
-    db.addLobbyChatMessage(code, {
-      senderId: 'system',
-      senderName: 'MatchSport Bot',
-      team: 'all',
-      isPrivate: false,
-      text: '🤖 Rivales completados para la sala. ¡Todos listos para comenzar!'
-    });
-
-    io.to(`lobby_${code}`).emit('lobbyUpdated', { lobby });
-    console.log(`[SERVER] [LOBBY] Bots asignados a la sala ${code}: ${lobby.teamA.length} vs ${lobby.teamB.length}`);
-  });
-
-  socket.on('startLobbyMatch', ({ code }) => {
+  onEvent('startLobbyMatch', ({ code }) => {
     if (!code) return;
     const lobby = db.getLobby(code);
     if (!lobby) return;
 
     const allReady = [...lobby.teamA, ...lobby.teamB].every(p => p.isReady);
     if (!allReady) {
-      socket.emit('lobbyError', { message: 'Todos los jugadores deben marcar "LISTO" antes de comenzar.' });
+      realtime.send(socket, 'lobbyError', { message: 'Todos los jugadores deben marcar "LISTO" antes de comenzar.' });
       return;
     }
 
@@ -1122,7 +1053,7 @@ io.on('connection', (socket) => {
             sock.join(match.id);
             sock.leave(`lobby_${code}`);
           }
-          io.to(entry.socketId).emit('matchFound', {
+          realtime.to(entry.socketId).emit('matchFound', {
             matchId: match.id,
             sportId: match.sportId,
             formatId: match.formatId,
@@ -1131,7 +1062,7 @@ io.on('connection', (socket) => {
         }
       }
 
-      io.to(`lobby_${code}`).emit('matchFound', {
+      realtime.to(`lobby_${code}`).emit('matchFound', {
         matchId: match.id,
         sportId: match.sportId,
         formatId: match.formatId,
@@ -1142,58 +1073,34 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('forceDemoMatch', ({ userId, sportId, formatId }) => {
-    matchmakingEngine.forceDemoMatch(userId, sportId, formatId, socket.id);
-  });
-
   // Confirmar Asistencia en Fase de Aceptación (Estilo Dota 2)
-  socket.on('acceptPendingMatch', ({ pendingMatchId, userId }) => {
+  onEvent('acceptPendingMatch', ({ pendingMatchId, userId }) => {
     if (!pendingMatchId || !userId) return;
     matchmakingEngine.handlePlayerAccept(pendingMatchId, userId);
   });
-  socket.on('acceptMatch', ({ pendingMatchId, userId }) => {
+  onEvent('acceptMatch', ({ pendingMatchId, userId }) => {
     if (!pendingMatchId || !userId) return;
     matchmakingEngine.handlePlayerAccept(pendingMatchId, userId);
   });
 
   // Rechazar Partida en Fase de Aceptación
-  socket.on('declinePendingMatch', ({ pendingMatchId, userId }) => {
+  onEvent('declinePendingMatch', ({ pendingMatchId, userId }) => {
     if (!pendingMatchId || !userId) return;
     matchmakingEngine.cancelPendingMatch(pendingMatchId, 'declined', userId);
   });
-  socket.on('declineMatch', ({ pendingMatchId, userId }) => {
+  onEvent('declineMatch', ({ pendingMatchId, userId }) => {
     if (!pendingMatchId || !userId) return;
     matchmakingEngine.cancelPendingMatch(pendingMatchId, 'declined', userId);
   });
 
   // Resolución de disputas por SuperAdmin vía Socket
-  socket.on('adminResolveDispute', ({ matchId, winnerTeam, adminUserId }) => {
-    const adminId = adminUserId || socket.userId || 'demo_user_admin';
-    io.emit('adminDisputeResolved', { matchId, winnerTeam, adminId });
-    // Disparar lógica de resolución
-    const match = db.getMatch(matchId);
-    if (match) {
-      match.status = 'finished';
-      match.resultFinal = winnerTeam;
-      match.disputeResolvedBy = adminId;
-      match.disputeAlert = null;
-      db._persistMatch(match);
-      io.to(matchId).emit('matchFinished', {
-        matchId,
-        winnerTeam,
-        match,
-        resolvedByAdmin: true
-      });
-      broadcastPeerReviewAssignments(match);
-    }
-  });
 
-  socket.on('startLobbyRadarSearch', ({ code }) => {
+  onEvent('startLobbyRadarSearch', ({ code }) => {
     if (!code) return;
     const lobby = db.getLobby(code);
     if (!lobby) return;
 
-    io.to(`lobby_${code}`).emit('lobbyStartedRadarSearch', {
+    realtime.to(`lobby_${code}`).emit('lobbyStartedRadarSearch', {
       squadMembers: lobby.teamA,
       sportId: lobby.sportId,
       formatId: lobby.formatId,
@@ -1203,16 +1110,16 @@ io.on('connection', (socket) => {
     console.log(`[LOBBY] Sala ${code} inició búsqueda en Radar con ${lobby.teamA.length} jugadores en squad`);
   });
 
-  socket.on('joinMatchRoom', ({ matchId }) => {
+  onEvent('joinMatchRoom', ({ matchId }) => {
     if (!matchId) return;
     socket.join(matchId);
     const match = db.getMatch(matchId);
     if (match) {
-      socket.emit('matchData', { match });
+      realtime.send(socket, 'matchData', { match });
     }
   });
 
-  socket.on('leaveMatch', ({ matchId, userId }) => {
+  onEvent('leaveMatch', ({ matchId, userId }) => {
     if (!matchId) return;
     const match = db.getMatch(matchId);
     if (!match) return;
@@ -1227,7 +1134,7 @@ io.on('connection', (socket) => {
     if (match.is1v1 || remainingHumans.length === 0) {
       db.cancelMatch(matchId, userId);
       console.log(`[MATCH] Partido ${matchId} cancelado por ${leavingName} (${userId})`);
-      io.to(matchId).emit('matchCancelled', {
+      realtime.to(matchId).emit('matchCancelled', {
         matchId,
         cancelledByUserId: userId,
         cancelledByUserName: leavingName,
@@ -1259,11 +1166,11 @@ io.on('connection', (socket) => {
       });
 
       if (sysMsg) {
-        io.to(matchId).emit('newChatMessage', { matchId, message: sysMsg });
+        realtime.to(matchId).emit('newChatMessage', { matchId, message: sysMsg });
       }
 
       // Notificar evento de jugador retirado
-      io.to(matchId).emit('matchPlayerLeft', {
+      realtime.to(matchId).emit('matchPlayerLeft', {
         matchId,
         leftUserId: userId,
         leftUserName: removedPlayer?.name || leavingName,
@@ -1281,11 +1188,11 @@ io.on('connection', (socket) => {
   });
 
   // Convertir Partido Incompleto a Sala de Convocatoria (Lobby) para Invitar Amigos por Link o Reclutar
-  socket.on('convertMatchToLobby', ({ matchId, userId }) => {
+  onEvent('convertMatchToLobby', ({ matchId, userId }) => {
     if (!matchId) return;
     const res = db.convertMatchToLobby(matchId, userId);
     if (res.error) {
-      socket.emit('lobbyError', { message: res.error });
+      realtime.send(socket, 'lobbyError', { message: res.error });
       return;
     }
 
@@ -1303,11 +1210,11 @@ io.on('connection', (socket) => {
           pSocket.join(`lobby_${lobby.code}`);
           pSocket.lobbyCode = lobby.code;
         }
-        io.to(entry.socketId).emit('lobbyCreated', { lobby });
+        realtime.to(entry.socketId).emit('lobbyCreated', { lobby });
       }
     }
 
-    io.to(matchId).emit('matchCancelled', {
+    realtime.to(matchId).emit('matchCancelled', {
       matchId,
       convertedToLobby: true,
       lobbyCode: lobby.code,
@@ -1317,36 +1224,23 @@ io.on('connection', (socket) => {
     console.log(`[LOBBY] Partido ${matchId} convertido a Sala de Convocatoria #${lobby.code} por ${lobby.hostName}`);
   });
 
-  socket.on('sendChatMessage', ({ matchId, senderId, senderName, text }) => {
-    if (!matchId || !text) return;
-    socket.join(matchId);
-    const msg = db.addChatMessage(matchId, { senderId, senderName, text });
-    if (msg) {
-      const match = db.getMatch(matchId);
-      io.to(matchId).emit('newChatMessage', { matchId, message: msg });
-
-      // Garantizar que todos los jugadores humanos en línea reciban el mensaje y se unan al canal
-      if (match) {
-        for (const p of [...match.teamA, ...match.teamB]) {
-          const pId = p.userId || p.id;
-          const entry = connectedUsers.get(pId);
-          if (entry && entry.socketId) {
-            const sock = io.sockets.sockets.get(entry.socketId);
-            if (sock) {
-              sock.join(matchId);
-            }
-            io.to(entry.socketId).emit('newChatMessage', { matchId, message: msg });
-          }
-        }
-      }
+  onEvent('sendChatMessage', ({ matchId, senderId, senderName, text }) => {
+    const match = db.getMatch(matchId);
+    const message = db.addChatMessage(matchId, { senderId, senderName, text });
+    if (!message) return;
+    for (const player of [...match.teamA, ...match.teamB]) {
+      const target = io.sockets.sockets.get(userSocketMap.get(player.userId || player.id));
+      if (target) target.join(matchId);
     }
+    db._persistMatch(match);
+    realtime.to(matchId).emit('newChatMessage', { matchId, message });
   });
 
   // ▶ Iniciar Temporizador de Cancha en Vivo (30m, 45m, 60m, 90m)
-  socket.on('startMatchTimer', ({ matchId, durationMinutes }) => {
+  onEvent('startMatchTimer', ({ matchId, durationMinutes }) => {
     const timer = db.startMatchTimer(matchId, durationMinutes);
     if (timer) {
-      io.to(matchId).emit('matchTimerStarted', {
+      realtime.to(matchId).emit('matchTimerStarted', {
         matchId,
         timer
       });
@@ -1354,7 +1248,7 @@ io.on('connection', (socket) => {
   });
 
   // Reporte Oficial de Partido 1v1 por Reportero Designado (+35 pts al ganador)
-  socket.on('reportResultByReporter', ({ matchId, reporterUserId, winnerTeam }) => {
+  onEvent('reportResultByReporter', ({ matchId, reporterUserId, winnerTeam }) => {
     const match = db.getMatch(matchId);
     if (!match || match.status === 'finished') return;
 
@@ -1428,8 +1322,8 @@ io.on('connection', (socket) => {
       };
     }
 
-    io.to(matchId).emit('matchTimerStopped', { matchId });
-    io.to(matchId).emit('matchFinished', {
+    realtime.to(matchId).emit('matchTimerStopped', { matchId });
+    realtime.to(matchId).emit('matchFinished', {
       matchId,
       winnerTeam,
       ratingUpdates,
@@ -1441,8 +1335,8 @@ io.on('connection', (socket) => {
       const pId = p.userId || p.id;
       const entry = connectedUsers.get(pId);
       if (entry && entry.socketId) {
-        io.to(entry.socketId).emit('matchTimerStopped', { matchId });
-        io.to(entry.socketId).emit('matchFinished', {
+        realtime.to(entry.socketId).emit('matchTimerStopped', { matchId });
+        realtime.to(entry.socketId).emit('matchFinished', {
           matchId,
           winnerTeam,
           ratingUpdates,
@@ -1455,7 +1349,7 @@ io.on('connection', (socket) => {
   });
 
   // Reporte estándar multi-jugador (>1v1) o consenso
-  socket.on('reportResult', ({ matchId, userId, winnerTeam }) => {
+  onEvent('reportResult', ({ matchId, userId, winnerTeam }) => {
     const match = db.getMatch(matchId);
     if (!match || match.status === 'finished') return;
 
@@ -1521,8 +1415,8 @@ io.on('connection', (socket) => {
         };
       }
 
-      io.to(matchId).emit('matchTimerStopped', { matchId });
-      io.to(matchId).emit('matchFinished', {
+      realtime.to(matchId).emit('matchTimerStopped', { matchId });
+      realtime.to(matchId).emit('matchFinished', {
         matchId,
         winnerTeam,
         ratingUpdates,
@@ -1533,8 +1427,8 @@ io.on('connection', (socket) => {
         const pId = p.userId || p.id;
         const entry = connectedUsers.get(pId);
         if (entry && entry.socketId) {
-          io.to(entry.socketId).emit('matchTimerStopped', { matchId });
-          io.to(entry.socketId).emit('matchFinished', {
+          realtime.to(entry.socketId).emit('matchTimerStopped', { matchId });
+          realtime.to(entry.socketId).emit('matchFinished', {
             matchId,
             winnerTeam,
             ratingUpdates,
@@ -1548,18 +1442,14 @@ io.on('connection', (socket) => {
 
     match.resultReports[userId] = { winnerTeam, timestamp: Date.now() };
     const isAgainstDemo = match.teamB.some(p => p.isDemo);
-    const isAdmin = userId === 'demo_user_admin' || String(userId).includes('admin') || db.getUser(userId)?.role === 'admin';
 
     let isResolved = false;
     let finalWinner = null;
 
-    if (isAdmin || isAgainstDemo) {
+    if (isAgainstDemo) {
       isResolved = true;
       finalWinner = winnerTeam;
-      if (isAdmin) {
-        match.disputeResolvedBy = userId;
-        match.disputeAlert = null;
-      }
+
     } else {
       const reports = Object.values(match.resultReports);
       if (reports.length >= 2) {
@@ -1569,14 +1459,16 @@ io.on('connection', (socket) => {
           finalWinner = reports[0].winnerTeam;
         } else {
           match.status = 'disputed';
-          io.to(matchId).emit('matchDisputed', {
+          db._persistMatch(match);
+          realtime.to(ADMIN_ROOM).emit('matchDisputed', { matchId });
+          realtime.to(matchId).emit('matchDisputed', {
             matchId,
             message: 'Hubo una discrepancia en el resultado reportado. Notificación enviada al Administrador.'
           });
           return;
         }
       } else {
-        io.to(matchId).emit('reportWaiting', {
+        realtime.to(matchId).emit('reportWaiting', {
           matchId,
           reportedBy: userId,
           message: 'Resultado enviado. Esperando confirmación del rival...'
@@ -1649,8 +1541,8 @@ io.on('connection', (socket) => {
         };
       }
 
-      io.to(matchId).emit('matchTimerStopped', { matchId });
-      io.to(matchId).emit('matchFinished', {
+      realtime.to(matchId).emit('matchTimerStopped', { matchId });
+      realtime.to(matchId).emit('matchFinished', {
         matchId,
         winnerTeam: finalWinner,
         ratingUpdates,
@@ -1661,8 +1553,8 @@ io.on('connection', (socket) => {
         const pId = p.userId || p.id;
         const entry = connectedUsers.get(pId);
         if (entry && entry.socketId) {
-          io.to(entry.socketId).emit('matchTimerStopped', { matchId });
-          io.to(entry.socketId).emit('matchFinished', {
+          realtime.to(entry.socketId).emit('matchTimerStopped', { matchId });
+          realtime.to(entry.socketId).emit('matchFinished', {
             matchId,
             winnerTeam: finalWinner,
             ratingUpdates,
@@ -1675,54 +1567,23 @@ io.on('connection', (socket) => {
   });
 
   // Calificación de Atributos FUT entre rivales en 1v1
-  socket.on('submitFutRatings', ({ matchId, fromUserId, toUserId, rit, tir, pas, reg, def, fis, giveLike }) => {
-    const updatedStats = db.updateUserFutStats(toUserId, { rit, tir, pas, reg, def, fis });
-    const fromUser = db.getUser(fromUserId);
-    const targetUser = db.getUser(toUserId);
-    if (targetUser && giveLike) {
-      targetUser.likesCount = (targetUser.likesCount || 0) + 1;
-    }
-    io.to(matchId).emit('futStatsUpdated', {
-      toUserId,
-      futStats: updatedStats,
-      likesCount: targetUser?.likesCount || 0
-    });
-
-    // Notificación en tiempo real de Like al rival
-    if (giveLike) {
-      const likePayload = {
-        toUserId,
-        fromUserName: fromUser?.name || 'Tu rival',
-        fromUserAvatar: fromUser?.avatar || '',
-        message: `¡${fromUser?.name || 'Tu rival'} te ha dejado un Like deportivo por tu juego limpio y respeto en cancha! 👍`,
-        likesCount: targetUser?.likesCount || 1
-      };
-      io.to(matchId).emit('playerReceivedLike', likePayload);
-      const targetSocketId = userSocketMap.get(toUserId);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('playerReceivedLike', likePayload);
-      }
-    }
-
-    socket.emit('futRatingsSaved', { success: true, futStats: updatedStats });
-  });
 
   // Voto de 1-toque en Peer-Review Circular post-partido (+2 al atributo)
-  socket.on('submitPeerReviewOneTap', ({ matchId, evaluatorId, attributeTag }, callback) => {
+  onEvent('submitPeerReviewOneTap', ({ matchId, evaluatorId, attributeTag }, callback) => {
     const result = db.submitPeerReview(matchId, evaluatorId, attributeTag);
     if (result.error) {
       if (typeof callback === 'function') callback({ success: false, error: result.error });
-      socket.emit('peerReviewError', { error: result.error });
+      realtime.send(socket, 'peerReviewError', { error: result.error });
       return;
     }
 
     if (typeof callback === 'function') callback({ success: true, ...result });
-    socket.emit('peerReviewSubmitted', { matchId, ...result });
+    realtime.send(socket, 'peerReviewSubmitted', { matchId, ...result });
 
     // Notificar al evaluado si está conectado sobre la actualización de su carta
     const targetSocketId = userSocketMap.get(result.targetUserId);
     if (targetSocketId) {
-      io.to(targetSocketId).emit('peerReviewReceived', {
+      realtime.to(targetSocketId).emit('peerReviewReceived', {
         matchId,
         statUpdated: result.statKey,
         newValue: result.newValue,
@@ -1732,18 +1593,20 @@ io.on('connection', (socket) => {
   });
 
   // Reseña general para partidos de equipos (>1v1)
-  socket.on('submitReview', ({ matchId, fromUserId, toUserId, punctuality, respect, realLevelScore, comment }) => {
+  onEvent('submitReview', ({ matchId, fromUserId, toUserId, punctuality, respect, realLevelScore, comment }) => {
     const review = db.addReview({ matchId, fromUserId, toUserId, punctuality, respect, realLevelScore, comment });
-    socket.emit('reviewSubmitted', { review });
+    realtime.send(socket, 'reviewSubmitted', { review });
   });
 
   // Disputa de resultado por el rival si el reportero no marcó lo acordado
-  socket.on('disputeMatch', ({ matchId, userId, reason }) => {
+  onEvent('disputeMatch', ({ matchId, userId, reason }) => {
     const match = db.getMatch(matchId);
     if (match) {
       match.status = 'disputed';
       match.disputeAlert = { reportedBy: userId, reason, timestamp: Date.now() };
-      io.to(matchId).emit('matchDisputed', {
+      db._persistMatch(match);
+      realtime.to(ADMIN_ROOM).emit('matchDisputed', { matchId });
+      realtime.to(matchId).emit('matchDisputed', {
         matchId,
         message: 'Has abierto una disputa formal. Se ha notificado al Administrador para revisión.'
       });
@@ -1755,6 +1618,18 @@ io.on('connection', (socket) => {
     connectedUsers.delete(socket.id);
 
     const userId = socket.userId;
+    if (userId && socket.data.invalidating) {
+      if (disconnectGraceTimers.has(userId)) clearTimeout(disconnectGraceTimers.get(userId));
+      disconnectGraceTimers.delete(userId);
+      if (userSocketMap.get(userId) === socket.id) {
+        userSocketMap.delete(userId); connectedUsers.delete(userId);
+        db.removeChallengeByUserId(userId);
+        const pending = matchmakingEngine.getPendingMatchForUser(userId);
+        if (pending) matchmakingEngine.cancelPendingMatch(pending.pendingMatchId, 'session_revoked', userId);
+        broadcastOnlineUsers();
+      }
+      return;
+    }
     if (userId) {
       // Solo actuar si este socket era el socket activo registrado para el usuario
       if (userSocketMap.get(userId) === socket.id) {
@@ -1789,7 +1664,7 @@ io.on('connection', (socket) => {
               console.log(`[LOBBY] Jugador ${userId} desconectado definitivamente. Abandonando sala #${activeLobby.code}...`);
               const updatedLobby = db.leaveLobby(activeLobby.code, userId);
               if (updatedLobby) {
-                io.to(`lobby_${activeLobby.code}`).emit('lobbyUpdated', { lobby: updatedLobby });
+                realtime.to(`lobby_${activeLobby.code}`).emit('lobbyUpdated', { lobby: updatedLobby });
               }
             }
 
@@ -1810,6 +1685,7 @@ io.on('connection', (socket) => {
       broadcastOnlineUsers();
     }
   });
+  registerUser();
 });
 
 // Middleware global para captura de excepciones y errores HTTP

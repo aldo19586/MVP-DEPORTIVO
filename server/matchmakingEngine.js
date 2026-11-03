@@ -1,5 +1,6 @@
 import { db } from './db.js';
 import { logger } from './logger.js';
+import { authenticate } from './auth.js';
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0; // Si no hay coordenadas explícitas, compatible por defecto
@@ -15,8 +16,9 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
 }
 
 export class MatchmakingEngine {
-  constructor(io, connectedUsers = null, broadcastOnlineUsers = null) {
+  constructor(io, realtime, connectedUsers = null, broadcastOnlineUsers = null) {
     this.io = io;
+    this.realtime = realtime;
     this.connectedUsers = connectedUsers;
     this.broadcastOnlineUsers = broadcastOnlineUsers;
     this.checkInterval = null;
@@ -51,7 +53,10 @@ export class MatchmakingEngine {
    * Procesa la cola agrupando por Deporte y Formato
    */
   processQueue() {
-    const queue = [...db.challenges];
+    const queue = db.challenges.filter(ticket => {
+      const socket = this.io.sockets.sockets.get(ticket.socketId);
+      return socket && authenticate(socket.data.token)?.id === ticket.userId;
+    });
     if (queue.length === 0) return;
 
     // Agrupar por sportId y formatId
@@ -237,7 +242,7 @@ export class MatchmakingEngine {
 
     for (const player of allPlayers) {
       if (player.socketId) {
-        this.io.to(player.socketId).emit('matchPromptAcceptance', promptPayload);
+        this.realtime.to(player.socketId).emit('matchPromptAcceptance', promptPayload);
       }
     }
 
@@ -260,6 +265,7 @@ export class MatchmakingEngine {
     const pending = this.pendingMatches.get(pendingMatchId);
     if (!pending) return;
 
+    if (![...pending.teamA, ...pending.teamB].some(p => (p.userId || p.id) === userId)) return;
     pending.acceptedUserIds.add(userId);
     const acceptedList = Array.from(pending.acceptedUserIds);
 
@@ -270,13 +276,13 @@ export class MatchmakingEngine {
     const allPlayers = [...pending.teamA, ...pending.teamB];
     for (const p of allPlayers) {
       if (p.socketId) {
-        this.io.to(p.socketId).emit('pendingMatchUpdated', {
+        this.realtime.to(p.socketId).emit('pendingMatchUpdated', {
           pendingMatchId,
           acceptedUserIds: acceptedList,
           acceptedCount: acceptedList.length,
           totalPlayers: pending.totalPlayers
         });
-        this.io.to(p.socketId).emit('matchPromptUpdated', {
+        this.realtime.to(p.socketId).emit('matchPromptUpdated', {
           pendingMatchId,
           acceptedUserIds: acceptedList,
           acceptedCount: acceptedList.length,
@@ -287,6 +293,15 @@ export class MatchmakingEngine {
 
     // Si TODOS los jugadores confirmaron (ej. 10/10 en 5v5 o 2/2 en 1v1)
     if (pending.acceptedUserIds.size >= pending.totalPlayers) {
+      const unavailable = allPlayers.some(player => {
+        if (player.isDemo) return false;
+        const socket = this.io.sockets.sockets.get(player.socketId);
+        return !socket || authenticate(socket.data.token)?.id !== (player.userId || player.id);
+      });
+      if (unavailable) {
+        this.cancelPendingMatch(pendingMatchId, 'session_unavailable');
+        return;
+      }
       clearTimeout(pending.timeoutTimer);
       this.pendingMatches.delete(pendingMatchId);
 
@@ -311,7 +326,7 @@ export class MatchmakingEngine {
           if (sock) {
             sock.join(match.id);
           }
-          this.io.to(player.socketId).emit('matchFound', {
+          this.realtime.to(player.socketId).emit('matchFound', {
             matchId: match.id,
             sportId: match.sportId,
             formatId: match.formatId,
@@ -320,7 +335,7 @@ export class MatchmakingEngine {
         }
       }
 
-      this.io.to(match.id).emit('matchFound', {
+      this.realtime.to(match.id).emit('matchFound', {
         matchId: match.id,
         sportId: match.sportId,
         formatId: match.formatId,
@@ -356,7 +371,7 @@ export class MatchmakingEngine {
         }
       }
       if (p.socketId) {
-        this.io.to(p.socketId).emit('matchAcceptanceFailed', {
+        this.realtime.to(p.socketId).emit('matchAcceptanceFailed', {
           pendingMatchId,
           reason,
           declinedUserId,

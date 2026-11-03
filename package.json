@@ -8,7 +8,7 @@
     "apps/*"
   ],
   "scripts": {
-    "test:server": "node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js",
+    "test:server": "node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js",
     "dev:server": "node --watch server/server.js",
     "dev:admin": "npm --workspace=@matchsport/admin-web run dev",
     "build:admin": "npm --workspace=@matchsport/admin-web run build",

@@ -1,5 +1,9 @@
 import { io } from 'socket.io-client';
 import { SOCKET_URL } from '../config';
+import { Alert } from 'react-native';
+import { storage } from './storage';
+import { invalidateSession, endSessionView } from './api';
+import { bindSocketSession } from '../../../../shared/socketSession.mjs';
 
 class SocketService {
   constructor() {
@@ -8,7 +12,7 @@ class SocketService {
   }
 
   connect(userId, user) {
-    if (this.socket && this.socket.connected) {
+    if (this.socket) {
       if (this.userId === userId) {
         return this.socket;
       }
@@ -18,22 +22,21 @@ class SocketService {
     this.userId = userId;
 
     this.socket = io(SOCKET_URL, {
+      autoConnect: false,
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
-      auth: {
-        userId
-      }
+      timeout: 10000
+    });
+    this.cleanupSession = bindSocketSession(this.socket, {
+      getToken: storage.getToken, invalidate: invalidateSession, onReplaced: endSessionView,
+      onError: error => Alert.alert('No se pudo completar la acción', error.message),
     });
 
     this.socket.on('connect', () => {
       console.log('[SOCKET MOBILE] 🟢 Conectado con id:', this.socket.id);
-      if (userId) {
-        this.socket.emit('registerUser', { userId, user });
-      }
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -44,6 +47,7 @@ class SocketService {
       console.warn('[SOCKET MOBILE] ⚠️ Error de conexión:', error.message);
     });
 
+    this.socket.connect();
     return this.socket;
   }
 
@@ -53,9 +57,8 @@ class SocketService {
 
   disconnect() {
     if (this.socket) {
-      if (this.userId) {
-        this.socket.emit('unregisterUser');
-      }
+      this.cleanupSession?.();
+      this.cleanupSession = null;
       this.socket.disconnect();
       this.socket = null;
       this.userId = null;

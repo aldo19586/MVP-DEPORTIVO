@@ -3,6 +3,10 @@ import { storage } from './storage';
 import { createHttpClient } from '../../../../shared/httpClient.mjs';
 
 const listeners = new Set();
+export function endSessionView() { for (const listener of listeners) listener(); }
+export async function invalidateSession(token) {
+  if (await storage.clearUserSession(token)) endSessionView();
+}
 export function onSessionExpired(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -10,9 +14,7 @@ export function onSessionExpired(listener) {
 const request = createHttpClient({
   baseUrl: API_BASE_URL,
   getToken: storage.getToken,
-  invalidate: async token => {
-    if (await storage.clearUserSession(token)) for (const listener of listeners) listener();
-  },
+  invalidate: invalidateSession,
 });
 const post = (path, body, publicAccess = false) => request(path, { method: 'POST', body, publicAccess });
 const id = encodeURIComponent;

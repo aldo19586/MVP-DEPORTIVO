@@ -67,7 +67,7 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
 
     const socket = socketService.getSocket();
     if (socket && user) {
-      socket.emit('joinReplacementLobby', { code: item.code, user });
+      socket.emit('joinReplacementSlot', { code: item.code, user });
     }
 
     Alert.alert(

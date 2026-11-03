@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
+import { sessionEvents } from './sessionEvents.js';
 import { runtimeConfig } from './config.js';
 import { hashPassword, isPasswordHash, matchesPassword } from './credentials.js';
 import { getInitialGlicko } from './glicko2.js';
@@ -1136,6 +1137,7 @@ class Database {
     user.sessionVersion = (user.sessionVersion || 0) + 1;
     this._persistUser(user);
     forceSave();
+    sessionEvents.emit('revoked', userId);
     return user;
   }
 

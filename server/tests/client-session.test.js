@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHttpClient } from '../../shared/httpClient.mjs';
 import { createSessionStore } from '../../apps/mobile/src/services/sessionStore.mjs';
+import { bindSocketSession } from '../../shared/socketSession.mjs';
+import { EventEmitter } from 'node:events';
 
 function memoryStorage() {
   const secure = new Map(); const cache = new Map();
@@ -114,4 +116,37 @@ test('admin validates cached session and propagates permission errors instead of
   assert.equal(invalidated, true);
   assert.equal(admin.getAdminToken(), null);
   off();
+});
+
+test('socket session reads fresh tokens on reconnect; network failures preserve credentials', async () => {
+  const { store } = memoryStorage();
+  const socket = new EventEmitter(); let disconnects = 0;
+  socket.disconnect = () => { disconnects++; };
+  const cleanup = bindSocketSession(socket, { getToken: store.getToken, invalidate: store.clearUserSession, onReplaced: () => {} });
+  await store.saveUserSession({ id: 'a' }, 'old');
+  assert.deepEqual(await new Promise(resolve => socket.auth(resolve)), { token: 'old' });
+  socket.emit('connect_error', new Error('Network unavailable'));
+  assert.equal(await store.getToken(), 'old'); assert.equal(disconnects, 0);
+  await store.saveUserSession({ id: 'a' }, 'new');
+  assert.deepEqual(await new Promise(resolve => socket.auth(resolve)), { token: 'new' });
+  cleanup();
+  assert.equal(socket.listenerCount('sessionInvalid'), 0);
+});
+
+test('socket invalidation cannot delete a newer session and replacement does not revoke its token', async () => {
+  const { store } = memoryStorage();
+  const socket = new EventEmitter(); socket.disconnect = () => {};
+  let replaced = 0;
+  const cleanup = bindSocketSession(socket, { getToken: store.getToken, invalidate: store.clearUserSession, onReplaced: () => { replaced++; } });
+  await store.saveUserSession({ id: 'a' }, 'old');
+  await new Promise(resolve => socket.auth(resolve));
+  await store.saveUserSession({ id: 'b' }, 'new');
+  socket.emit('sessionInvalid');
+  assert.equal(await store.getToken(), 'new');
+  socket.emit('session_replaced');
+  assert.equal(replaced, 1); assert.equal(await store.getToken(), 'new');
+  await new Promise(resolve => socket.auth(resolve));
+  socket.emit('connect_error', { data: { code: 'SESSION_INVALID' } });
+  assert.equal(await store.getToken(), null);
+  cleanup();
 });
