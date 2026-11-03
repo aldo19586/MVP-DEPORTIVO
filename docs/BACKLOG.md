@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 Hecho**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 y MS-02 Hechos**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -8,7 +8,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 |---|---|---|---|---|
 | MS-00 | P1 / S | Resolver decisiones D-01…D-07 por etapa | Responsable del producto | Cada decisión necesaria tiene opción y motivo registrados; no bloquear fixes de seguridad por decisiones comerciales |
 | MS-01 | P1 / M | **Hecho:** entorno de tests aislado, configuración DB/puerto y seed explícito | — | Base temporal por caso; rutas protegidas rechazadas; arranque sin demos por defecto; aislamiento y reinicio comprobados. Ver evidencia debajo |
-| MS-02 | P0 / M | Identidad, roles y credenciales de servidor | MS-01 | Registro público siempre player; alta admin controlada; secretos requeridos fuera de dev; DTO sin password/hash; token válido/expirado/falso probado. A-02/A-04/A-12 |
+| MS-02 | P0 / M | **Hecho:** identidad, roles y credenciales de servidor | MS-01 | Registro público siempre player; alta admin por operador; secretos requeridos fuera de dev; DTO sin password/hash; tokens probados. Límites de migración/visibilidad en IDENTIDAD.md |
 | MS-03 | P0 / L | Autenticación REST y clientes | MS-02 | Inventario de rutas públicas/protegidas; permisos por propietario/rol; mobile guarda y envía sesión segura; admin maneja 401/403; jugador A no modifica B; anónimo no usa admin. A-01/A-05 |
 | MS-04 | P0 / L | Identidad y permisos Socket.IO | MS-02/MS-03 | Handshake autenticado; eventos usan actor del servidor; admin solo en canal protegido; no miembro no lee/escribe chat ni cambia sala; sesión revocada/baneada no reconecta. A-03 |
 | MS-05 | P1 / M | Reglas y contratos de salas/partidos | MS-00: D-01/D-04 | Tabla de estados/transiciones/roles, payloads y errores; regla para cupo, abandono, cancelación, empate y ausencia del capitán. Contrato compartido de prueba, sin duplicar lógica de autoridad |
@@ -26,7 +26,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 
 ## Primera entrega técnica propuesta
 
-MS-01 completado. Sigue MS-02, después MS-03 y MS-04. Las correcciones de identidad deben integrarse con ambos clientes para no dejar una API protegida con una app incapaz de usarla. El entorno de desarrollo debe continuar permitiendo verificar el trabajo localmente.
+MS-01 y MS-02 completados. Siguen MS-03 y MS-04. Las correcciones de autorización deben integrarse con ambos clientes para no dejar una API protegida con una app incapaz de usarla. El entorno de desarrollo debe continuar permitiendo verificar el trabajo localmente.
 
 ### Evidencia MS-01 — 2 de noviembre de 2026
 
@@ -35,7 +35,15 @@ MS-01 completado. Sigue MS-02, después MS-03 y MS-04. Las correcciones de ident
 - Verificación: 11 pruebas aprobadas con Node 22.17.0; aislamiento entre dos servidores, reinicio con persistencia, seed opt-in y rechazo de rutas/enlaces inseguros.
 - Hash SHA-256 de `matchsport.db` personal comprobado igual antes y después; no se ejecutó la suite histórica mutante.
 - Limitaciones: no cubre recuperación ante caída abrupta ni permisos de negocio; corresponden a MS-06 y MS-02…04. Sin cambios visuales en la app.
-- Commit/PR: cambios locales, aún sin commit ni publicación.
+- Commit: `984da9b`, subido a `origin/codex/mvp-base`.
+
+### Evidencia MS-02 — 2 de noviembre de 2026
+
+- Registro público sin elevación de rol; login por contraseña obligatorio; hashes bcrypt y migración de credenciales heredadas; DTO explícito, JWT con timestamps estándar y secreto requerido fuera de desarrollo.
+- Comando de alta administrativa por operador, probado con cuentas sintéticas; no eleva cuentas existentes ni imprime credenciales.
+- Suite completa: 17 tests aprobados. Base personal con SHA-256 sin cambios.
+- Alcance y límites: [IDENTIDAD.md](IDENTIDAD.md). Los permisos REST y Socket.IO siguen pendientes; la base personal no fue migrada ni auditada cuenta por cuenta.
+- Commit/PR: ver commit que incorpora esta evidencia en `codex/mvp-base`; publicación se confirma al cerrar la entrega.
 
 Después se entrega una convocatoria real entre dos o más cuentas (MS-05/MS-07/MS-08), se cierra resultado/persistencia y se integra el onboarding simplificado. El diseño puede definirse mientras se corrigen permisos, pero no se declara listo antes de conectarlo al servidor.
 

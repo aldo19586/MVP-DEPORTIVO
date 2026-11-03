@@ -9,7 +9,7 @@ npm run test:server
 Alternativa sin depender del ejecutable npm del equipo:
 
 ```powershell
-node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js
+node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js
 ```
 
 Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previo ni descarga dependencias adicionales. Requiere las dependencias ya instaladas y Node compatible con el proyecto (verificado aquí con Node 22.17.0).
@@ -47,5 +47,7 @@ node server/server.js
 Usar esa configuración solo en una terminal de desarrollo y retirar las variables al terminar. El comando explícito histórico `node server/seed.js` también utiliza la ruta configurada; no forma parte de la suite.
 
 ## Scripts históricos
+
+La suite vigente incluye también identidad (MS-02): registro sin elevación de rol, rechazo de contraseñas inválidas/ausentes, DTO sin credenciales, hashes persistidos, migración heredada, alta administrativa y tokens válidos/alterados/expirados. La autorización completa de rutas y sockets sigue pendiente en MS-03/MS-04.
 
 Los archivos `scripts/test_*.js` son pruebas heredadas. Varias apuntan a localhost:3001 y modifican datos; **no ejecutarlas contra el servidor personal o el piloto**. Ya no son el destino de `npm test` del backend. Su migración completa y ampliación de cobertura están en MS-13. La nueva suite no certifica los mensajes de éxito de aquellas pruebas.

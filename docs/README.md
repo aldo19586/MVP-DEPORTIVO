@@ -28,4 +28,4 @@ Este índice organiza la continuación del proyecto desde el prototipo hasta un 
 
 Documentación y auditoría estática inicial terminadas. **MS-01 completado:** pruebas de aislamiento y persistencia tras reinicio controlado, configuración separada y seed demo explícito. Las comprobaciones previas de API, Metro y compilación se consignan como evidencia anterior. El resto de la implementación y el piloto permanecen pendientes.
 
-Siguiente trabajo técnico: **MS-02, identidad, roles y credenciales**. En paralelo a la planificación deben resolverse las decisiones de MS-00 que bloquean onboarding y distribución; no bloquean la corrección de permisos.
+**MS-02 completado:** [identidad, roles y credenciales](IDENTIDAD.md), con 17 tests aprobados en la suite conjunta. Siguiente trabajo técnico: **MS-03, autorización REST y sesión en ambos clientes**; después MS-04, sockets. Las decisiones de MS-00 que bloquean onboarding y distribución no bloquean estas correcciones.

@@ -60,3 +60,7 @@ P0: bloquea exposición a usuarios externos por acceso indebido. P1: bloquea un 
 
 MS-01 completado: ruta DB configurable, host/puerto aislados, demos opt-in y suite propia. A-11 queda parcialmente atendido (aislamiento); durabilidad ante fallos permanece en MS-06. A-14 queda parcialmente atendido al reemplazar el comando de test predeterminado; los scripts históricos siguen pendientes de migración. Los P0 permanecen abiertos. Ver evidencia en [BACKLOG.md](BACKLOG.md).
 
+### Seguimiento MS-02
+
+A-02 corregido para altas nuevas: el registro público siempre crea jugadores; roles de cuentas históricas requieren revisión antes del piloto. A-04 atendido para contraseñas nuevas/migradas y respuestas directas de usuario; falta revisión de visibilidad por actor y datos anidados. A-12 atendido para secreto, timestamps y verificación del token; credenciales demo/históricas siguen restringidas a desarrollo. También se corrigió un bypass descubierto durante implementación: el login por correo aceptaba contraseña ausente o una cuenta sin contraseña. A-01/A-03 siguen abiertos hasta MS-03/MS-04. Ver [IDENTIDAD.md](IDENTIDAD.md).
+

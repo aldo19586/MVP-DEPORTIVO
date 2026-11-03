@@ -1,6 +1,15 @@
 import crypto from 'crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'matchsport-secret-jwt-key-2026';
+export function resolveJwtSecret(env = process.env) {
+  if (typeof env.JWT_SECRET === 'string' && Buffer.byteLength(env.JWT_SECRET) >= 32) return env.JWT_SECRET;
+  if (env.JWT_SECRET || (env.NODE_ENV && env.NODE_ENV !== 'development')) {
+    throw new Error('JWT_SECRET debe contener al menos 32 bytes fuera de desarrollo');
+  }
+  // Local development only: restarting invalidates existing sessions.
+  return crypto.randomBytes(32).toString('hex');
+}
+
+const JWT_SECRET = resolveJwtSecret();
 
 /**
  * Firma un JSON Web Token (JWT) estándar RFC 7519 usando HMAC SHA-256.
@@ -10,8 +19,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'matchsport-secret-jwt-key-2026';
  */
 export function signToken(payload, expiresInMs = 30 * 24 * 60 * 60 * 1000) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const exp = Date.now() + expiresInMs;
-  const body = Buffer.from(JSON.stringify({ ...payload, exp })).toString('base64url');
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + Math.floor(expiresInMs / 1000);
+  const body = Buffer.from(JSON.stringify({ ...payload, iat, exp })).toString('base64url');
   const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
   return `${header}.${body}.${signature}`;
 }
@@ -25,17 +35,21 @@ export function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
   const clean = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim();
   const parts = clean.split('.');
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3 || parts.some(part => !/^[A-Za-z0-9_-]+$/.test(part))) return null;
 
   const [header, body, signature] = parts;
-  const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
-  if (expectedSig !== signature) return null;
+  const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest();
+  const providedSig = Buffer.from(signature, 'base64url');
+  if (providedSig.length !== expectedSig.length || !crypto.timingSafeEqual(expectedSig, providedSig)) return null;
 
   try {
+    const metadata = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+    if (metadata.alg !== 'HS256' || metadata.typ !== 'JWT') return null;
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    if (payload.exp && Date.now() > payload.exp) {
-      return null;
-    }
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isSafeInteger(payload.exp) || payload.exp <= now || payload.exp > now + 31 * 86400) return null;
+    if (!Number.isSafeInteger(payload.iat) || payload.iat > now || payload.iat >= payload.exp) return null;
+    if (typeof payload.userId !== 'string' || !payload.userId || !['player', 'admin'].includes(payload.role)) return null;
     return payload;
   } catch {
     return null;

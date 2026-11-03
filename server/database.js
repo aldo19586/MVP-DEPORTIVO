@@ -11,6 +11,7 @@ import initSqlJs from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 import { runtimeConfig } from './config.js';
+import { hashPassword, isPasswordHash } from './credentials.js';
 
 const DB_PATH = runtimeConfig.dbPath;
 
@@ -261,6 +262,7 @@ export function sqlGetAllUsers() {
 }
 
 export function sqlInsertUser(user) {
+  if (user.password && !isPasswordHash(user.password)) user.password = hashPassword(user.password);
   _db.run(`
     INSERT OR REPLACE INTO users 
     (id, email, password, pin_hash, name, avatar, district, country, department, reference,

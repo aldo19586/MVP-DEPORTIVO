@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { runtimeConfig } from './config.js';
+import { hashPassword, isPasswordHash, matchesPassword } from './credentials.js';
 import { getInitialGlicko } from './glicko2.js';
 import {
   initDatabase,
@@ -768,8 +769,10 @@ class Database {
   }
 
   getUserByEmail(email) {
+    if (typeof email !== 'string' || !email.trim()) return null;
+    const normalized = email.trim().toLowerCase();
     for (const u of this.users.values()) {
-      if (u.email.toLowerCase() === email.toLowerCase()) {
+      if (u.email?.trim().toLowerCase() === normalized) {
         return u;
       }
     }
@@ -777,6 +780,9 @@ class Database {
   }
 
   loginUser({ email, password }) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !password) {
+      return { error: 'Correo y contraseña son requeridos' };
+    }
     const user = this.getUserByEmail(email);
     if (!user) {
       return { error: 'No existe una cuenta con este correo. ¿Deseas registrarte?' };
@@ -785,9 +791,13 @@ class Database {
       const remainingHours = Math.ceil((user.bannedUntil - Date.now()) / (3600 * 1000));
       return { error: `Tu cuenta se encuentra suspendida por ${remainingHours} hora(s) más. Motivo: ${user.banReason || 'Conducta antideportiva'}` };
     }
-    // Si la cuenta tiene contraseña y se envió contraseña, verificar
-    if (user.password && password && user.password !== password) {
+    if (!matchesPassword(password, user.password)) {
       return { error: 'Contraseña incorrecta. Por favor verifica tus datos.' };
+    }
+    if (!isPasswordHash(user.password)) {
+      user.password = hashPassword(password);
+      this._persistUser(user);
+      forceSave();
     }
     return { user };
   }
@@ -834,7 +844,7 @@ class Database {
       if (!match) {
         return { error: 'PIN incorrecto. Verifica los 4 dígitos.' };
       }
-    } else if (user.password && user.password === cleanPin) {
+    } else if (matchesPassword(cleanPin, user.password)) {
       // Si fue creado con password plano idéntico al PIN, migrarlo a hash
       user.pinHash = bcrypt.hashSync(cleanPin, 10);
       this._persistUser(user);
@@ -1053,11 +1063,11 @@ class Database {
   }
 
   createUser({ email, password, name, avatar, district, country = 'Perú', department = 'Lima', reference = '', bio, favoriteSports = ['futbol'], primarySport = 'futbol', position = 'DEL', declaredLevel = 'Intermedio' }) {
+    email = email.trim().toLowerCase();
     const existing = this.getUserByEmail(email);
-    if (existing) return existing;
+    if (existing) throw new Error('Ya existe una cuenta con este correo');
 
     const id = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-    const isAdmin = email.toLowerCase().includes('admin') || email.toLowerCase() === 'admin@matchsport.pe';
 
     // Generar stats base para su carta FUT según el nivel, con un TOPE MÁXIMO DE 70 para recién registrados
     // Nivel Principiante: 58-62, Intermedio: 62-66, Avanzado: 66-68, Competitivo: 68-70 (Máximo 70)
@@ -1076,7 +1086,7 @@ class Database {
     const user = {
       id,
       email,
-      password: password || '123456',
+      password: hashPassword(password),
       name: name || email.split('@')[0],
       avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name || email)}`,
       district: district || 'Surco, Lima',
@@ -1084,7 +1094,7 @@ class Database {
       favoriteSports: favoriteSports.length > 0 ? favoriteSports : ['futbol'],
       primarySport: primarySport || 'futbol',
       position: position || 'DEL',
-      role: isAdmin ? 'admin' : 'player',
+      role: 'player',
       verifiedDni: true,
       likesCount: 0,
       futStats: initialFutStats,
@@ -1136,7 +1146,6 @@ class Database {
     const user = this.getUser(userId);
     if (!user) return null;
 
-    user.password = newPin;
     user.pinHash = bcrypt.hashSync(String(newPin).trim(), 10);
 
     this._persistUser(user);

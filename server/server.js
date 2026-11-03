@@ -10,6 +10,7 @@ import { logger } from './logger.js';
 import { signToken, verifyToken, requireAuth, requireAdmin, authRateLimiter } from './auth.js';
 import { VENUES, getVenueSlots } from './venues.js';
 import { runtimeConfig } from './config.js';
+import { toClientUser } from './userDto.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -125,35 +126,24 @@ app.get('/api/lobbies/replacements', (req, res) => {
 
 app.post('/api/auth/login', authRateLimiter, (req, res) => {
   const { email, password, name, district } = req.body;
-  if (!email) {
+  if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
     return res.status(400).json({ error: 'El correo electrónico es requerido' });
-  }
-  let user = db.getUserByEmail(email.trim());
-  if (!user && name) {
-    user = db.createUser({
-      email: email.trim(),
-      password: password || '1234',
-      name,
-      district: district || 'Surco, Lima'
-    });
-    const token = signToken({ userId: user.id, role: user.role || 'player', name: user.name });
-    return res.json({ user, token });
   }
   const result = db.loginUser({ email: email.trim(), password });
   if (result.error) {
     return res.status(401).json({ error: result.error });
   }
   const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
-  res.json({ user: result.user, token });
+  res.json({ user: toClientUser(result.user), token });
 });
 
 app.post('/api/auth/register', authRateLimiter, (req, res) => {
   const { email, password, name, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
-  if (!email || !email.includes('@')) {
+  if (typeof email !== 'string' || !email.includes('@')) {
     return res.status(400).json({ error: 'Ingresa un correo electrónico válido' });
   }
-  if (!password || password.length < 4) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+  if (typeof password !== 'string' || password.length < 4 || Buffer.byteLength(password) > 72) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres y como máximo 72 bytes' });
   }
   const existing = db.getUserByEmail(email);
   if (existing) {
@@ -161,7 +151,7 @@ app.post('/api/auth/register', authRateLimiter, (req, res) => {
   }
   const user = db.createUser({ email: email.trim(), password, name, district, avatar, bio, favoriteSports, primarySport, position, declaredLevel });
   const token = signToken({ userId: user.id, role: user.role || 'player', name: user.name });
-  res.json({ user, token });
+  res.json({ user: toClientUser(user), token });
 });
 
 // Autenticación rápida por Nombre + PIN de 4 dígitos (Fase 2)
@@ -175,12 +165,12 @@ app.post('/api/auth/pin-login', authRateLimiter, (req, res) => {
     return res.status(401).json({ error: result.error });
   }
   const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
-  res.json({ user: result.user, token });
+  res.json({ user: toClientUser(result.user), token });
 });
 
 app.post('/api/auth/pin-register', authRateLimiter, (req, res) => {
   const { name, pin, country, department, district, reference, avatar, bio, favoriteSports, primarySport, position, declaredLevel } = req.body;
-  if (!name || name.trim().length < 2) {
+  if (typeof name !== 'string' || name.trim().length < 2) {
     return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
   }
   if (!pin || !/^\d{4}$/.test(String(pin).trim())) {
@@ -191,7 +181,7 @@ app.post('/api/auth/pin-register', authRateLimiter, (req, res) => {
     return res.status(409).json({ error: result.error });
   }
   const token = signToken({ userId: result.user.id, role: result.user.role || 'player', name: result.user.name });
-  res.json({ user: result.user, token });
+  res.json({ user: toClientUser(result.user), token });
 });
 
 // Completar Ficha Deportiva Biometrica del Jugador
@@ -204,7 +194,7 @@ app.post('/api/user/complete-profile', authRateLimiter, (req, res) => {
   if (result.error) {
     return res.status(404).json({ error: result.error });
   }
-  res.json({ success: true, user: result.user });
+  res.json({ success: true, user: toClientUser(result.user) });
 });
 
 // Enviar Respuestas del Test Oficial de Fútbol Amateur (14 preguntas)
@@ -220,13 +210,13 @@ app.post('/api/user/submit-football-test', authRateLimiter, (req, res) => {
   if (result.error) {
     return res.status(404).json({ error: result.error });
   }
-  res.json({ success: true, user: result.user, result: result.result });
+  res.json({ success: true, user: toClientUser(result.user), result: result.result });
 });
 
 // Autenticación administrativa para SuperAdmin
 app.post('/api/auth/admin-login', authRateLimiter, (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
+  if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
     return res.status(400).json({ error: 'Email y contraseña son requeridos' });
   }
   const result = db.loginUser({ email: email.trim(), password });
@@ -237,7 +227,7 @@ app.post('/api/auth/admin-login', authRateLimiter, (req, res) => {
     return res.status(403).json({ error: 'Acceso restringido únicamente a Administradores' });
   }
   const token = signToken({ userId: result.user.id, role: 'admin', name: result.user.name });
-  res.json({ user: result.user, token });
+  res.json({ user: toClientUser(result.user), token });
 });
 
 app.get('/api/auth/check-name/:name', (req, res) => {
@@ -249,7 +239,7 @@ app.get('/api/auth/check-name/:name', (req, res) => {
 app.put('/api/user/:userId', (req, res) => {
   const updatedUser = db.updateUserProfile(req.params.userId, req.body);
   if (!updatedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
-  res.json({ success: true, user: updatedUser });
+  res.json({ success: true, user: toClientUser(updatedUser) });
 });
 
 app.post('/api/user/push-token', (req, res) => {
@@ -302,7 +292,7 @@ app.post('/api/venues/:id/book', (req, res) => {
 app.get('/api/user/:userId', (req, res) => {
   const user = db.getUser(req.params.userId);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  res.json({ user });
+  res.json({ user: toClientUser(user) });
 });
 
 app.get('/api/profile/:userId/:sportId/:formatId', (req, res) => {
@@ -326,7 +316,7 @@ app.post('/api/profile/questionnaire', (req, res) => {
   if (user) {
     user.ratingOverall = glicko.rating;
   }
-  res.json({ profile, user });
+  res.json({ profile, user: toClientUser(user) });
 });
 
 app.get('/api/match/:matchId', (req, res) => {
@@ -411,7 +401,7 @@ app.get('/api/admin/users', (req, res) => {
   const usersList = Array.from(db.users.values()).map(u => {
     const matchesCount = db.getUserMatchHistory(u.id)?.length || u.matchesPlayed || 0;
     return {
-      ...u,
+      ...toClientUser(u),
       matchesPlayed: matchesCount,
       isCalibrated: matchesCount >= 3
     };
@@ -530,14 +520,14 @@ app.post('/api/admin/user/:userId/ban', (req, res) => {
     });
   }
 
-  res.json({ success: true, user });
+  res.json({ success: true, user: toClientUser(user) });
 });
 
 app.post('/api/admin/user/:userId/reset-pin', (req, res) => {
   const { newPin = '1234' } = req.body;
   const user = db.resetUserPin(req.params.userId, newPin);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  res.json({ success: true, user });
+  res.json({ success: true, user: toClientUser(user) });
 });
 
 app.post('/api/admin/user/:userId/verify-dni', (req, res) => {
