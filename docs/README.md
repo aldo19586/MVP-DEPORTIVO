@@ -32,3 +32,6 @@ Documentación y auditoría estática inicial terminadas. **MS-01 completado:** 
 
 
 **MS-05 definido:** [reglas y contrato de convocatorias](REGLAS_COMPETICION.md). Aldo confirmó cobertura de todo Perú, fútbol 5/6/7/9/11 y la base de resultados/cancelación. Cinco pruebas nuevas de contrato; suite conjunta de 47 pruebas. La integración en handlers queda en MS-07/MS-09. Sigue MS-06, persistencia y recuperación.
+
+
+**MS-06 en curso:** [parte A de persistencia y recuperación](PERSISTENCIA.md), con guardado inmediato/atómico, bloqueo de escritor, backup offline y restauración probada. Parte B pendiente: D-05, transacciones e idempotencia y operación del piloto.

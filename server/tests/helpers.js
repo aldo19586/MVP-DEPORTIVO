@@ -80,7 +80,8 @@ export async function startTestServer(sandbox, overrides = {}) {
       child.once('exit', onExit);
       child.on('message', onMessage);
     });
-    return { url: `http://127.0.0.1:${port}`, port, stop };
+    return { url: `http://127.0.0.1:${port}`, port, stop,
+      crash: async () => { child.kill('SIGKILL'); await exited; } };
   } catch (error) {
     await stop();
     throw error;

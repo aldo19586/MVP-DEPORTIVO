@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { runtimeConfig } from './config.js';
 import { hashPassword, isPasswordHash } from './credentials.js';
+import { acquireDatabaseLock, atomicWrite } from './fileStore.js';
 
 const DB_PATH = runtimeConfig.dbPath;
 
@@ -19,27 +20,24 @@ let _db = null;
 let _SQL = null;
 let _initialized = false;
 
-// Auto-save: guardar el archivo .db cada N ms tras cambios
-let _saveTimeout = null;
-const SAVE_DEBOUNCE_MS = 1000;
+// Persist each SQL mutation before the caller can acknowledge it.
+let _releaseLock = null;
+let _failed = false;
 
 function scheduleSave() {
-  if (_saveTimeout) clearTimeout(_saveTimeout);
-  _saveTimeout = setTimeout(() => {
-    if (_db) {
-      const data = _db.export();
-      const buffer = Buffer.from(data);
-      fs.writeFileSync(DB_PATH, buffer);
-    }
-  }, SAVE_DEBOUNCE_MS);
+  forceSave();
 }
 
 function forceSave() {
-  if (_saveTimeout) clearTimeout(_saveTimeout);
-  if (_db) {
-    const data = _db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(DB_PATH, buffer);
+  if (_db && !_failed) {
+    try { atomicWrite(DB_PATH, Buffer.from(_db.export())); }
+    catch (error) {
+      // Memory may already have changed. Terminate before any success response;
+      // never keep serving a state that was not acknowledged by the filesystem.
+      _failed = true;
+      console.error(`[SQLite] Persistence failed (${error.code || 'EXPORT_ERROR'}); stopping without overwriting the last snapshot`);
+      process.exit(1);
+    }
   }
 }
 
@@ -51,30 +49,37 @@ export async function initDatabase() {
   if (_initialized) return _db;
 
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  _releaseLock = acquireDatabaseLock(DB_PATH);
+  process.once('exit', () => { _releaseLock?.(); });
   _SQL = await initSqlJs();
 
   // Si ya existe el archivo, cargarlo; si no, crear uno nuevo
   if (fs.existsSync(DB_PATH)) {
     const fileBuffer = fs.readFileSync(DB_PATH);
+    if (fileBuffer.length < 100 || !fileBuffer.subarray(0, 16).equals(Buffer.from('SQLite format 3\0'))) throw new Error('Invalid SQLite database; refusing to initialize over existing data');
     _db = new _SQL.Database(fileBuffer);
     console.log('[SQLite] Base de datos cargada desde', DB_PATH);
   } else {
     _db = new _SQL.Database();
     console.log('[SQLite] Nueva base de datos creada');
   }
+  if (_db.exec('PRAGMA quick_check')[0]?.values?.[0]?.[0] !== 'ok') throw new Error('Database integrity check failed');
+  const version = _db.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] || 0;
+  if (version > 1) throw new Error('Database schema is newer than this server');
 
   // Optimizaciones de rendimiento
-  _db.run('PRAGMA journal_mode = WAL');
-  _db.run('PRAGMA synchronous = NORMAL');
+  // sql.js is in-memory; filesystem durability is provided by atomicWrite.
+  _db.run('PRAGMA journal_mode = DELETE');
   _db.run('PRAGMA foreign_keys = ON');
 
   // Crear tablas si no existen
   createTables();
+  _db.run('PRAGMA user_version = 1');
+  forceSave();
 
   _initialized = true;
 
   // Guardar al salir
-  process.on('exit', forceSave);
   process.on('SIGINT', () => { forceSave(); process.exit(0); });
   process.on('SIGTERM', () => { forceSave(); process.exit(0); });
 
@@ -147,6 +152,7 @@ function createTables() {
     }
   } catch (e) {
     console.error('[SQLite] Error en migración de columnas en users:', e.message);
+    throw e;
   }
 
   _db.run(`

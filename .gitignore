@@ -30,6 +30,9 @@ dist-ssr
 
 # SQLite database (datos locales de runtime)
 matchsport.db
+*.db.lock
+*.db.tmp-*
+backups/
 
 # Logs de matchmaking
 logs/
