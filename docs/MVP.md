@@ -21,7 +21,7 @@ El éxito inicial es que un grupo real complete ese recorrido con datos reales y
 | Perfil, carta, historial y avisos necesarios | Expandir varios deportes antes de validar fútbol |
 | SuperAdmin: monitor, auditoría, sanción/reset y disputas | Nuevas infraestructuras distribuidas sin necesidad medida |
 
-Fútbol es la propuesta inicial, consistente con el recorrido actual. Las modalidades y zona del piloto se fijan en D-01. Conservar el código existente de matchmaking; las convocatorias son la vía principal propuesta. El emparejamiento instantáneo puede habilitarse tras probarlo, sin ser requisito para encontrar partido. La clasificación global y el peer review son secundarios y no bloquean el recorrido básico.
+Fútbol es la propuesta inicial, consistente con el recorrido actual. D-01 quedó definido el 03/11/2026: cobertura de todo Perú, fútbol 5, 6, 7, 9 y 11. Conservar el código existente de matchmaking; las convocatorias son la vía principal propuesta. El emparejamiento instantáneo puede habilitarse tras probarlo, sin ser requisito para encontrar partido. La clasificación global y el peer review son secundarios y no bloquean el recorrido básico.
 
 ## 3. Experiencia del jugador
 
@@ -81,17 +81,19 @@ Separar desarrollo, pruebas y piloto mediante configuración. Tests con base pro
 
 SQLite/PostgreSQL se decide en D-05. Una copia SQLite en memoria exportada a archivo no puede compartirse entre varias instancias como si fuera una base transaccional central. Sea cual sea la elección, exigir migraciones, respaldo, restauración y escrituras duraderas comprobadas.
 
-## 6. Decisiones pendientes
+## 6. Decisiones y estado
 
 | ID | Decisión | Recomendación para discutir | Qué bloquea |
 |---|---|---|---|
-| D-01 | Zona, modalidades y tamaño del piloto | Un área concentrada, pocas modalidades, grupo pequeño de invitados | Catálogo inicial y convocatoria del piloto |
+| D-01 | Cobertura y modalidades confirmadas; tamaño inicial pendiente | Todo Perú; fútbol 5/6/7/9/11. Validar lanzamiento con invitados, sin limitar la cobertura del producto | Catálogo y búsqueda nacional; volumen inicial por acordar |
 | D-02 | Edad mínima y participación | Considerar piloto solo de adultos para reducir complejidad operativa; decisión del producto y revisión de requisitos aplicables | Registro y convocatoria de usuarios |
 | D-03 | Identidad y recuperación | Definir cómo demostrar titularidad y recuperar acceso; no usar conocimiento del apodo como prueba | Cierre del diseño de acceso y reset |
-| D-04 | Confirmación, empates, cancelación y capitán ausente | Confirmación de representantes de ambos equipos, empates válidos y disputa trazable; acordar plazos | Cierre del flujo de partidos |
+| D-04 | Base confirmada el 03/11/2026; detalles en REGLAS_COMPETICION.md | Dos capitanes, confirmación, empates, disputa administrativa, salida previa sin penalidad automática; sin adjudicación por silencio | Implementación en MS-07/MS-09 |
 | D-05 | Alojamiento y base de datos | Comparar despliegue de una instancia con disco durable frente a PostgreSQL administrado; considerar presupuesto, respaldo y concurrencia | Piloto fuera de la PC |
 | D-06 | Relación test / carta / rating | Mantener test actual al principio, definir atributos justificables y evolución; revisar afirmaciones de «3 partidos» | Carta y actualización de nivel |
 | D-07 | Plataforma, distribución y operación | iPhone como primer dispositivo ya disponible, confirmar Android, responsable de soporte y presupuesto | Builds y distribución del piloto |
+
+El 3 de noviembre de 2026 Aldo confirmó D-01 (todo Perú; fútbol 5/6/7/9/11) y D-04 (dos capitanes, reporte/confirmación, empate y revisión de discrepancias, salida previa sin penalización automática). Ver [reglas y contrato](REGLAS_COMPETICION.md). Las demás decisiones de la tabla siguen pendientes; el tamaño de la invitación inicial aún no se fijó.
 
 Resolver cada decisión con fecha, responsable, opción elegida y motivo. No hacen falta todas para comenzar a aislar pruebas y corregir autorización.
 

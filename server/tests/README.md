@@ -9,7 +9,7 @@ npm run test:server
 Alternativa sin depender del ejecutable npm del equipo:
 
 ```powershell
-node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js
+node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js
 ```
 
 Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previo ni descarga dependencias adicionales. Requiere las dependencias ya instaladas y Node compatible con el proyecto (verificado aquí con Node 22.17.0).
@@ -51,3 +51,8 @@ Usar esa configuración solo en una terminal de desarrollo y retirar las variabl
 La suite vigente incluye también identidad (MS-02): registro sin elevación de rol, rechazo de contraseñas inválidas/ausentes, DTO sin credenciales, hashes persistidos, migración heredada, alta administrativa y tokens válidos/alterados/expirados. MS-03 añade autorización REST, sesiones revocables, DTO públicos, almacenamiento móvil y manejo 401/403 en ambos clientes: 27 tests conjuntos. El inventario de rutas se extrae del servidor para probar que toda ruta nueva exige autenticación salvo la lista pública explícita. Los fixtures administrativos y de partidos se crean en un proceso aislado antes de arrancar el servidor. MS-04 añade conexiones reales Socket.IO para probar handshake, roles, membresía, chat privado, revocación, reconexión y aceptación. La suite conjunta contiene 42 pruebas; los clientes se cierran antes de detener cada servidor y borrar su sandbox. Los fixtures reutilizados de permisos están en `access-fixture.js`.
 
 Los archivos `scripts/test_*.js` son pruebas heredadas. Varias apuntan a localhost:3001 y modifican datos; **no ejecutarlas contra el servidor personal o el piloto**. Ya no son el destino de `npm test` del backend. Su migración completa y ampliación de cobertura están en MS-13. La nueva suite no certifica los mensajes de éxito de aquellas pruebas.
+
+
+## Contrato propuesto MS-05
+
+La suite incorpora cinco casos de `competition-contract.test.js` (47 pruebas conjuntas). Verifica forma de comandos, fecha UTC canónica, revisiones, marcadores incluidos empates, IDs de reporte, motivo administrativo y rechazo de campos del actor. El módulo `shared/competitionContract.mjs` es un contrato sin conexión a los handlers: no acredita cupos concurrentes, persistencia de idempotencia, autorización de transiciones ni rating. Estos escenarios deben implementarse después de cerrar las decisiones en `docs/REGLAS_COMPETICION.md`.
