@@ -14,7 +14,7 @@ import {
   sqlInsertLobby, sqlGetLobby, sqlGetAllLobbies, sqlDeleteLobby, sqlGetOpenReplacementLobbies,
   sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
   sqlGetConfig, sqlSetConfig,
-  forceSave
+  forceSave, withTransaction, sqlGetReceipt, sqlInsertReceipt
 } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1488,6 +1488,55 @@ class Database {
 
   getMatch(matchId) {
     return this.matches.get(matchId) || null;
+  }
+
+  atomic(operation) {
+    const keys = ['users', 'profiles', 'matches', 'lobbies', 'reviews', 'futReviews', 'peerReviews'];
+    const snapshot = structuredClone(Object.fromEntries(keys.map(key => [key, this[key]])));
+    try { return withTransaction(operation); }
+    catch (error) { Object.assign(this, snapshot); throw error; }
+  }
+
+  // Compatibility finalizer: MS-09 replaces the legacy scoring/confirmation rules.
+  finalizeLegacyMatch(matchId, winnerTeam, actorId, admin = false) {
+    if (!['teamA', 'teamB'].includes(winnerTeam)) throw new Error('Invalid winner');
+    return this.atomic(() => {
+      const key = `legacy-result:${matchId}`;
+      const receipt = sqlGetReceipt(key);
+      if (receipt) {
+        if (this.getMatch(matchId)?.status !== 'finished') throw Object.assign(new Error('Resultado ya aplicado; requiere corrección administrativa específica'), { status: 409, code: 'CONFLICT' });
+        if (receipt.winnerTeam !== winnerTeam) throw Object.assign(new Error('Resultado ya aplicado; requiere corrección administrativa específica'), { status: 409 });
+        return { ...receipt, match: this.getMatch(matchId), replayed: true };
+      }
+      const match = this.getMatch(matchId);
+      if (!match || match.status === 'finished') throw Object.assign(new Error('Resultado heredado finalizado o partido inexistente'), { status: 409 });
+      const ids = [...match.teamA, ...match.teamB].map(p => p.userId || p.id);
+      if (new Set(ids).size !== ids.length) throw new Error('Duplicate participant in match');
+      const ratingUpdates = {};
+      for (const team of ['teamA', 'teamB']) for (const player of match[team]) {
+        const id = player.userId || player.id;
+        const before = this.getProfile(id, match.sportId, match.formatId);
+        const won = team === winnerTeam;
+        const delta = won ? 35 : -25;
+        const after = this.setProfile(id, match.sportId, match.formatId, {
+          rating: Math.max(800, before.rating + delta), matchesPlayed: (before.matchesPlayed || 0) + 1,
+          wins: (before.wins || 0) + Number(won), losses: (before.losses || 0) + Number(!won),
+        });
+        ratingUpdates[id] = { oldRating: before.rating, newRating: after.rating, ratingChange: after.rating - before.rating, won };
+      }
+      match.status = 'finished'; match.resultFinal = winnerTeam;
+      match.revision = (match.revision || 0) + 1;
+      match.disputeAlert = null;
+      if (admin) { match.disputeResolvedBy = actorId; match.disputeAlert = null; }
+      else match.reportedBy = actorId;
+      if (match.matchTimer) {
+        match.matchTimer.active = false; match.matchTimer.endsAt = null; match.matchTimer.stoppedAt = Date.now();
+      }
+      this._persistMatch(match);
+      const result = { matchId, winnerTeam, ratingUpdates, actorId, appliedAt: new Date().toISOString() };
+      sqlInsertReceipt(key, result);
+      return { ...result, match, replayed: false };
+    });
   }
 
   getMatchForUser(userId) {

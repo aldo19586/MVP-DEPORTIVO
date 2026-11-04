@@ -35,3 +35,6 @@ Documentación y auditoría estática inicial terminadas. **MS-01 completado:** 
 
 
 **MS-06 en curso:** [parte A de persistencia y recuperación](PERSISTENCIA.md), con guardado inmediato/atómico, bloqueo de escritor, backup offline y restauración probada. Parte B pendiente: D-05, transacciones e idempotencia y operación del piloto.
+
+
+**MS-06-B local implementado:** [transacciones y resultados](TRANSACCIONES.md), seis pruebas nuevas y 60 conjuntas. [D-05: recomendación de Supabase/PostgreSQL + Render](ALMACENAMIENTO_PILOTO.md); producción y presupuesto pendientes por decisión de Aldo. Se puede continuar con MS-07 local.

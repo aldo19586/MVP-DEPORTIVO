@@ -12,7 +12,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-03 | P0 / L | **Hecho:** autenticación REST y clientes | MS-02 | Inventario de rutas públicas/protegidas; permisos por propietario/rol; mobile guarda y envía sesión segura; admin maneja 401/403; jugador A no modifica B; anónimo no usa admin. A-01/A-05 |
 | MS-04 | P0 / L | **Hecho:** identidad y permisos Socket.IO | MS-02/MS-03 | Handshake autenticado; eventos usan actor del servidor; admin solo en canal protegido; no miembro no lee/escribe chat ni cambia sala; sesión revocada/baneada no reconecta. A-03 |
 | MS-05 | P1 / M | **Hecho (especificación):** reglas y contratos de salas/partidos | MS-00: D-01/D-04 | Tabla de estados/transiciones/roles, payloads y errores; regla para cupo, abandono, cancelación, empate y ausencia del capitán. Contrato compartido de prueba, sin duplicar lógica de autoridad |
-| MS-06 | P1 / L | **En curso (A hecha, B pendiente):** persistencia durable y recuperación | MS-01, D-05 antes del piloto | Elegir almacenamiento con decisión escrita; migraciones; backups y restauración comprobada; interrupción de escritura sin pérdida silenciosa; tests sobre archivo aislado. A-11 |
+| MS-06 | P1 / L | **En curso (A/B locales hechas; piloto pendiente):** persistencia durable y recuperación | MS-01, D-05 antes del piloto | Elegir almacenamiento con decisión escrita; migraciones; backups y restauración comprobada; interrupción de escritura sin pérdida silenciosa; tests sobre archivo aislado. A-11 |
 | MS-07 | P1 / L | Crear/unirse/salir de convocatorias reales | MS-03/MS-04/MS-05 | Todas las entradas usan servidor; código real copiable/compartible; última plaza con dos solicitudes da un único ganador; sin duplicar miembros; fecha/hora/zona persistidas; sala recuperable tras reinicio. A-06/A-08 |
 | MS-08 | P1 / M | Chat y reconexión | MS-04/MS-07 | Dos dispositivos reciben mismo mensaje una vez; historial y reintento; estados enviando/error; filtro por sala y limpieza de listeners; desconexión no borra membresía futura. A-07/A-08 |
 | MS-09 | P1 / L | Finalización, disputa y rating consistente | MS-04/MS-05/MS-06/MS-07 | Resultado solo por rol autorizado; confirmación según regla; empate; disputa conserva evidencia; resolución admin idempotente; rating/historial se actualizan una vez incluso tras reinicio. A-10 |
@@ -77,6 +77,14 @@ MS-01 a MS-05 completados. Sigue MS-06 (persistencia) y después MS-07 (convocat
 - Siete pruebas nuevas aprobadas; suite conjunta: 54 casos. Fuente personal sin cambios. Procedimiento, fuentes y límites en [PERSISTENCIA.md](PERSISTENCIA.md).
 - **MS-06-B pendiente:** D-05 y almacenamiento del piloto; transacciones/rollback, revisiones e idempotencia; migraciones futuras y operación de respaldos. MS-06 no se marca Hecho.
 - La parte A se publica como entrega técnica completa en `codex/mvp-base`; no incluye despliegue ni prueba de corte eléctrico real.
+
+### Evidencia MS-06-B local — 3 de noviembre de 2026
+
+- Transacciones síncronas con rollback SQL y de cachés; finalizador único para rutas heredadas de resultados, con recibo persistente por partido y revisión.
+- Esquema 2 transaccional y marcas históricas para resultados terminados de esquema 0/1; backup compatible. Seis casos nuevos; suite conjunta: 60 pruebas.
+- Alcance/límites: [TRANSACCIONES.md](TRANSACCIONES.md). Fórmula y confirmación heredadas se conservan hasta MS-09; no se declara activo el contrato nuevo de MS-05.
+- Aldo autorizó continuar localmente y preparar producción después; proveedor y presupuesto aún sin definir. Recomendación revisable: [ALMACENAMIENTO_PILOTO.md](ALMACENAMIENTO_PILOTO.md). No se contrataron servicios.
+- **MS-06 sigue En curso** para migración/operación del almacenamiento alojado. El siguiente desarrollo local puede avanzar con MS-07; idempotencia y cupos de sus comandos se integrarán allí.
 
 Después se entrega una convocatoria real entre dos o más cuentas (MS-05/MS-07/MS-08), se cierra resultado/persistencia y se integra el onboarding simplificado. El diseño puede definirse mientras se corrigen permisos, pero no se declara listo antes de conectarlo al servidor.
 

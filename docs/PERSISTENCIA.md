@@ -1,6 +1,6 @@
 # MS-06-A — Guardado de snapshots y recuperación local
 
-Fecha: 3 de noviembre de 2026. **Parte A implementada; MS-06 completo sigue En curso.** Se conserva sql.js para desarrollo y esta entrega, sin seleccionar todavía alojamiento/base del piloto (D-05).
+Fecha: 3 de noviembre de 2026. Continuación posterior: [transacciones locales y esquema 2](TRANSACCIONES.md). Las referencias al esquema 1 y trabajo pendiente de B describen el cierre histórico de la parte A. **Parte A implementada; MS-06 completo sigue En curso.** Se conserva sql.js para desarrollo y esta entrega, sin seleccionar todavía alojamiento/base del piloto (D-05).
 
 ## Problema y cambio
 

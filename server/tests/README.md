@@ -9,7 +9,7 @@ npm run test:server
 Alternativa sin depender del ejecutable npm del equipo:
 
 ```powershell
-node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js
+node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js
 ```
 
 Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previo ni descarga dependencias adicionales. Requiere las dependencias ya instaladas y Node compatible con el proyecto (verificado aquí con Node 22.17.0).
@@ -61,3 +61,8 @@ La suite incorpora cinco casos de `competition-contract.test.js` (47 pruebas con
 ## Persistencia MS-06-A
 
 Siete casos nuevos, 54 pruebas conjuntas. Incluyen fallos inyectados de archivo, terminación forzada del servidor, exclusión de segundo escritor, checksum y restauración con arranque separado. El caso de caída conserva el lock y verifica `backup.js unlock` antes de reiniciar. Los fallos de disco inyectados se limitan a un proceso hijo. No simulan un corte eléctrico real ni acreditan transacciones de resultados; ver `docs/PERSISTENCIA.md`.
+
+
+## Transacciones MS-06-B local
+
+Seis casos nuevos de `transactions.test.js`; 60 pruebas conjuntas. Verifican rollback SQL/caché, crash dentro de una operación compuesta, recibo de resultado persistente, finalización por socket tras reinicio y migración de esquema 1 a 2. Las reglas de marcador/confirmación nuevas y PostgreSQL alojado siguen pendientes; ver `docs/TRANSACCIONES.md`.

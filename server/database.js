@@ -23,12 +23,41 @@ let _initialized = false;
 // Persist each SQL mutation before the caller can acknowledge it.
 let _releaseLock = null;
 let _failed = false;
+let _inTransaction = false;
+
+export function withTransaction(operation) {
+  if (_inTransaction) throw new Error('Nested transactions are not supported');
+  if (operation.constructor.name === 'AsyncFunction') throw new Error('Transactions must be synchronous');
+  _db.run('BEGIN IMMEDIATE');
+  _inTransaction = true;
+  let result;
+  try {
+    result = operation();
+    if (result && typeof result.then === 'function') throw new Error('Transactions must be synchronous');
+    _db.run('COMMIT');
+  } catch (error) {
+    _db.run('ROLLBACK');
+    throw error;
+  } finally { _inTransaction = false; }
+  forceSave();
+  return result;
+}
+
+export function sqlGetReceipt(key) {
+  const rows = _db.exec('SELECT result_json FROM operation_receipts WHERE key = ?', [key]);
+  return rows[0]?.values.length ? JSON.parse(rows[0].values[0][0]) : null;
+}
+export function sqlInsertReceipt(key, value) {
+  _db.run('INSERT INTO operation_receipts (key, result_json) VALUES (?,?)', [key, JSON.stringify(value)]);
+  scheduleSave();
+}
 
 function scheduleSave() {
   forceSave();
 }
 
 function forceSave() {
+  if (_inTransaction) return;
   if (_db && !_failed) {
     try { atomicWrite(DB_PATH, Buffer.from(_db.export())); }
     catch (error) {
@@ -65,7 +94,7 @@ export async function initDatabase() {
   }
   if (_db.exec('PRAGMA quick_check')[0]?.values?.[0]?.[0] !== 'ok') throw new Error('Database integrity check failed');
   const version = _db.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] || 0;
-  if (version > 1) throw new Error('Database schema is newer than this server');
+  if (version > 2) throw new Error('Database schema is newer than this server');
 
   // Optimizaciones de rendimiento
   // sql.js is in-memory; filesystem durability is provided by atomicWrite.
@@ -73,9 +102,15 @@ export async function initDatabase() {
   _db.run('PRAGMA foreign_keys = ON');
 
   // Crear tablas si no existen
-  createTables();
-  _db.run('PRAGMA user_version = 1');
-  forceSave();
+  withTransaction(() => {
+    createTables();
+    if (version < 2) for (const match of sqlGetAllMatches()) {
+      if (match.status === 'finished') _db.run('INSERT OR IGNORE INTO operation_receipts (key, result_json) VALUES (?,?)',
+        [`legacy-result:${match.id}`, JSON.stringify({ matchId: match.id, winnerTeam: match.resultFinal, historical: true, ratingUpdates: {} })]);
+    }
+    _db.run('PRAGMA user_version = 2');
+    _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (2, datetime('now'))");
+  });
 
   _initialized = true;
 
@@ -87,6 +122,8 @@ export async function initDatabase() {
 }
 
 function createTables() {
+  _db.run('CREATE TABLE IF NOT EXISTS operation_receipts (key TEXT PRIMARY KEY, result_json TEXT NOT NULL)');
+  _db.run('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, installed_at TEXT NOT NULL)');
   _db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

@@ -474,34 +474,9 @@ app.post('/api/admin/disputes/resolve', (req, res) => {
   if (!['teamA', 'teamB'].includes(winnerTeam)) return res.status(400).json({ error: 'Equipo ganador inválido' });
   const match = db.getMatch(matchId);
   if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
-  if (match.status !== 'disputed' && !match.disputeAlert) return res.status(409).json({ error: 'El partido no tiene una disputa pendiente' });
+  if (match.status === 'finished' || (match.status !== 'disputed' && !match.disputeAlert)) return res.status(409).json({ error: 'El partido no tiene una disputa pendiente' });
 
-  match.status = 'finished';
-  match.resultFinal = winnerTeam;
-  match.disputeResolvedBy = adminUserId;
-  match.disputeAlert = null;
-
-  const ratingUpdates = {};
-  const scoreA = winnerTeam === 'teamA' ? 1 : 0;
-  const scoreB = winnerTeam === 'teamB' ? 1 : 0;
-
-  for (const p of match.teamA) {
-    const prof = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-    const delta = scoreA === 1 ? 35 : -25;
-    const newRating = Math.max(800, prof.rating + delta);
-    db.setProfile(p.userId || p.id, match.sportId, match.formatId, { rating: newRating });
-    ratingUpdates[p.userId || p.id] = { oldRating: prof.rating, newRating, ratingChange: delta };
-  }
-
-  for (const p of match.teamB) {
-    const prof = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-    const delta = scoreB === 1 ? 35 : -25;
-    const newRating = Math.max(800, prof.rating + delta);
-    db.setProfile(p.userId || p.id, match.sportId, match.formatId, { rating: newRating });
-    ratingUpdates[p.userId || p.id] = { oldRating: prof.rating, newRating, ratingChange: delta };
-  }
-
-  db._persistMatch(match);
+  const { ratingUpdates } = db.finalizeLegacyMatch(matchId, winnerTeam, adminUserId, true);
 
   realtime.to(matchId).emit('matchFinished', {
     matchId,
@@ -1247,326 +1222,44 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Reporte Oficial de Partido 1v1 por Reportero Designado (+35 pts al ganador)
-  onEvent('reportResultByReporter', ({ matchId, reporterUserId, winnerTeam }) => {
-    const match = db.getMatch(matchId);
-    if (!match || match.status === 'finished') return;
-
-    match.status = 'finished';
-    match.resultFinal = winnerTeam;
-    match.reportedBy = reporterUserId;
-
-    // DETENER EL TEMPORIZADOR DE CANCHA
-    if (match.matchTimer) {
-      match.matchTimer.active = false;
-      match.matchTimer.endsAt = null;
-      match.matchTimer.stoppedAt = Date.now();
-    }
-
-    const ratingUpdates = {};
-    const teamAPlayers = match.teamA;
-    const teamBPlayers = match.teamB;
-
-    const wonA = winnerTeam === 'teamA';
-    const wonB = winnerTeam === 'teamB';
-
-    // Actualizar estado de jugadores a idle
-    for (const p of [...teamAPlayers, ...teamBPlayers]) {
-      const pId = p.userId || p.id;
-      const entry = connectedUsers.get(pId);
-      if (entry) {
-        entry.status = 'idle';
-        entry.details = 'Partido concluido';
-      }
+  const finishMatch = (matchId, winnerTeam, actorId) => {
+    const result = db.finalizeLegacyMatch(matchId, winnerTeam, actorId);
+    const { match, ratingUpdates } = result;
+    for (const player of [...match.teamA, ...match.teamB]) {
+      const entry = connectedUsers.get(player.userId || player.id);
+      if (entry) { entry.status = 'idle'; entry.details = 'Partido concluido'; }
+      const target = io.sockets.sockets.get(userSocketMap.get(player.userId || player.id));
+      if (target) target.join(matchId);
     }
     broadcastOnlineUsers();
-
-    // En 1v1: +35 pts directos al ganador, -25 pts al perdedor
-    for (const p of teamAPlayers) {
-      const currentProfile = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-      const pointsDelta = wonA ? 35 : -25;
-      const newRating = Math.max(800, currentProfile.rating + pointsDelta);
-
-      const updated = db.setProfile(p.userId || p.id, match.sportId, match.formatId, {
-        rating: newRating,
-        matchesPlayed: (currentProfile.matchesPlayed || 0) + 1,
-        wins: (currentProfile.wins || 0) + (wonA ? 1 : 0),
-        losses: (currentProfile.losses || 0) + (wonA ? 0 : 1)
-      });
-
-      ratingUpdates[p.userId || p.id] = {
-        oldRating: currentProfile.rating,
-        newRating: updated.rating,
-        ratingChange: pointsDelta,
-        won: wonA
-      };
-    }
-
-    for (const p of teamBPlayers) {
-      const currentProfile = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-      const pointsDelta = wonB ? 35 : -25;
-      const newRating = Math.max(800, currentProfile.rating + pointsDelta);
-
-      const updated = db.setProfile(p.userId || p.id, match.sportId, match.formatId, {
-        rating: newRating,
-        matchesPlayed: (currentProfile.matchesPlayed || 0) + 1,
-        wins: (currentProfile.wins || 0) + (wonB ? 1 : 0),
-        losses: (currentProfile.losses || 0) + (wonB ? 0 : 1)
-      });
-
-      ratingUpdates[p.userId || p.id] = {
-        oldRating: currentProfile.rating,
-        newRating: updated.rating,
-        ratingChange: pointsDelta,
-        won: wonB
-      };
-    }
-
     realtime.to(matchId).emit('matchTimerStopped', { matchId });
-    realtime.to(matchId).emit('matchFinished', {
-      matchId,
-      winnerTeam,
-      ratingUpdates,
-      match
-    });
+    realtime.to(matchId).emit('matchFinished', { matchId, winnerTeam, ratingUpdates, match });
+    if (!result.replayed) broadcastPeerReviewAssignments(match);
+  };
 
-    // Enviar también a los sockets individuales de los jugadores
-    for (const p of [...teamAPlayers, ...teamBPlayers]) {
-      const pId = p.userId || p.id;
-      const entry = connectedUsers.get(pId);
-      if (entry && entry.socketId) {
-        realtime.to(entry.socketId).emit('matchTimerStopped', { matchId });
-        realtime.to(entry.socketId).emit('matchFinished', {
-          matchId,
-          winnerTeam,
-          ratingUpdates,
-          match
-        });
-      }
-    }
-
-    broadcastPeerReviewAssignments(match);
-  });
-
-  // Reporte estándar multi-jugador (>1v1) o consenso
+  onEvent('reportResultByReporter', ({ matchId, reporterUserId, winnerTeam }) => finishMatch(matchId, winnerTeam, reporterUserId));
   onEvent('reportResult', ({ matchId, userId, winnerTeam }) => {
     const match = db.getMatch(matchId);
     if (!match || match.status === 'finished') return;
-
-    // Si es 1v1 y este usuario es el reportero designado, procesar directo sin esperar
-    if (match.is1v1 && match.designatedReporter && match.designatedReporter === userId) {
-      match.status = 'finished';
-      match.resultFinal = winnerTeam;
-      match.reportedBy = userId;
-
-      if (match.matchTimer) {
-        match.matchTimer.active = false;
-        match.matchTimer.endsAt = null;
-        match.matchTimer.stoppedAt = Date.now();
-      }
-
-      const ratingUpdates = {};
-      const wonA = winnerTeam === 'teamA';
-      const wonB = winnerTeam === 'teamB';
-
-      for (const p of [...match.teamA, ...match.teamB]) {
-        const pId = p.userId || p.id;
-        const entry = connectedUsers.get(pId);
-        if (entry) {
-          entry.status = 'idle';
-          entry.details = 'Partido concluido';
-        }
-      }
-      broadcastOnlineUsers();
-
-      for (const p of match.teamA) {
-        const currentProfile = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-        const ptsDelta = wonA ? 35 : -25;
-        const newRating = Math.max(800, currentProfile.rating + ptsDelta);
-        const updated = db.setProfile(p.userId || p.id, match.sportId, match.formatId, {
-          rating: newRating,
-          matchesPlayed: (currentProfile.matchesPlayed || 0) + 1,
-          wins: (currentProfile.wins || 0) + (wonA ? 1 : 0),
-          losses: (currentProfile.losses || 0) + (wonA ? 0 : 1)
-        });
-        ratingUpdates[p.userId || p.id] = {
-          oldRating: currentProfile.rating,
-          newRating: updated.rating,
-          ratingChange: ptsDelta,
-          won: wonA
-        };
-      }
-
-      for (const p of match.teamB) {
-        const currentProfile = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-        const ptsDelta = wonB ? 35 : -25;
-        const newRating = Math.max(800, currentProfile.rating + ptsDelta);
-        const updated = db.setProfile(p.userId || p.id, match.sportId, match.formatId, {
-          rating: newRating,
-          matchesPlayed: (currentProfile.matchesPlayed || 0) + 1,
-          wins: (currentProfile.wins || 0) + (wonB ? 1 : 0),
-          losses: (currentProfile.losses || 0) + (wonB ? 0 : 1)
-        });
-        ratingUpdates[p.userId || p.id] = {
-          oldRating: currentProfile.rating,
-          newRating: updated.rating,
-          ratingChange: ptsDelta,
-          won: wonB
-        };
-      }
-
-      realtime.to(matchId).emit('matchTimerStopped', { matchId });
-      realtime.to(matchId).emit('matchFinished', {
-        matchId,
-        winnerTeam,
-        ratingUpdates,
-        match
-      });
-
-      for (const p of [...match.teamA, ...match.teamB]) {
-        const pId = p.userId || p.id;
-        const entry = connectedUsers.get(pId);
-        if (entry && entry.socketId) {
-          realtime.to(entry.socketId).emit('matchTimerStopped', { matchId });
-          realtime.to(entry.socketId).emit('matchFinished', {
-            matchId,
-            winnerTeam,
-            ratingUpdates,
-            match
-          });
-        }
-      }
-      broadcastPeerReviewAssignments(match);
+    if ((match.is1v1 && match.designatedReporter === userId) || match.teamB.some(player => player.isDemo)) {
+      finishMatch(matchId, winnerTeam, userId);
       return;
     }
-
-    match.resultReports[userId] = { winnerTeam, timestamp: Date.now() };
-    const isAgainstDemo = match.teamB.some(p => p.isDemo);
-
-    let isResolved = false;
-    let finalWinner = null;
-
-    if (isAgainstDemo) {
-      isResolved = true;
-      finalWinner = winnerTeam;
-
+    db.atomic(() => {
+      match.resultReports[userId] = { winnerTeam, timestamp: Date.now() };
+      db._persistMatch(match);
+    });
+    const reports = Object.values(match.resultReports);
+    if (reports.length < 2) {
+      realtime.to(matchId).emit('reportWaiting', { matchId, reportedBy: userId, message: 'Esperando confirmación del rival' });
+    } else if (reports.every(report => report.winnerTeam === winnerTeam)) {
+      finishMatch(matchId, winnerTeam, userId);
     } else {
-      const reports = Object.values(match.resultReports);
-      if (reports.length >= 2) {
-        const uniqueReports = new Set(reports.map(r => r.winnerTeam));
-        if (uniqueReports.size === 1) {
-          isResolved = true;
-          finalWinner = reports[0].winnerTeam;
-        } else {
-          match.status = 'disputed';
-          db._persistMatch(match);
-          realtime.to(ADMIN_ROOM).emit('matchDisputed', { matchId });
-          realtime.to(matchId).emit('matchDisputed', {
-            matchId,
-            message: 'Hubo una discrepancia en el resultado reportado. Notificación enviada al Administrador.'
-          });
-          return;
-        }
-      } else {
-        realtime.to(matchId).emit('reportWaiting', {
-          matchId,
-          reportedBy: userId,
-          message: 'Resultado enviado. Esperando confirmación del rival...'
-        });
-        return;
-      }
-    }
-
-    if (isResolved && finalWinner) {
-      match.status = 'finished';
-      match.resultFinal = finalWinner;
-
-      // DETENER EL TEMPORIZADOR DE CANCHA
-      if (match.matchTimer) {
-        match.matchTimer.active = false;
-        match.matchTimer.endsAt = null;
-        match.matchTimer.stoppedAt = Date.now();
-      }
-
-      const ratingUpdates = {};
-      const teamAPlayers = match.teamA;
-      const teamBPlayers = match.teamB;
-      const scoreA = finalWinner === 'teamA' ? 1 : 0;
-      const scoreB = finalWinner === 'teamB' ? 1 : 0;
-
-      // Actualizar estado de jugadores a idle
-      for (const p of [...teamAPlayers, ...teamBPlayers]) {
-        const pId = p.userId || p.id;
-        const entry = connectedUsers.get(pId);
-        if (entry) {
-          entry.status = 'idle';
-          entry.details = 'Partido concluido';
-        }
-      }
-      broadcastOnlineUsers();
-
-      for (const p of teamAPlayers) {
-        const currentProfile = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-        const ptsDelta = scoreA === 1 ? 35 : -25;
-        const newRating = Math.max(800, currentProfile.rating + ptsDelta);
-        const updated = db.setProfile(p.userId || p.id, match.sportId, match.formatId, {
-          rating: newRating,
-          matchesPlayed: (currentProfile.matchesPlayed || 0) + 1,
-          wins: (currentProfile.wins || 0) + (scoreA === 1 ? 1 : 0),
-          losses: (currentProfile.losses || 0) + (scoreA === 0 ? 1 : 0)
-        });
-        ratingUpdates[p.userId || p.id] = {
-          oldRating: currentProfile.rating,
-          newRating: updated.rating,
-          ratingChange: ptsDelta,
-          won: scoreA === 1
-        };
-      }
-
-      for (const p of teamBPlayers) {
-        const currentProfile = db.getProfile(p.userId || p.id, match.sportId, match.formatId);
-        const ptsDelta = scoreB === 1 ? 35 : -25;
-        const newRating = Math.max(800, currentProfile.rating + ptsDelta);
-        const updated = db.setProfile(p.userId || p.id, match.sportId, match.formatId, {
-          rating: newRating,
-          matchesPlayed: (currentProfile.matchesPlayed || 0) + 1,
-          wins: (currentProfile.wins || 0) + (scoreB === 1 ? 1 : 0),
-          losses: (currentProfile.losses || 0) + (scoreB === 0 ? 1 : 0)
-        });
-        ratingUpdates[p.userId || p.id] = {
-          oldRating: currentProfile.rating,
-          newRating: updated.rating,
-          ratingChange: ptsDelta,
-          won: scoreB === 1
-        };
-      }
-
-      realtime.to(matchId).emit('matchTimerStopped', { matchId });
-      realtime.to(matchId).emit('matchFinished', {
-        matchId,
-        winnerTeam: finalWinner,
-        ratingUpdates,
-        match
-      });
-
-      for (const p of [...teamAPlayers, ...teamBPlayers]) {
-        const pId = p.userId || p.id;
-        const entry = connectedUsers.get(pId);
-        if (entry && entry.socketId) {
-          realtime.to(entry.socketId).emit('matchTimerStopped', { matchId });
-          realtime.to(entry.socketId).emit('matchFinished', {
-            matchId,
-            winnerTeam: finalWinner,
-            ratingUpdates,
-            match
-          });
-        }
-      }
-      broadcastPeerReviewAssignments(match);
+      db.atomic(() => { match.status = 'disputed'; db._persistMatch(match); });
+      realtime.to(ADMIN_ROOM).emit('matchDisputed', { matchId });
+      realtime.to(matchId).emit('matchDisputed', { matchId, message: 'Resultados diferentes; revisión administrativa pendiente' });
     }
   });
-
-  // Calificación de Atributos FUT entre rivales en 1v1
 
   // Voto de 1-toque en Peer-Review Circular post-partido (+2 al atributo)
   onEvent('submitPeerReviewOneTap', ({ matchId, evaluatorId, attributeTag }, callback) => {
