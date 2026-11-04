@@ -4,6 +4,8 @@ import { db } from './db.js';
 import { sqlGetReceipt, sqlInsertReceipt, sqlSaveCompetition } from './database.js';
 import { validateCompetitionCommand } from '../shared/competitionContract.mjs';
 import districts from './peru_districts.json' with { type: 'json' };
+import { competitionEvents } from './competitionEvents.js';
+import { competitionChatRouter } from './competitionChat.js';
 
 const supported = new Set(['create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost', 'transferCaptain', 'setReady', 'updateDetails', 'start']);
 const idOf = user => user.id;
@@ -41,7 +43,7 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
   if (!actor) fail('FORBIDDEN', 'Cuenta no disponible', 403);
   const key = `competition:${actorId}:${command}:${data.requestId}`;
   const fingerprint = createHash('sha256').update(JSON.stringify(canonical(data))).digest('hex');
-  return db.atomic(() => {
+  const result = db.atomic(() => {
     const receipt = sqlGetReceipt(key);
     if (receipt) {
       if (receipt.fingerprint !== fingerprint) fail('REQUEST_CONFLICT', 'La solicitud ya se usó con otros datos');
@@ -134,9 +136,12 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
     sqlInsertReceipt(key, { fingerprint, result });
     return result;
   });
+  if (!result.replayed) competitionEvents.emit('changed', { competitionId: result.competitionId, revision: result.revision });
+  return result;
 }
 
 export const competitionRouter = Router();
+competitionRouter.use(competitionChatRouter);
 competitionRouter.get('/', (req, res) => {
   let rooms = [...db.competitions.values()].filter(room => ['OPEN', 'FULL'].includes(room.status) && Date.parse(room.scheduledAt) > Date.now());
   if (req.query.districtId) rooms = rooms.filter(room => room.venue.districtId === req.query.districtId);

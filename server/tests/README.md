@@ -76,3 +76,7 @@ Siete casos de `competitions.test.js`, 67 pruebas conjuntas: validación y sesi�
 ## Inicio MS-07-B
 
 Seis casos de `competition-start.test.js`, 73 pruebas conjuntas. Cubren condiciones de inicio, atomicidad, lectura privada, duplicados concurrentes, solapamientos con partidos nuevos/antiguos, replay tras reinicio y restauración. Los fixtures preparan el horario offline sin habilitar controles de reloj en la API. Los servicios de prueba manual permanecen detenidos; esta suite crea sus propios servidores aislados. Ver `docs/INICIO_PARTIDO.md`.
+
+## Chat y recuperación MS-08
+
+`competition-chat.test.js` agrega cinco casos de integración con clientes Socket.IO reales, HTTP, persistencia y restauración. `competition-chat-client.test.js` agrega cinco casos del controlador usado por el móvil, con pérdida de confirmación, eventos adelantados, reintentos, bandeja local, cierre durante escritura, separación por cuenta/sala, error de almacenamiento y limpieza. La suite usa cuentas distintas para representar dos dispositivos, porque solo se permite una conexión activa por cuenta. Ver `docs/CHAT_Y_RECONEXION.md`; la validación física nativa permanece pendiente.

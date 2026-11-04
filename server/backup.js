@@ -16,7 +16,8 @@ async function validate(bytes) {
     for (const table of ['users', 'user_profiles', 'matches', 'lobbies', 'app_config']) database.exec(`SELECT count(*) FROM ${table}`);
     if (database.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] >= 3) database.exec('SELECT count(*) FROM competitions');
     if (database.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] >= 4) database.exec('SELECT count(*) FROM competition_matches');
-    if (database.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] > 4) throw new Error('Unsupported backup schema');
+    if (database.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] >= 5) database.exec('SELECT count(*) FROM competition_messages');
+    if (database.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] > 5) throw new Error('Unsupported backup schema');
   } finally { database.close(); }
 }
 function testArtifact(file) {

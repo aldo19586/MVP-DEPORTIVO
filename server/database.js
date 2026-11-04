@@ -94,7 +94,7 @@ export async function initDatabase() {
   }
   if (_db.exec('PRAGMA quick_check')[0]?.values?.[0]?.[0] !== 'ok') throw new Error('Database integrity check failed');
   const version = _db.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] || 0;
-  if (version > 4) throw new Error('Database schema is newer than this server');
+  if (version > 5) throw new Error('Database schema is newer than this server');
 
   // Optimizaciones de rendimiento
   // sql.js is in-memory; filesystem durability is provided by atomicWrite.
@@ -108,10 +108,11 @@ export async function initDatabase() {
       if (match.status === 'finished') _db.run('INSERT OR IGNORE INTO operation_receipts (key, result_json) VALUES (?,?)',
         [`legacy-result:${match.id}`, JSON.stringify({ matchId: match.id, winnerTeam: match.resultFinal, historical: true, ratingUpdates: {} })]);
     }
-    _db.run('PRAGMA user_version = 4');
+    _db.run('PRAGMA user_version = 5');
     _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (2, datetime('now'))");
     _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (3, datetime('now'))");
     _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (4, datetime('now'))");
+    _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (5, datetime('now'))");
   });
 
   _initialized = true;
@@ -124,6 +125,11 @@ export async function initDatabase() {
 }
 
 function createTables() {
+  _db.run(`CREATE TABLE IF NOT EXISTS competition_messages (
+    competition_id TEXT NOT NULL REFERENCES competitions(id), sequence INTEGER NOT NULL,
+    sender_id TEXT NOT NULL, request_id TEXT NOT NULL, created_at TEXT NOT NULL, data_json TEXT NOT NULL,
+    PRIMARY KEY (competition_id, sequence), UNIQUE (competition_id, sender_id, request_id))`);
+  _db.run('CREATE INDEX IF NOT EXISTS idx_competition_messages_sender_time ON competition_messages(sender_id, created_at)');
   _db.run('CREATE TABLE IF NOT EXISTS competition_matches (id TEXT PRIMARY KEY, competition_id TEXT NOT NULL UNIQUE, data_json TEXT NOT NULL)');
   _db.run('CREATE TABLE IF NOT EXISTS competitions (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, revision INTEGER NOT NULL, data_json TEXT NOT NULL)');
   _db.run('CREATE TABLE IF NOT EXISTS operation_receipts (key TEXT PRIMARY KEY, result_json TEXT NOT NULL)');
@@ -297,6 +303,27 @@ export function sqlGetCompetitionMatches() {
 }
 export function sqlInsertCompetitionMatch(value) {
   _db.run('INSERT INTO competition_matches (id,competition_id,data_json) VALUES (?,?,?)', [value.id, value.competitionId, JSON.stringify(value)]);
+  scheduleSave();
+}
+
+export function sqlGetCompetitionMessages(competitionId, after = 0, limit = 100) {
+  return (_db.exec('SELECT data_json FROM competition_messages WHERE competition_id = ? AND sequence > ? ORDER BY sequence LIMIT ?',
+    [competitionId, after, limit])[0]?.values || []).map(row => JSON.parse(row[0]));
+}
+export function sqlGetCompetitionMessageRequest(competitionId, senderId, requestId) {
+  const rows = _db.exec('SELECT data_json FROM competition_messages WHERE competition_id = ? AND sender_id = ? AND request_id = ?',
+    [competitionId, senderId, requestId]);
+  return rows[0]?.values.length ? JSON.parse(rows[0].values[0][0]) : null;
+}
+export function sqlNextCompetitionMessageSequence(competitionId) {
+  return Number(_db.exec('SELECT COALESCE(MAX(sequence), 0) + 1 FROM competition_messages WHERE competition_id = ?', [competitionId])[0].values[0][0]);
+}
+export function sqlCountRecentCompetitionMessages(senderId, since) {
+  return Number(_db.exec('SELECT COUNT(*) FROM competition_messages WHERE sender_id = ? AND created_at >= ?', [senderId, since])[0].values[0][0]);
+}
+export function sqlInsertCompetitionMessage(message) {
+  _db.run('INSERT INTO competition_messages (competition_id,sequence,sender_id,request_id,created_at,data_json) VALUES (?,?,?,?,?,?)',
+    [message.competitionId, message.sequence, message.senderId, message.requestId, message.createdAt, JSON.stringify(message)]);
   scheduleSave();
 }
 

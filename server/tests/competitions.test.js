@@ -150,7 +150,7 @@ test('schema-three rows survive a snapshot restore and preserve earlier profiles
   const ctx = await setup(t);
   const room = (await call(ctx, ctx.users[0], 'create', create())).body.data;
   await ctx.stop();
-  assert.deepEqual(await readSnapshot(ctx.sandbox, 'PRAGMA user_version'), [[4]]);
+  assert.deepEqual(await readSnapshot(ctx.sandbox, 'PRAGMA user_version'), [[5]]);
   const rows = await readSnapshot(ctx.sandbox, 'SELECT data_json FROM competitions');
   assert.equal(JSON.parse(rows[0][0]).id, room.id);
   assert.equal((await readSnapshot(ctx.sandbox, 'SELECT id FROM users')).length, 3);

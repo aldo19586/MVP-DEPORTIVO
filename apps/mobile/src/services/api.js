@@ -30,6 +30,8 @@ export const api = {
   myCompetitions: () => request('/competitions/mine'),
   competition: competitionId => request(`/competitions/${id(competitionId)}`),
   competitionMatch: competitionId => request(`/competitions/${id(competitionId)}/match`),
+  competitionMessages: (competitionId, after = 0) => request(`/competitions/${id(competitionId)}/messages?after=${after}`),
+  sendCompetitionMessage: (competitionId, payload) => post(`/competitions/${id(competitionId)}/messages`, payload),
   competitionByCode: code => request(`/competitions/by-code/${id(code.trim().toUpperCase())}`),
   competitionCommand: (command, payload) => post(`/competitions/commands/${id(command)}`, payload),
   me: () => request('/auth/me'),

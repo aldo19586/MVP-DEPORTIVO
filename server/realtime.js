@@ -3,9 +3,11 @@ import { db } from './db.js';
 import { isParticipant } from './access.js';
 import { toPublicUser, toResource } from './userDto.js';
 import { sessionEvents } from './sessionEvents.js';
+import { competitionEvents } from './competitionEvents.js';
 
 export const ADMIN_ROOM = 'admin_monitor';
-const publicEvents = new Set(['sportsUpdated', 'lobbyListUpdated', 'lobbyNeedsOne', 'replacementMarketUpdated', 'replacementLobbiesList']);
+const publicEvents = new Set(['sportsUpdated', 'lobbyListUpdated', 'lobbyNeedsOne', 'replacementMarketUpdated', 'replacementLobbiesList', 'competitionListUpdated']);
+const competitionEventNames = new Set(['competitionUpdated', 'competitionMessage']);
 const adminEvents = new Set(['onlineUsersUpdate', 'adminDisputeResolved']);
 const personalEvents = new Set(['queueStatus', 'queueStarted', 'queueCancelled', 'matchPromptAcceptance',
   'pendingMatchUpdated', 'matchPromptUpdated', 'matchAcceptanceFailed', 'session_replaced',
@@ -15,7 +17,7 @@ const resourceEvents = new Set(['activeMatch', 'matchData', 'matchFound', 'match
   'matchCancelledAndConverted', 'matchPlayerLeft', 'matchTimerStarted', 'matchTimerStopped', 'matchDisputed',
   'newChatMessage', 'newLobbyChatMessage', 'lobbyCreated', 'lobbyRestored', 'lobbyUpdated',
   'lobbyStartedRadarSearch', 'reportWaiting', 'peerReviewsReady']);
-export const SERVER_EVENTS = new Set([...publicEvents, ...adminEvents, ...personalEvents, ...resourceEvents]);
+export const SERVER_EVENTS = new Set([...publicEvents, ...adminEvents, ...personalEvents, ...resourceEvents, ...competitionEventNames]);
 
 export function lobbyPreview(lobby) {
   const keys = ['code', 'name', 'sportId', 'formatId', 'formatName', 'playersPerTeam', 'totalSlots',
@@ -61,7 +63,10 @@ export function createRealtime(io) {
     if (!SERVER_EVENTS.has(event)) return;
     if ((adminEvents.has(event) || target === ADMIN_ROOM) && user.role !== 'admin') return;
     const data = { ...payload };
-    if (publicEvents.has(event)) {
+    if (competitionEventNames.has(event)) {
+      const room = db.competitions.get(data.competitionId);
+      if (!room || (user.role !== 'admin' && ![...room.teamA, ...room.teamB].some(member => member.id === user.id))) return;
+    } else if (publicEvents.has(event)) {
       if (data.lobbies) data.lobbies = data.lobbies.map(lobbyPreview);
       if (data.lobby) data.lobby = lobbyPreview(data.lobby);
     } else {
@@ -89,12 +94,23 @@ export function createRealtime(io) {
     socket.emit(event, data);
   }
   function broadcast(target, event, payload) {
-    // Global broadcasts contain only public previews or administrative events.
-    if (!target && !publicEvents.has(event) && !adminEvents.has(event)) return;
+    // Private competition events are filtered per recipient in send(), even without subscriptions.
+    if (!target && !publicEvents.has(event) && !adminEvents.has(event) && !competitionEventNames.has(event)) return;
     for (const socket of io.sockets.sockets.values()) {
       if (!target || socket.id === target || socket.rooms.has(target)) send(socket, event, payload, target);
     }
   }
+  const changed = payload => {
+    broadcast(null, 'competitionUpdated', payload);
+    broadcast(null, 'competitionListUpdated', {});
+  };
+  const message = payload => broadcast(null, 'competitionMessage', payload);
+  competitionEvents.on('changed', changed);
+  competitionEvents.on('message', message);
+  io.httpServer.once('close', () => {
+    competitionEvents.off('changed', changed);
+    competitionEvents.off('message', message);
+  });
   return { send, to: target => ({ emit: (event, payload) => broadcast(target, event, payload) }),
     emit: (event, payload) => broadcast(null, event, payload) };
 }

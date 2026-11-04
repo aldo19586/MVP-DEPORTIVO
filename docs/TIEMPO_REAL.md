@@ -2,6 +2,8 @@
 
 Entrega técnica del 2 de noviembre de 2026. Continúa [MS-03](SESIONES_Y_PERMISOS.md) y cubre Socket.IO en el backend, móvil y panel. Las reglas completas del partido y la preparación del piloto siguen en el backlog.
 
+Actualización del 3 de noviembre: las convocatorias nuevas usan [el chat y recuperación de MS-08](CHAT_Y_RECONEXION.md), independiente del recorrido heredado descrito aquí. Ese documento especifica sus eventos, historial y reintentos; los límites de esta evidencia de MS-04 se conservan como antecedente.
+
 ## Identidad y vigencia
 
 - El handshake exige `auth.token`; no basta con enviar un `userId`. Se comprueban firma, vencimiento, cuenta existente, versión de sesión y sanción vigente mediante el mismo autenticador de REST.

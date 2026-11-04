@@ -114,7 +114,7 @@ test('version-one database migration preserves records and records version two',
   `);
   const server = await startTestServer(sandbox); await server.stop();
   assert.deepEqual(await readSnapshot(sandbox, 'SELECT id FROM users ORDER BY id'), before);
-  assert.deepEqual(await readSnapshot(sandbox, 'PRAGMA user_version'), [[4]]);
+  assert.deepEqual(await readSnapshot(sandbox, 'PRAGMA user_version'), [[5]]);
   assert.equal((await readSnapshot(sandbox, 'SELECT version FROM schema_migrations'))[0][0], 2);
   const historical = await readSnapshot(sandbox, 'SELECT result_json FROM operation_receipts');
   assert.equal(JSON.parse(historical[0][0]).historical, true);

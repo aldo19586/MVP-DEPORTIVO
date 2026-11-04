@@ -44,3 +44,5 @@ Documentación y auditoría estática inicial terminadas. **MS-01 completado:** 
 
 
 **MS-07-B implementado:** [preparación e inicio de partido](INICIO_PARTIDO.md), con Listo/edición en móvil, inicio único y protección de solapamientos. 73 pruebas conjuntas y bundle iOS; prueba física pendiente. Servicios manuales detenidos a petición de Aldo. Sigue MS-08 (chat y actualización del recurso nuevo).
+
+**MS-08 implementado:** [chat y recuperación](CHAT_Y_RECONEXION.md), con mensajes persistidos, reintentos sin duplicados, bandeja pendiente y actualización de convocatorias al reconectar. 83 pruebas conjuntas y bundle iOS aprobados; dos dispositivos físicos y piloto pendientes. Servicios manuales permanecen detenidos. Siguiente entrega: MS-09 (resultado, confirmación, disputa y rating).

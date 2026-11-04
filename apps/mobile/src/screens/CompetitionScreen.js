@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert, Share, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert, Share, Platform, KeyboardAvoidingView, AppState } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Clipboard from 'expo-clipboard';
 import { api } from '../services/api';
+import { socketService } from '../services/socket';
+import CompetitionChat from './CompetitionChat';
 
 const formats = ['5v5', '6v6', '7v7', '9v9', '11v11'];
 const requestId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -82,7 +84,7 @@ export default function CompetitionScreen({ user, mine = false }) {
       pending.current = null;
       if (!mounted.current) return;
       if (name === 'leave') { setRoom(null); setPage('list'); await refresh(); }
-      else { setRoom(result.data); setEditing(false); setPicker(null); setPage('detail'); }
+      else { setRoom(previous => previous?.id === result.data.id && previous.revision > result.data.revision ? previous : result.data); setEditing(false); setPicker(null); setPage('detail'); }
     } catch (e) {
       if (!mounted.current) return;
       if (e.code === 'REVISION_CONFLICT') {
@@ -102,12 +104,46 @@ export default function CompetitionScreen({ user, mine = false }) {
   const myTeam = own ? (room.teamA.some(member => member.id === user.id) ? 'teamA' : 'teamB') : null;
   const me = own ? room[myTeam].find(member => member.id === user.id) : null;
   useEffect(() => {
+    if (page !== 'list') return;
+    const socket = socketService.getSocket();
+    let timer;
+    const changed = () => { clearTimeout(timer); timer = setTimeout(refresh, 150); };
+    socket?.on('competitionListUpdated', changed);
+    socket?.on('connect', changed);
+    const subscription = AppState.addEventListener('change', value => { if (value === 'active') changed(); });
+    return () => { clearTimeout(timer); socket?.off('competitionListUpdated', changed); socket?.off('connect', changed); subscription.remove(); };
+  }, [page, mine, filterDistrict]);
+  useEffect(() => {
+    if (!room?.id) return;
+    const socket = socketService.getSocket();
+    let active = true;
+    const recover = async () => {
+      try {
+        const result = own ? await api.competition(room.id) : await api.competitionByCode(room.code);
+        if (active) setRoom(previous => previous?.id === result.competition.id && previous.revision <= result.competition.revision ? result.competition : previous);
+      } catch (e) {
+        if (active) {
+          setError(e.message);
+          if (e.status === 403 || e.status === 404) { setRoom(null); setPage('list'); }
+        }
+      }
+    };
+    const updated = payload => { if (payload.competitionId === room.id) recover(); };
+    const publicUpdated = () => { if (!own) recover(); };
+    socket?.on('competitionUpdated', updated);
+    socket?.on('competitionListUpdated', publicUpdated);
+    socket?.on('connect', recover);
+    const subscription = AppState.addEventListener('change', value => { if (value === 'active') recover(); });
+    recover();
+    return () => { active = false; socket?.off('competitionUpdated', updated); socket?.off('competitionListUpdated', publicUpdated); socket?.off('connect', recover); subscription.remove(); };
+  }, [room?.id, own]);
+  useEffect(() => {
     setMatch(null);
     if (!own || !room?.matchId || page !== 'detail') return;
     let active = true;
     api.competitionMatch(room.id).then(result => { if (active) setMatch(result.match); }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
-  }, [room?.matchId, room?.id, page, own]);
+  }, [room?.matchId, room?.id, room?.revision, page, own]);
   const editDetails = () => {
     setFormat(room.formatId); setDistrict({ id: room.venue.districtId, label: room.district });
     setVenue(room.venue.name); setAddress(room.venue.address); setWhen(new Date(room.scheduledAt));
@@ -121,6 +157,7 @@ export default function CompetitionScreen({ user, mine = false }) {
     if (value) setWhen(value);
   };
 
+  if (page === 'chat' && own) return <CompetitionChat room={room} user={user} onBack={() => setPage('detail')} />;
   return <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {page !== 'list' && <Button title="← Volver" secondary disabled={busy} onPress={() => page === 'details' ? setPage('create') : goList()} />}
@@ -162,6 +199,7 @@ export default function CompetitionScreen({ user, mine = false }) {
         <Text selectable style={styles.code}>{room.code}</Text>
         <View style={styles.row}><Button title="Copiar código" secondary onPress={async () => { try { await Clipboard.setStringAsync(room.code); Alert.alert('Código copiado'); } catch(e) { setError(e.message); } }} /><Button title="Compartir" secondary onPress={() => Share.share({ message: `MatchSport · Fútbol ${room.formatId.split('v')[0]}\n${room.venue.name}, ${room.district}\n${dateLabel(room.scheduledAt)} (Perú)\nCódigo: ${room.code}` }).catch(e => setError(e.message))} /></View>
         {match && <Text style={styles.text}>Partido en curso · {dateLabel(match.startedAt)}. Equipos confirmados.</Text>}
+        {own && <Button title="Abrir chat de la sala" secondary onPress={() => setPage('chat')} />}
         {room.status === 'CANCELLED' ? <Text style={styles.muted}>{room.cancelReason || 'Convocatoria cerrada'}</Text> : !own ? <>
           {!preparing && <Text style={styles.muted}>El partido ya comenzó. No se admiten más participantes.</Text>}
           {preparing && ['teamA', 'teamB'].map((team, index) => <Button key={team} title={`Unirme al equipo ${index ? 'B' : 'A'} (${index ? room.teamBCount : room.teamACount}/${room.playersPerTeam})`} disabled={busy || (index ? room.teamBCount : room.teamACount) >= room.playersPerTeam} onPress={() => command('join', { code: room.code, team, expectedRevision: room.revision })} />)}
