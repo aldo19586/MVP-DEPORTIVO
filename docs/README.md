@@ -38,3 +38,6 @@ Documentación y auditoría estática inicial terminadas. **MS-01 completado:** 
 
 
 **MS-06-B local implementado:** [transacciones y resultados](TRANSACCIONES.md), seis pruebas nuevas y 60 conjuntas. [D-05: recomendación de Supabase/PostgreSQL + Render](ALMACENAMIENTO_PILOTO.md); producción y presupuesto pendientes por decisión de Aldo. Se puede continuar con MS-07 local.
+
+
+**MS-07-A implementado:** [convocatorias persistentes](CONVOCATORIAS.md), creación, ingreso por código, cupos y salida/cancelación conectados al móvil. 67 pruebas conjuntas; MS-07-B (inicio) sigue pendiente junto con prueba física en iPhone.

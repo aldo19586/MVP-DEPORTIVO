@@ -11,6 +11,7 @@ import { issueToken, authRateLimiter } from './auth.js';
 import { apiAccess, ownParam, ownRead, ownBody, matchAccess, isParticipant } from './access.js';
 import { VENUES, getVenueSlots } from './venues.js';
 import { runtimeConfig } from './config.js';
+import { competitionRouter } from './competitions.js';
 import { createRealtime, ADMIN_ROOM } from './realtime.js';
 import { sessionEvents } from './sessionEvents.js';
 import { installSocketAccess } from './socketAccess.js';
@@ -32,6 +33,7 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 app.use('/api', apiAccess);
+app.use('/api/competitions', competitionRouter);
 
 const realtime = createRealtime(io);
 const matchmakingEngine = new MatchmakingEngine(io, realtime);
@@ -107,12 +109,13 @@ app.get('/api/districts', (req, res) => {
   if (!query) {
     return res.json({ districts: peruDistricts.slice(0, 50) });
   }
-  const q = query.toLowerCase().trim();
-  const filtered = peruDistricts.filter(d =>
-    d.distrito.toLowerCase().includes(q) ||
-    d.provincia.toLowerCase().includes(q) ||
-    d.departamento.toLowerCase().includes(q)
-  ).slice(0, 30);
+  if (typeof query !== 'string') return res.status(400).json({ error: 'Búsqueda inválida' });
+  const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const terms = normalize(query).split(/[\s,]+/).filter(Boolean);
+  const filtered = peruDistricts.filter(d => {
+    const haystack = normalize(d.label);
+    return terms.every(term => haystack.includes(term));
+  }).slice(0, 30);
   res.json({ districts: filtered });
 });
 

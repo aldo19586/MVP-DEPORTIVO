@@ -14,7 +14,7 @@ import {
   sqlInsertLobby, sqlGetLobby, sqlGetAllLobbies, sqlDeleteLobby, sqlGetOpenReplacementLobbies,
   sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
   sqlGetConfig, sqlSetConfig,
-  forceSave, withTransaction, sqlGetReceipt, sqlInsertReceipt
+  forceSave, withTransaction, sqlGetReceipt, sqlInsertReceipt, sqlGetCompetitions
 } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -409,6 +409,7 @@ class Database {
     this.profiles = new Map(); // key: userId_sportId_formatId
     this.challenges = []; // cola de búsqueda activa — SOLO EN MEMORIA (tiempo real)
     this.matches = new Map(); // id -> match
+    this.competitions = new Map();
     this.lobbies = new Map(); // code -> lobby — SOLO EN MEMORIA (tiempo real)
     this.reviews = [];
     this.futReviews = [];
@@ -449,6 +450,7 @@ class Database {
     // Siempre recuperar los datos existentes; las demos son opt-in.
     console.log('[DB] Cargando datos persistentes desde SQLite...');
     this._loadFromSqlite();
+    this.competitions = new Map(sqlGetCompetitions().map(value => [value.id, value]));
     if (this.users.size === 0 && runtimeConfig.seedDemo) {
       console.log('[DB] Semilla demo solicitada explícitamente...');
       this._seedInitialData();
@@ -1491,7 +1493,7 @@ class Database {
   }
 
   atomic(operation) {
-    const keys = ['users', 'profiles', 'matches', 'lobbies', 'reviews', 'futReviews', 'peerReviews'];
+    const keys = ['users', 'profiles', 'matches', 'lobbies', 'competitions', 'reviews', 'futReviews', 'peerReviews'];
     const snapshot = structuredClone(Object.fromEntries(keys.map(key => [key, this[key]])));
     try { return withTransaction(operation); }
     catch (error) { Object.assign(this, snapshot); throw error; }

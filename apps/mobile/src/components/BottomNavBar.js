@@ -15,7 +15,7 @@ export default function BottomNavBar({ activeTab, onSelectTab, openRoomsCount = 
 
   const tabs = [
     { key: 'JUGAR', label: 'JUGAR', icon: '⚽' },
-    { key: 'SALAS', label: 'SALAS', icon: '🏟️', badge: openRoomsCount > 0 ? openRoomsCount : null },
+    { key: 'SALAS', label: 'MIS SALAS', icon: '🏟️', badge: openRoomsCount > 0 ? openRoomsCount : null },
     { key: 'RANKING', label: 'RANKING', icon: '🏆' },
     { key: 'PERFIL', label: 'PERFIL', icon: '👤' },
   ];

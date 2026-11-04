@@ -11,8 +11,7 @@ import { THEME } from './src/theme';
 // Pantallas
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import RadarScreen from './src/screens/RadarScreen';
-import LobbyListScreen from './src/screens/LobbyListScreen';
+import CompetitionScreen from './src/screens/CompetitionScreen';
 import LobbyRoomScreen from './src/screens/LobbyRoomScreen';
 import MatchAcceptanceScreen from './src/screens/MatchAcceptanceScreen';
 import MatchRoomScreen from './src/screens/MatchRoomScreen';
@@ -417,59 +416,8 @@ export default function App() {
       <StatusBar style="light" backgroundColor={THEME.colors.bgCanvas} />
 
       <View style={styles.tabContent}>
-        {activeTab === 'JUGAR' && (
-          <RadarScreen
-            user={currentUser}
-            radiusKm={currentRadius}
-            districtName={currentDistrict}
-            userLevel={userDeclaredLevel}
-            onOpenNotifications={() => setActiveSubScreen('NOTIFICATIONS')}
-            onOpenCalibration={() => setActiveSubScreen('CALIBRATION')}
-            onOpenLocationSettings={() => setActiveSubScreen('LOCATION_SETTINGS')}
-            onOpenJoinCode={() => setActiveSubScreen('JOIN_CODE')}
-            onStartFootballTest={() => {
-              if (!currentUser?.hasCompletedProfile) {
-                setActiveSubScreen('BIOMETRICS');
-              } else {
-                setActiveSubScreen('FOOTBALL_TEST');
-              }
-            }}
-            onRequireProfileSetup={() => {
-              if (!currentUser?.hasCompletedProfile) {
-                setActiveSubScreen('BIOMETRICS');
-              } else if (!currentUser?.hasCompletedTest) {
-                setActiveSubScreen('FOOTBALL_TEST');
-              }
-            }}
-            onNavigateToLobbies={() => setActiveTab('SALAS')}
-            onSelectLobby={(lobby) => setSelectedLobby(lobby)}
-            onLogout={handleLogout}
-          />
-        )}
-
-        {activeTab === 'SALAS' && (
-          <LobbyListScreen
-            onEnterLobby={(lobby) => setSelectedLobby(lobby)}
-            onCreateLobbyPress={() => {
-              if (!currentUser?.hasCompletedProfile) {
-                setActiveSubScreen('BIOMETRICS');
-                return;
-              }
-              if (!currentUser?.hasCompletedTest) {
-                setActiveSubScreen('FOOTBALL_TEST');
-                return;
-              }
-              setSelectedLobby({
-                code: 'NEW1',
-                name: 'Mi Convocatoria',
-                venueDistrict: currentUser.district || 'Manuel Bonilla, Miraflores',
-                sportId: 'futbol',
-                formatId: '5v5',
-                teamA: [{ id: currentUser.id, name: currentUser.name, position: currentUser.position, isMe: true, isCaptain: true, isReady: true }],
-                teamB: []
-              });
-            }}
-          />
+        {(activeTab === 'JUGAR' || activeTab === 'SALAS') && (
+          <CompetitionScreen key={activeTab} user={currentUser} mine={activeTab === 'SALAS'} />
         )}
 
         {activeTab === 'RANKING' && (
@@ -485,7 +433,7 @@ export default function App() {
       <BottomNavBar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        openRoomsCount={3}
+        openRoomsCount={0}
       />
     </SafeAreaView>
   );

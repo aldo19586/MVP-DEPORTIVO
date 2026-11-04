@@ -15,6 +15,7 @@ export function createHttpClient({ baseUrl, getToken, invalidate, fetcher = (...
         if (response.status === 401 && !publicAccess) await invalidate(token);
         const error = new Error(data.error || `Error HTTP ${response.status}`);
         error.status = response.status;
+        error.code = data.code;
         throw error;
       }
       return data;

@@ -9,7 +9,7 @@ npm run test:server
 Alternativa sin depender del ejecutable npm del equipo:
 
 ```powershell
-node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js
+node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js server/tests/competitions.test.js
 ```
 
 Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previo ni descarga dependencias adicionales. Requiere las dependencias ya instaladas y Node compatible con el proyecto (verificado aquí con Node 22.17.0).
@@ -66,3 +66,8 @@ Siete casos nuevos, 54 pruebas conjuntas. Incluyen fallos inyectados de archivo,
 ## Transacciones MS-06-B local
 
 Seis casos nuevos de `transactions.test.js`; 60 pruebas conjuntas. Verifican rollback SQL/caché, crash dentro de una operación compuesta, recibo de resultado persistente, finalización por socket tras reinicio y migración de esquema 1 a 2. Las reglas de marcador/confirmación nuevas y PostgreSQL alojado siguen pendientes; ver `docs/TRANSACCIONES.md`.
+
+
+## Convocatorias MS-07-A
+
+Siete casos de `competitions.test.js`, 67 pruebas conjuntas: validación y sesión de rutas nuevas, recibos persistentes, cupo concurrente, roles/cancelación, filtros/edición, desconexión de 26 segundos y restauración. Las convocatorias del esquema 3 no dependen de la membresía de lobbies antiguos. Ver `docs/CONVOCATORIAS.md`; inicio y resultados del ciclo nuevo siguen pendientes.

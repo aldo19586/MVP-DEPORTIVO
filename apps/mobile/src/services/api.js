@@ -26,6 +26,11 @@ function query(values) {
 }
 
 export const api = {
+  competitions: (filters = {}) => request(`/competitions${query(filters)}`),
+  myCompetitions: () => request('/competitions/mine'),
+  competition: competitionId => request(`/competitions/${id(competitionId)}`),
+  competitionByCode: code => request(`/competitions/by-code/${id(code.trim().toUpperCase())}`),
+  competitionCommand: (command, payload) => post(`/competitions/commands/${id(command)}`, payload),
   me: () => request('/auth/me'),
   logout: () => post('/auth/logout', {}),
   pinLogin: (name, pin) => post('/auth/pin-login', { name, pin }, true),
