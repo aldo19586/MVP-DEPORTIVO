@@ -55,7 +55,7 @@ export class MatchmakingEngine {
   processQueue() {
     const queue = db.challenges.filter(ticket => {
       const socket = this.io.sockets.sockets.get(ticket.socketId);
-      return socket && authenticate(socket.data.token)?.id === ticket.userId;
+      return socket && authenticate(socket.data.token)?.id === ticket.userId && !db.hasActiveCompetitionMatch(ticket.userId);
     });
     if (queue.length === 0) return;
 
@@ -294,6 +294,7 @@ export class MatchmakingEngine {
     // Si TODOS los jugadores confirmaron (ej. 10/10 en 5v5 o 2/2 en 1v1)
     if (pending.acceptedUserIds.size >= pending.totalPlayers) {
       const unavailable = allPlayers.some(player => {
+        if (db.hasActiveCompetitionMatch(player.userId || player.id)) return true;
         if (player.isDemo) return false;
         const socket = this.io.sockets.sockets.get(player.socketId);
         return !socket || authenticate(socket.data.token)?.id !== (player.userId || player.id);

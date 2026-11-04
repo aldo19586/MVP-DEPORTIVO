@@ -68,6 +68,7 @@ export function authorizeSocketEvent(event, input, user, engine) {
     if (event === 'switchLobbyTeam' && !data.targetTeam) fail('INVALID_PAYLOAD', 'Indica el equipo de destino');
     if (event === 'changeLobbyFormat') sportFormat(lobby.sportId, data.formatId);
     if (event === 'startLobbyMatch' && (lobby.teamA.length !== lobby.playersPerTeam || lobby.teamB.length !== lobby.playersPerTeam)) fail('CONFLICT', 'Faltan jugadores para iniciar');
+    if (event === 'startLobbyMatch' && [...lobby.teamA, ...lobby.teamB].some(player => db.hasActiveCompetitionMatch(player.userId || player.id))) fail('ACTIVE_MATCH', 'Un participante ya tiene otro partido activo');
   }
   if (policy === 'create') {
     data.sportId ??= 'futbol';
@@ -80,7 +81,7 @@ export function authorizeSocketEvent(event, input, user, engine) {
     for (const [key, min, max] of [['lat', -90, 90], ['lng', -180, 180], ['radiusKm', 1, 100]]) {
       if (data[key] !== undefined && (!Number.isFinite(data[key]) || data[key] < min || data[key] > max)) fail('INVALID_PAYLOAD', `${key} inválido`);
     }
-    if (engine.getPendingMatchForUser(user.id) || db.getMatchForUser(user.id)) fail('CONFLICT', 'Ya tienes un partido pendiente o activo');
+    if (engine.getPendingMatchForUser(user.id) || db.getMatchForUser(user.id) || db.hasActiveCompetitionMatch(user.id)) fail('CONFLICT', 'Ya tienes un partido pendiente o activo');
   }
   if (policy === 'pending') {
     const pending = engine.pendingMatches.get(data.pendingMatchId);

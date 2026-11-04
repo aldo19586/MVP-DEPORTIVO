@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05 Hechos**; **MS-06 y MS-07 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05 y MS-07 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -13,7 +13,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-04 | P0 / L | **Hecho:** identidad y permisos Socket.IO | MS-02/MS-03 | Handshake autenticado; eventos usan actor del servidor; admin solo en canal protegido; no miembro no lee/escribe chat ni cambia sala; sesión revocada/baneada no reconecta. A-03 |
 | MS-05 | P1 / M | **Hecho (especificación):** reglas y contratos de salas/partidos | MS-00: D-01/D-04 | Tabla de estados/transiciones/roles, payloads y errores; regla para cupo, abandono, cancelación, empate y ausencia del capitán. Contrato compartido de prueba, sin duplicar lógica de autoridad |
 | MS-06 | P1 / L | **En curso (A/B locales hechas; piloto pendiente):** persistencia durable y recuperación | MS-01, D-05 antes del piloto | Elegir almacenamiento con decisión escrita; migraciones; backups y restauración comprobada; interrupción de escritura sin pérdida silenciosa; tests sobre archivo aislado. A-11 |
-| MS-07 | P1 / L | **En curso (A hecha, B pendiente):** crear/unirse/salir de convocatorias reales | MS-03/MS-04/MS-05 | Todas las entradas usan servidor; código real copiable/compartible; última plaza con dos solicitudes da un único ganador; sin duplicar miembros; fecha/hora/zona persistidas; sala recuperable tras reinicio. A-06/A-08 |
+| MS-07 | P1 / L | **Hecho (implementación A/B):** crear/unirse/salir de convocatorias reales | MS-03/MS-04/MS-05 | Todas las entradas usan servidor; código real copiable/compartible; última plaza con dos solicitudes da un único ganador; sin duplicar miembros; fecha/hora/zona persistidas; sala recuperable tras reinicio. A-06/A-08 |
 | MS-08 | P1 / M | Chat y reconexión | MS-04/MS-07 | Dos dispositivos reciben mismo mensaje una vez; historial y reintento; estados enviando/error; filtro por sala y limpieza de listeners; desconexión no borra membresía futura. A-07/A-08 |
 | MS-09 | P1 / L | Finalización, disputa y rating consistente | MS-04/MS-05/MS-06/MS-07 | Resultado solo por rol autorizado; confirmación según regla; empate; disputa conserva evidencia; resolución admin idempotente; rating/historial se actualizan una vez incluso tras reinicio. A-10 |
 | MS-10 | P1 / L | Onboarding continuo y carta inicial | MS-03, D-02/D-03/D-06 | Cuenta → datos mínimos → test → carta; reanudar; 14 respuestas válidas exigidas por servidor; foto opcional; sin atributos inventados; conservar invitación. A-09/A-16 |
@@ -92,6 +92,14 @@ MS-01 a MS-05 completados. Sigue MS-06 (persistencia) y después MS-07 (convocat
 - Móvil: Jugar/Mis salas con datos de servidor, creación en dos pasos, fecha/hora nativa, distrito nacional, código copiable/compartible e ingreso con selección de equipo. Se retiró la sala NEW1 de esos accesos.
 - Siete casos nuevos y 67 pruebas conjuntas; exportación iOS y build del panel aprobadas. Base personal intacta. Contrato y límites: [CONVOCATORIAS.md](CONVOCATORIAS.md).
 - MS-07-B pendiente: preparación/edición/inicio de partido en UI y servidor. MS-08/MS-09 integrarán chat y resultados del recurso nuevo. Validación física en iPhone pendiente; no se marca MS-07 Hecho.
+
+### Evidencia MS-07-B — 3 de noviembre de 2026
+
+- Preparación en móvil: Listo, cambio de equipo y edición por anfitrión; inicio verificado y transaccional, alineación fija y vínculo único convocatoria/partido.
+- Protección de solapamientos entre camino nuevo y heredado. Esquema 4 y restauración del partido iniciados probados. Lectura solo por participantes/admin; resultados nuevos quedan en MS-09.
+- Seis casos nuevos, 73 pruebas conjuntas y exportación iOS aprobadas. [INICIO_PARTIDO.md](INICIO_PARTIDO.md) detalla condiciones, alcance y prueba física pendiente.
+- A petición de Aldo, backend/Expo/panel de prueba detenidos; datos manuales conservados y base personal intacta.
+- MS-07 A/B implementados; sigue MS-08. La validación física y piloto no se consideran completados por la suite automática.
 
 Después se entrega una convocatoria real entre dos o más cuentas (MS-05/MS-07/MS-08), se cierra resultado/persistencia y se integra el onboarding simplificado. El diseño puede definirse mientras se corrigen permisos, pero no se declara listo antes de conectarlo al servidor.
 

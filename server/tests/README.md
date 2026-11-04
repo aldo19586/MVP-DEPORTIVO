@@ -9,7 +9,7 @@ npm run test:server
 Alternativa sin depender del ejecutable npm del equipo:
 
 ```powershell
-node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js server/tests/competitions.test.js
+node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js server/tests/competitions.test.js server/tests/competition-start.test.js
 ```
 
 Desde `server`, `npm test` ejecuta la misma suite. No necesita un servidor previo ni descarga dependencias adicionales. Requiere las dependencias ya instaladas y Node compatible con el proyecto (verificado aquí con Node 22.17.0).
@@ -71,3 +71,8 @@ Seis casos nuevos de `transactions.test.js`; 60 pruebas conjuntas. Verifican rol
 ## Convocatorias MS-07-A
 
 Siete casos de `competitions.test.js`, 67 pruebas conjuntas: validación y sesión de rutas nuevas, recibos persistentes, cupo concurrente, roles/cancelación, filtros/edición, desconexión de 26 segundos y restauración. Las convocatorias del esquema 3 no dependen de la membresía de lobbies antiguos. Ver `docs/CONVOCATORIAS.md`; inicio y resultados del ciclo nuevo siguen pendientes.
+
+
+## Inicio MS-07-B
+
+Seis casos de `competition-start.test.js`, 73 pruebas conjuntas. Cubren condiciones de inicio, atomicidad, lectura privada, duplicados concurrentes, solapamientos con partidos nuevos/antiguos, replay tras reinicio y restauración. Los fixtures preparan el horario offline sin habilitar controles de reloj en la API. Los servicios de prueba manual permanecen detenidos; esta suite crea sus propios servidores aislados. Ver `docs/INICIO_PARTIDO.md`.

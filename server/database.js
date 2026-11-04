@@ -94,7 +94,7 @@ export async function initDatabase() {
   }
   if (_db.exec('PRAGMA quick_check')[0]?.values?.[0]?.[0] !== 'ok') throw new Error('Database integrity check failed');
   const version = _db.exec('PRAGMA user_version')[0]?.values?.[0]?.[0] || 0;
-  if (version > 3) throw new Error('Database schema is newer than this server');
+  if (version > 4) throw new Error('Database schema is newer than this server');
 
   // Optimizaciones de rendimiento
   // sql.js is in-memory; filesystem durability is provided by atomicWrite.
@@ -108,9 +108,10 @@ export async function initDatabase() {
       if (match.status === 'finished') _db.run('INSERT OR IGNORE INTO operation_receipts (key, result_json) VALUES (?,?)',
         [`legacy-result:${match.id}`, JSON.stringify({ matchId: match.id, winnerTeam: match.resultFinal, historical: true, ratingUpdates: {} })]);
     }
-    _db.run('PRAGMA user_version = 3');
+    _db.run('PRAGMA user_version = 4');
     _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (2, datetime('now'))");
     _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (3, datetime('now'))");
+    _db.run("INSERT OR IGNORE INTO schema_migrations (version, installed_at) VALUES (4, datetime('now'))");
   });
 
   _initialized = true;
@@ -123,6 +124,7 @@ export async function initDatabase() {
 }
 
 function createTables() {
+  _db.run('CREATE TABLE IF NOT EXISTS competition_matches (id TEXT PRIMARY KEY, competition_id TEXT NOT NULL UNIQUE, data_json TEXT NOT NULL)');
   _db.run('CREATE TABLE IF NOT EXISTS competitions (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, revision INTEGER NOT NULL, data_json TEXT NOT NULL)');
   _db.run('CREATE TABLE IF NOT EXISTS operation_receipts (key TEXT PRIMARY KEY, result_json TEXT NOT NULL)');
   _db.run('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, installed_at TEXT NOT NULL)');
@@ -288,6 +290,13 @@ export function sqlGetCompetitions() {
 export function sqlSaveCompetition(value) {
   _db.run('INSERT INTO competitions (id,code,revision,data_json) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,data_json=excluded.data_json',
     [value.id, value.code, value.revision, JSON.stringify(value)]);
+  scheduleSave();
+}
+export function sqlGetCompetitionMatches() {
+  return (_db.exec('SELECT data_json FROM competition_matches')[0]?.values || []).map(row => JSON.parse(row[0]));
+}
+export function sqlInsertCompetitionMatch(value) {
+  _db.run('INSERT INTO competition_matches (id,competition_id,data_json) VALUES (?,?,?)', [value.id, value.competitionId, JSON.stringify(value)]);
   scheduleSave();
 }
 

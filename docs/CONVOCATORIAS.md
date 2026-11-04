@@ -1,6 +1,6 @@
 # MS-07-A — Convocatorias persistentes
 
-3 de noviembre de 2026. Parte A implementada: crear, buscar, ingresar por código, compartir, transferir roles, salir y cancelar antes de jugar. **MS-07 continúa En curso**: inicio del partido y conexión con el nuevo ciclo de resultados quedan en parte B/MS-09. El chat nuevo se integra en MS-08.
+3 de noviembre de 2026. Documento de la parte A; continuación implementada en [MS-07-B](INICIO_PARTIDO.md). Los pendientes de B descritos aquí corresponden al cierre histórico de A. Parte A implementada: crear, buscar, ingresar por código, compartir, transferir roles, salir y cancelar antes de jugar. **MS-07 continúa En curso**: inicio del partido y conexión con el nuevo ciclo de resultados quedan en parte B/MS-09. El chat nuevo se integra en MS-08.
 
 ## Recorrido móvil
 

@@ -5,7 +5,7 @@ import { sqlGetReceipt, sqlInsertReceipt, sqlSaveCompetition } from './database.
 import { validateCompetitionCommand } from '../shared/competitionContract.mjs';
 import districts from './peru_districts.json' with { type: 'json' };
 
-const supported = new Set(['create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost', 'transferCaptain', 'setReady', 'updateDetails']);
+const supported = new Set(['create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost', 'transferCaptain', 'setReady', 'updateDetails', 'start']);
 const idOf = user => user.id;
 const members = competition => [...competition.teamA, ...competition.teamB];
 const participant = (competition, userId) => members(competition).some(user => idOf(user) === userId);
@@ -67,6 +67,30 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         if (value[data.team].length >= value.playersPerTeam) fail('FULL', 'El equipo está completo');
         value[data.team].push({ id: actorId, name: actor.name, avatar: actor.avatar || null, ready: false });
         if (!value.captains[data.team]) value.captains[data.team] = actorId;
+      } else if (command === 'start') {
+        if (value.hostUserId !== actorId) fail('FORBIDDEN', 'Solo el anfitrión puede iniciar', 403);
+        if (value.teamA.length !== value.playersPerTeam || value.teamB.length !== value.playersPerTeam) fail('INCOMPLETE_TEAMS', 'Ambos equipos deben estar completos');
+        if (!['teamA', 'teamB'].every(team => value[team].some(member => member.id === value.captains[team]))) fail('CAPTAIN_REQUIRED', 'Cada equipo necesita un capitán');
+        if (!members(value).every(member => member.ready)) fail('NOT_READY', 'Todos los participantes deben marcar Listo');
+        if (now < Date.parse(value.scheduledAt)) fail('NOT_STARTED_YET', 'Puedes iniciar a partir de la hora programada');
+        const format = db.getSports().find(sport => sport.id === value.sportId)?.formats.find(item => item.id === value.formatId && item.active);
+        if (!format) fail('INVALID_STATE', 'La modalidad no está disponible');
+        const playerIds = new Set(members(value).map(member => member.id));
+        if (playerIds.size !== value.playersPerTeam * 2) fail('DUPLICATE_PLAYER', 'Un jugador ocupa más de un cupo');
+        for (const playerId of playerIds) {
+          const player = db.getUser(playerId);
+          if (!player || (player.isBanned && player.bannedUntil > now)) fail('PLAYER_UNAVAILABLE', 'Hay un participante no habilitado');
+        }
+        const activeNew = [...db.competitionMatches.values()].some(match => ['IN_PROGRESS', 'RESULT_PENDING', 'DISPUTED'].includes(match.status) && [...match.teamA, ...match.teamB].some(member => playerIds.has(member.id)));
+        const activeLegacy = [...db.matches.values()].some(match => ['active', 'in_progress', 'disputed'].includes(match.status) && [...match.teamA, ...match.teamB].some(member => playerIds.has(member.userId || member.id)));
+        if (activeNew || activeLegacy) fail('ACTIVE_MATCH', 'Un participante ya tiene otro partido activo o pendiente');
+        const match = { id: randomUUID(), competitionId: value.id, status: 'IN_PROGRESS', revision: 1,
+          sportId: value.sportId, formatId: value.formatId, venue: structuredClone(value.venue), district: value.district,
+          scheduledAt: value.scheduledAt, timeZone: value.timeZone, startedAt: new Date(now).toISOString(),
+          teamA: structuredClone(value.teamA), teamB: structuredClone(value.teamB), captains: { ...value.captains } };
+        db.competitionMatches.set(match.id, match);
+        db._persistCompetitionMatch(match);
+        value.status = 'IN_PROGRESS'; value.matchId = match.id; value.startedAt = match.startedAt;
       } else if (command === 'cancel') {
         if (value.hostUserId !== actorId) fail('FORBIDDEN', 'Solo el anfitrión puede cancelar', 403);
         value.status = 'CANCELLED'; value.cancelledBy = actorId; value.cancelReason = data.reason.trim();
@@ -103,7 +127,7 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         }
       }
     }
-    if (value.status !== 'CANCELLED') value.status = members(value).length === value.playersPerTeam * 2 ? 'FULL' : 'OPEN';
+    if (['OPEN', 'FULL'].includes(value.status)) value.status = members(value).length === value.playersPerTeam * 2 ? 'FULL' : 'OPEN';
     value.revision++; value.updatedAt = new Date(now).toISOString();
     sqlSaveCompetition(value);
     const result = { success: true, requestId: data.requestId, competitionId: value.id, revision: value.revision, data: structuredClone(value) };
@@ -130,6 +154,13 @@ competitionRouter.get('/:id', (req, res) => {
   if (!room) return res.status(404).json({ error: 'Convocatoria no encontrada' });
   if (req.user.role !== 'admin' && !participant(room, req.user.userId)) return res.status(403).json({ error: 'Debes pertenecer a la convocatoria' });
   res.json({ competition: room });
+});
+competitionRouter.get('/:id/match', (req, res) => {
+  const room = db.competitions.get(req.params.id);
+  const match = room && db.competitionMatches.get(room.matchId);
+  if (!match) return res.status(404).json({ error: 'El partido aún no ha comenzado', code: 'NOT_FOUND' });
+  if (req.user.role !== 'admin' && !participant(match, req.user.userId)) return res.status(403).json({ error: 'El partido es privado para sus participantes', code: 'FORBIDDEN' });
+  res.json({ match });
 });
 competitionRouter.post('/commands/:command', (req, res) => {
   try { res.json(competitionCommand(req.user.userId, req.params.command, req.body)); }

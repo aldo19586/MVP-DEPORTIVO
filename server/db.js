@@ -14,7 +14,7 @@ import {
   sqlInsertLobby, sqlGetLobby, sqlGetAllLobbies, sqlDeleteLobby, sqlGetOpenReplacementLobbies,
   sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
   sqlGetConfig, sqlSetConfig,
-  forceSave, withTransaction, sqlGetReceipt, sqlInsertReceipt, sqlGetCompetitions
+  forceSave, withTransaction, sqlGetReceipt, sqlInsertReceipt, sqlGetCompetitions, sqlGetCompetitionMatches, sqlInsertCompetitionMatch
 } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -410,6 +410,7 @@ class Database {
     this.challenges = []; // cola de búsqueda activa — SOLO EN MEMORIA (tiempo real)
     this.matches = new Map(); // id -> match
     this.competitions = new Map();
+    this.competitionMatches = new Map();
     this.lobbies = new Map(); // code -> lobby — SOLO EN MEMORIA (tiempo real)
     this.reviews = [];
     this.futReviews = [];
@@ -451,6 +452,7 @@ class Database {
     console.log('[DB] Cargando datos persistentes desde SQLite...');
     this._loadFromSqlite();
     this.competitions = new Map(sqlGetCompetitions().map(value => [value.id, value]));
+    this.competitionMatches = new Map(sqlGetCompetitionMatches().map(value => [value.id, value]));
     if (this.users.size === 0 && runtimeConfig.seedDemo) {
       console.log('[DB] Semilla demo solicitada explícitamente...');
       this._seedInitialData();
@@ -746,6 +748,8 @@ class Database {
       sqlInsertMatch(match);
     }
   }
+
+  _persistCompetitionMatch(match) { sqlInsertCompetitionMatch(match); }
 
   _persistLobby(lobby) {
     if (this._sqliteReady && lobby) {
@@ -1443,6 +1447,9 @@ class Database {
 
   // Matches con Reportero Designado y Temporizador de Alquiler de Cancha
   createMatch({ sportId, formatId, teamA, teamB }) {
+    if ([...teamA, ...teamB].some(player => this.hasActiveCompetitionMatch(player.userId || player.id))) {
+      throw Object.assign(new Error('Un participante ya tiene otro partido activo'), { code: 'ACTIVE_MATCH', status: 409 });
+    }
     const matchId = 'match_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     
     // Si es 1v1, designar a uno de los dos como reportero oficial
@@ -1492,8 +1499,12 @@ class Database {
     return this.matches.get(matchId) || null;
   }
 
+  hasActiveCompetitionMatch(userId) {
+    return [...this.competitionMatches.values()].some(match => ['IN_PROGRESS', 'RESULT_PENDING', 'DISPUTED'].includes(match.status) && [...match.teamA, ...match.teamB].some(player => player.id === userId));
+  }
+
   atomic(operation) {
-    const keys = ['users', 'profiles', 'matches', 'lobbies', 'competitions', 'reviews', 'futReviews', 'peerReviews'];
+    const keys = ['users', 'profiles', 'matches', 'lobbies', 'competitions', 'competitionMatches', 'reviews', 'futReviews', 'peerReviews'];
     const snapshot = structuredClone(Object.fromEntries(keys.map(key => [key, this[key]])));
     try { return withTransaction(operation); }
     catch (error) { Object.assign(this, snapshot); throw error; }

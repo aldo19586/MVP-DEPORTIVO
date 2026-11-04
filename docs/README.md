@@ -41,3 +41,6 @@ Documentación y auditoría estática inicial terminadas. **MS-01 completado:** 
 
 
 **MS-07-A implementado:** [convocatorias persistentes](CONVOCATORIAS.md), creación, ingreso por código, cupos y salida/cancelación conectados al móvil. 67 pruebas conjuntas; MS-07-B (inicio) sigue pendiente junto con prueba física en iPhone.
+
+
+**MS-07-B implementado:** [preparación e inicio de partido](INICIO_PARTIDO.md), con Listo/edición en móvil, inicio único y protección de solapamientos. 73 pruebas conjuntas y bundle iOS; prueba física pendiente. Servicios manuales detenidos a petición de Aldo. Sigue MS-08 (chat y actualización del recurso nuevo).
