@@ -42,7 +42,7 @@ P0: bloquea exposición a usuarios externos por acceso indebido. P1: bloquea un 
 | A-12 | P1 | [auth.js](../server/auth.js): secreto de respaldo fijo y JWT propio; [db.js](../server/db.js): credenciales demo | El piloto debe fallar si faltan secretos; crear admin controladamente. Revisar estándar del token (exp usa milisegundos), revocación, PIN y fuerza bruta |
 | A-13 | P1 | Corregido en MS-13: [.github/workflows/ci.yml](../.github/workflows/ci.yml) reemplaza pipeline Capacitor; lockfile reproducible con `npm ci` estricto y builds Expo nativas (iOS y Android) | Pipeline Capacitor retirado junto con `android/`, `capacitor.config.json` y dependencias `@capacitor/*`. Build nativa de `apps/mobile` integrada y verificada |
 | A-14 | P1 | Corregido en MS-13: [scripts/README.md](../scripts/README.md) aísla scripts históricos; la suite oficial `npm run test:server` valida rechazos negativos, RBAC y durabilidad | Se previene mutación de datos reales; la suite oficial en `server/tests/` corre con sandbox aislado y falla en CI ante cualquier regresión |
-| A-15 | P1 | [config móvil](../apps/mobile/src/config.js): fallback IP local y dominio de producción fijo; [API admin](../apps/admin-web/src/services/api.js): localhost o `/api` | Configuración fuera de LAN no validada. Definir entornos y proxy; no afirmar despliegue por existir dominio en código |
+| A-15 | P1 | Corregido en MS-14: [config móvil](../apps/mobile/src/config.js) y [API admin](../apps/admin-web/src/services/api.js) desacoplados de IPs fijas; soporte para `EXPO_PUBLIC_API_URL` y `VITE_API_URL`; guía operativa [OPERACION_PILOTO.md](OPERACION_PILOTO.md) | Configuración por entorno formalizada con `.env.example`, proxy inverso HTTPS/WSS documentado, sanitización de logs y disaster recovery comprobado |
 | A-16 | P2 | [LoginScreen](../apps/mobile/src/screens/LoginScreen.js), [RadarScreen](../apps/mobile/src/screens/RadarScreen.js), [ProfileScreen](../apps/mobile/src/screens/ProfileScreen.js), [NotificationsScreen](../apps/mobile/src/screens/NotificationsScreen.js) | Carta, jugadores, estadísticas o avisos demo en pantallas; retirar del recorrido real y diseñar vacíos |
 | A-17 | P1 | [API admin](../apps/admin-web/src/services/api.js): captura fallos de métricas/usuarios devolviendo ceros o arrays vacíos | Operador puede confundir caída con ausencia de actividad. Mostrar error, expiración de sesión y reintento |
 
@@ -70,4 +70,12 @@ A-13 y A-14 completamente resueltos:
 - Se retiró el pipeline heredado Capacitor `.github/workflows/build-apk.yml`, el directorio `android/`, el archivo `capacitor.config.json` y las dependencias `@capacitor/*` del root `package.json`.
 - Se configuró `.github/workflows/ci.yml` con `npm ci` estricto (garantizando lockfile reproducible), matriz de Node.js 20.x y 22.x, ejecución de la suite de 99 tests de backend con rechazos negativos (`npm run test:server`), build de Vite para SuperAdmin (`npm run build:admin`) y exportación nativa Expo con Hermes (`expo export`) tanto para iOS como para Android.
 - Los scripts históricos en `scripts/` fueron documentados y aislados en `scripts/README.md`, dejando la suite oficial `server/tests/` como la única autoritativa para el proyecto.
+
+### Seguimiento MS-14
+
+A-15 completamente resuelto:
+- Se eliminaron las IPs y URLs fijas de `apps/mobile/src/config.js`, `apps/admin-web/src/services/api.js` y `socket.js`, integrando soporte estándar para variables de entorno (`EXPO_PUBLIC_API_URL`, `VITE_API_URL`, `VITE_SOCKET_URL`, `CORS_ORIGIN`, `PUBLIC_URL`).
+- Plantilla oficial de entorno documentada en `.env.example`.
+- Guía integral de operación de piloto elaborada en `docs/OPERACION_PILOTO.md`: arquitectura de red, terminación HTTPS/WSS con Nginx, sanitización de credenciales en logs (`sanitizeLogText` en Winston), endpoint de monitoreo `/api/health` con métricas de memoria y sockets, ensayo de backup y restore con `server/backup.js`, y protocolo de respuesta ante incidentes a cargo de Aldo Segundo Solís.
+- Nueva suite `server/tests/environment-operation.test.js` aprobada al 100%, totalizando 103 pruebas del servidor.
 

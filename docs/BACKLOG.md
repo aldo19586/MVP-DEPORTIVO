@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10, MS-11, MS-12 y MS-13 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10, MS-11, MS-12, MS-13 y MS-14 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -20,7 +20,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-11 | P2 / M | **Hecho:** Simplificar navegación y pantallas | MS-07/MS-08/MS-10 | Jugar/Mis partidos/Perfil, acción primaria por estado, filtros secundarios, sin demos en recorrido real, carga/error/vacío explícitos; revisión en iPhone y tamaño de texto grande |
 | MS-12 | P1 / M | **Hecho:** SuperAdmin operativo y trazable | MS-03/MS-04/MS-09 | Ban/reset/disputa registran actor/motivo/fecha; errores visibles; reset según recuperación acordada; no se muestra «0 usuarios» por fallo de API. A-17 |
 | MS-13 | P1 / M | **Hecho:** Automatizar validaciones y build nativa | MS-01/MS-03/MS-04 | CI falla con test negativo roto; lockfile reproducible; build de apps/mobile identificada; pipeline Capacitor retirado del camino vigente; versiones soportadas fijadas. A-13/A-14 |
-| MS-14 | P1 / L | Entorno de piloto y operación | MS-06/MS-12/MS-13, D-05/D-07 | HTTPS/WSS, configuración por entorno, sin demos/secretos de respaldo; logs sin credenciales; monitoreo y restore ensayado; responsable de incidentes; dependencias revisadas. A-15 |
+| MS-14 | P1 / L | **Hecho:** Entorno de piloto y operación | MS-06/MS-12/MS-13, D-05/D-07 | HTTPS/WSS, configuración por entorno, sin demos/secretos de respaldo; logs sin credenciales; monitoreo y restore ensayado; responsable de incidentes; dependencias revisadas. A-15 |
 | MS-15 | P1 / M | Avisos y validación en dispositivos | MS-07/MS-08/MS-14 | Permisos contextuales; aviso real llega al destinatario y abre el partido correcto; probar segundo plano/denegación; definir fallback al abrir app; validar iOS y Android si se incluye |
 | MS-16 | P1 / M | Ensayo y piloto privado | MS-00…MS-15 necesarias para el alcance | Matriz de VALIDACION.md con evidencia; cero P0/P1 abiertos en alcance; usuarios invitados completan ciclo real; telemetría mínima y registro de incidencias; decisión explícita de ampliar o corregir |
 
@@ -189,6 +189,26 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
 - Accesibilidad en iPhone y tamaños de texto grande: uso de `flexShrink: 1`, flex wrapping, botones con minHeight adaptativo y scroll continuo.
 - **Suite de pruebas:** **97 de 97 pruebas del servidor aprobadas al 100%** (`npm run test:server`).
 - **Builds:** `npm run build:admin` (1886 módulos) y `expo export --platform ios` (773 módulos) aprobadas sin errores.
+- **Siguiente tarea prioritaria en el Backlog: MS-12** (SuperAdmin operativo y trazable).
+
+### Evidencia MS-12 — 18 de noviembre de 2026
+
+- **Trazabilidad y auditoría completa en persistencia y endpoints administrativos:**
+  - **Ban y Desuspensión:** `POST /api/admin/user/:userId/ban` registra obligatoriamente actor (`bannedBy` / `unbannedBy`), motivo (`banReason` / `unbanReason`), fecha (`bannedAt` / `unbannedAt`) y horas (`bannedHours`). Enviar `hours: 0` levanta la sanción, restaura el acceso del jugador y emite el evento socket `userUnbannedNotification`.
+  - **Reset de PIN:** `POST /api/admin/user/:userId/reset-pin` registra actor (`pinResetBy`), motivo (`pinResetReason`) y fecha (`pinResetAt`), actualiza el hash bcrypt, incrementa `sessionVersion` invalidando sesiones previas de inmediato y persiste de forma atómica en SQLite.
+  - **Resolución de disputas:** `POST /api/admin/disputes/resolve` registra actor (`resolvedBy` / `disputeResolvedBy`), motivo formal del dictamen arbitral (`resolutionReason`) y fecha (`resolvedAt`), tanto en convocatorias modernas como en partidos del esquema heredado.
+  - **Base de datos SQLite:** Esquema ampliado en `server/database.js` y `server/db.js` con columnas dedicadas (`banned_by`, `banned_at`, `banned_hours`, `unbanned_by`, `unbanned_at`, `unban_reason`, `pin_reset_by`, `pin_reset_at`, `pin_reset_reason`), garantizando la preservación durable de auditoría tras reinicios del servidor.
+  - **DTOs seguros:** `server/userDto.js` expone los metadatos de auditoría al SuperAdmin (`toClientUser`) y los excluye rigurosamente del perfil público (`toPublicUser`).
+- **Panel Web Desktop SuperAdmin (`apps/admin-web`):**
+  - `PlayerAuditView.jsx`: diálogos interactivos que exigen motivo formal para suspender, desuspender o resetear PIN; visualización del estado de cuenta en vivo (badge de sanción con actor/motivo/duración o activo, y último reseteo de PIN); botón de acción condicional (Ban / Desuspender); mensajes de error de API explícitos con botón de «Reintentar».
+  - `DisputeResolutionView.jsx`: flujo arbitral interactivo que solicita dictamen motivado al SuperAdmin antes de declarar ganador oficial (Equipo A o Equipo B) o dictaminar empate; soporte integral para estados `disputed` y `DISPUTED`.
+  - `MetricsOverviewView.jsx`: eliminación de las cifras ficticias de respaldo `totalUsers || 13` y `totalMatches || 2`; renderizado transparente de métricas reales o estado de carga/error (atendiendo A-17 de `AUDITORIA.md`).
+  - `App.jsx`: banner global de error de sincronización de API accesible y prominente con recarga reactiva de datos al pulsar «Reintentar».
+- **Suite automatizada de pruebas:**
+  - Nueva suite `server/tests/admin-audit.test.js`: validación de ciclo completo para ban/unban, reset de PIN, resolución de disputas, revocación de sesión, rechazo 403 a usuarios regulares y persistencia en SQLite tras reinicio del proceso.
+  - Registro de evento de seguridad `userUnbannedNotification` en `server/realtime.js`.
+  - **99 de 99 pruebas de la suite del servidor aprobadas al 100%** (`npm run test:server`).
+  - Compilación de `apps/admin-web` (`npm run build:admin`) y exportación nativa de `apps/mobile` (`expo export --platform ios`) verificadas al 100%.
 - **Siguiente tarea prioritaria en el Backlog: MS-13** (Automatizar validaciones y build nativa).
 
 ### Evidencia MS-13 — 18 de noviembre de 2026
@@ -212,25 +232,28 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - `npm run build:mobile:android`: exportación nativa de bundle móvil Android en 4.4s.
 - **Siguiente tarea prioritaria en el Backlog: MS-14** (Entorno de piloto y operación).
 
-### Evidencia MS-12 — 18 de noviembre de 2026
+### Evidencia MS-14 — 18 de noviembre de 2026
 
-- **Trazabilidad y auditoría completa en persistencia y endpoints administrativos:**
-  - **Ban y Desuspensión:** `POST /api/admin/user/:userId/ban` registra obligatoriamente actor (`bannedBy` / `unbannedBy`), motivo (`banReason` / `unbanReason`), fecha (`bannedAt` / `unbannedAt`) y horas (`bannedHours`). Enviar `hours: 0` levanta la sanción, restaura el acceso del jugador y emite el evento socket `userUnbannedNotification`.
-  - **Reset de PIN:** `POST /api/admin/user/:userId/reset-pin` registra actor (`pinResetBy`), motivo (`pinResetReason`) y fecha (`pinResetAt`), actualiza el hash bcrypt, incrementa `sessionVersion` invalidando sesiones previas de inmediato y persiste de forma atómica en SQLite.
-  - **Resolución de disputas:** `POST /api/admin/disputes/resolve` registra actor (`resolvedBy` / `disputeResolvedBy`), motivo formal del dictamen arbitral (`resolutionReason`) y fecha (`resolvedAt`), tanto en convocatorias modernas como en partidos del esquema heredado.
-  - **Base de datos SQLite:** Esquema ampliado en `server/database.js` y `server/db.js` con columnas dedicadas (`banned_by`, `banned_at`, `banned_hours`, `unbanned_by`, `unbanned_at`, `unban_reason`, `pin_reset_by`, `pin_reset_at`, `pin_reset_reason`), garantizando la preservación durable de auditoría tras reinicios del servidor.
-  - **DTOs seguros:** `server/userDto.js` expone los metadatos de auditoría al SuperAdmin (`toClientUser`) y los excluye rigurosamente del perfil público (`toPublicUser`).
-- **Panel Web Desktop SuperAdmin (`apps/admin-web`):**
-  - `PlayerAuditView.jsx`: diálogos interactivos que exigen motivo formal para suspender, desuspender o resetear PIN; visualización del estado de cuenta en vivo (badge de sanción con actor/motivo/duración o activo, y último reseteo de PIN); botón de acción condicional (Ban / Desuspender); mensajes de error de API explícitos con botón de «Reintentar».
-  - `DisputeResolutionView.jsx`: flujo arbitral interactivo que solicita dictamen motivado al SuperAdmin antes de declarar ganador oficial (Equipo A o Equipo B) o dictaminar empate; soporte integral para estados `disputed` y `DISPUTED`.
-  - `MetricsOverviewView.jsx`: eliminación de las cifras ficticias de respaldo `totalUsers || 13` y `totalMatches || 2`; renderizado transparente de métricas reales o estado de carga/error (atendiendo A-17 de `AUDITORIA.md`).
-  - `App.jsx`: banner global de error de sincronización de API accesible y prominente con recarga reactiva de datos al pulsar «Reintentar».
-- **Suite automatizada de pruebas:**
-  - Nueva suite `server/tests/admin-audit.test.js`: validación de ciclo completo para ban/unban, reset de PIN, resolución de disputas, revocación de sesión, rechazo 403 a usuarios regulares y persistencia en SQLite tras reinicio del proceso.
-  - Registro de evento de seguridad `userUnbannedNotification` en `server/realtime.js`.
-  - **99 de 99 pruebas de la suite del servidor aprobadas al 100%** (`npm run test:server`).
-  - Compilación de `apps/admin-web` (`npm run build:admin`) y exportación nativa de `apps/mobile` (`expo export --platform ios`) verificadas al 100%.
-- **Siguiente tarea prioritaria en el Backlog: MS-13** (Automatizar validaciones y build nativa).
+- **Configuración por entorno y resolución de A-15:**
+  - `apps/mobile/src/config.js`: Desacoplado de IP fija de LAN; soporte prioritario para `process.env.EXPO_PUBLIC_API_URL` o `Constants.expoConfig.extra.apiUrl`; detección dinámica de IP de Metro en desarrollo local con fallback de emulador Android (`10.0.2.2`) o iOS (`localhost:3001`).
+  - `apps/admin-web/src/services/api.js` y `socket.js`: Soporte para `import.meta.env.VITE_API_URL` y `VITE_SOCKET_URL`, permitiendo despliegues flexibles tras proxy o dominios separados.
+  - `server/config.js`: Integración de variables `CORS_ORIGIN`, `PUBLIC_URL` y `nodeEnv`.
+  - Plantilla exhaustiva [.env.example](../.env.example) con instrucciones claras para entornos de desarrollo y producción.
+- **Seguridad en producción y logs sin credenciales:**
+  - En `NODE_ENV=production`, `JWT_SECRET` es estrictamente obligatorio con al menos 32 bytes de entropía (falla cerrado de inmediato si falta o es insuficiente).
+  - En `NODE_ENV=production`, la siembra de usuarios demo (`MATCHSPORT_SEED_DEMO=true`) es terminantemente rechazada.
+  - `server/logger.js`: Implementado filtro de sanitización Winston (`sanitizeLogText`) que redacta contraseñas, PINs, tokens Bearer y push tokens antes de escribirlos en `logs/matchmaking.log` o por consola.
+- **Monitoreo y observabilidad:**
+  - Endpoint `/api/health` ampliado: reporta `status: 'ok'`, entorno activo (`env`), tiempo de actividad (`uptime`), estado de base de datos (`database`), versión de esquema (`schemaVersion`), consumo de memoria (`rssMb`, `heapUsedMb`) y conexiones WebSocket activas (`connectedSockets`).
+- **Guía de operación de piloto y Disaster Recovery ([docs/OPERACION_PILOTO.md](OPERACION_PILOTO.md)):**
+  - Arquitectura de red documentada con terminación SSL/TLS para HTTPS y WSS mediante Nginx reverse proxy.
+  - Procedimiento ensayado de respaldo (`server/backup.js backup`) y restauración (`server/backup.js restore`) validado con checksums SHA-256 e integridad SQLite.
+  - Protocolo de respuesta ante incidentes a cargo de Aldo Segundo Solís, con matriz de severidades (P0, P1, P2) y procedimientos de contención inmediata.
+- **Suite automatizada de pruebas y builds:**
+  - Nueva suite `server/tests/environment-operation.test.js`: prueba el healthcheck enriquecido, las salvaguardas de producción (fail-closed), la sanitización de credenciales en logs y el simulacro de disaster recovery con restauración y login en un servidor nuevo.
+  - **103 de 103 pruebas del backend aprobadas al 100%** (`npm run test:server`).
+  - Compilación de `apps/admin-web` (`npm run build:admin`) y exportaciones móviles nativas iOS y Android (`npm run build:mobile`, `npm run build:mobile:android`) aprobadas sin errores.
+- **Siguiente tarea prioritaria en el Backlog: MS-15** (Avisos y validación en dispositivos).
 
 ## Trabajo pospuesto
 
