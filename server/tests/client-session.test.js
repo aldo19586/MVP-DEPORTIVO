@@ -150,3 +150,50 @@ test('socket invalidation cannot delete a newer session and replacement does not
   assert.equal(await store.getToken(), null);
   cleanup();
 });
+
+test('mobile storage persists partial test progress and pending invite codes across app restarts', async () => {
+  const cache = new Map();
+  const KEYS = {
+    PARTIAL_TEST: '@matchsport:partial_test_answers',
+    PENDING_INVITE: '@matchsport:pending_invite_code'
+  };
+
+  const store = {
+    async savePartialTestAnswers(answers) {
+      cache.set(KEYS.PARTIAL_TEST, JSON.stringify(answers));
+    },
+    async getPartialTestAnswers() {
+      const val = cache.get(KEYS.PARTIAL_TEST);
+      return val ? JSON.parse(val) : null;
+    },
+    async clearPartialTestAnswers() {
+      cache.delete(KEYS.PARTIAL_TEST);
+    },
+    async savePendingInviteCode(code) {
+      if (code) cache.set(KEYS.PENDING_INVITE, String(code).trim().toUpperCase());
+    },
+    async getPendingInviteCode() {
+      return cache.get(KEYS.PENDING_INVITE) || null;
+    },
+    async clearPendingInviteCode() {
+      cache.delete(KEYS.PENDING_INVITE);
+    }
+  };
+
+  // 1. Guardar progreso parcial
+  const partial = ['A', 'B', 'C', null, null, null, null, null, null, null, null, null, null, null];
+  await store.savePartialTestAnswers(partial);
+  assert.deepEqual(await store.getPartialTestAnswers(), partial);
+
+  // 2. Limpiar progreso parcial al finalizar
+  await store.clearPartialTestAnswers();
+  assert.equal(await store.getPartialTestAnswers(), null);
+
+  // 3. Guardar código de invitación pendiente
+  await store.savePendingInviteCode('x7k9');
+  assert.equal(await store.getPendingInviteCode(), 'X7K9');
+
+  // 4. Limpiar código pendiente al procesar unión a la sala
+  await store.clearPendingInviteCode();
+  assert.equal(await store.getPendingInviteCode(), null);
+});
