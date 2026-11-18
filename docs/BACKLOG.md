@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09 y MS-10 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10 y MS-11 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -17,7 +17,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-08 | P1 / M | **Hecho (implementación):** chat y reconexión | MS-04/MS-07 | Dos conexiones reciben mismo mensaje una vez; historial y reintento; estados enviando/error; filtro por sala y limpieza de listeners; desconexión no borra membresía futura. Prueba física pendiente. A-07/A-08 |
 | MS-09 | P1 / L | **Hecho (MS-09-A y MS-09-B):** finalización, disputa y rating consistente | MS-04/MS-05/MS-06/MS-07 | Reporte y confirmación por capitanes, empates, disputas con evidencia congelada, rating Glicko-2 atómico, resolución SuperAdmin en web y UI móvil completa. A-10 |
 | MS-10 | P1 / L | **Hecho:** Onboarding continuo y carta inicial | MS-03, D-02/D-03/D-06 | Cuenta → datos mínimos → test → carta; reanudar; 14 respuestas válidas exigidas por servidor; foto opcional; sin atributos inventados; conservar invitación. A-09/A-16 |
-| MS-11 | P2 / M | Simplificar navegación y pantallas | MS-07/MS-08/MS-10 | Jugar/Mis partidos/Perfil, acción primaria por estado, filtros secundarios, sin demos en recorrido real, carga/error/vacío explícitos; revisión en iPhone y tamaño de texto grande |
+| MS-11 | P2 / M | **Hecho:** Simplificar navegación y pantallas | MS-07/MS-08/MS-10 | Jugar/Mis partidos/Perfil, acción primaria por estado, filtros secundarios, sin demos en recorrido real, carga/error/vacío explícitos; revisión en iPhone y tamaño de texto grande |
 | MS-12 | P1 / M | SuperAdmin operativo y trazable | MS-03/MS-04/MS-09 | Ban/reset/disputa registran actor/motivo/fecha; errores visibles; reset según recuperación acordada; no se muestra «0 usuarios» por fallo de API. A-17 |
 | MS-13 | P1 / M | Automatizar validaciones y build nativa | MS-01/MS-03/MS-04 | CI falla con test negativo roto; lockfile reproducible; build de apps/mobile identificada; pipeline Capacitor retirado del camino vigente; versiones soportadas fijadas. A-13/A-14 |
 | MS-14 | P1 / L | Entorno de piloto y operación | MS-06/MS-12/MS-13, D-05/D-07 | HTTPS/WSS, configuración por entorno, sin demos/secretos de respaldo; logs sin credenciales; monitoreo y restore ensayado; responsable de incidentes; dependencias revisadas. A-15 |
@@ -157,7 +157,39 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
 - Endpoint de verificación `/api/user/onboarding-status` para trazabilidad de estado del deportista.
 - Seis casos de prueba nuevos en `server/tests/onboarding.test.js` y `server/tests/client-session.test.js`; **97 pruebas conjuntas aprobadas al 100%**.
 - Build de `apps/admin-web` aprobada (1886 módulos). Exportación de bundle móvil iOS/Hermes aprobada (773 módulos). Base personal sin modificaciones.
-- **Siguiente tarea prioritaria en el Backlog: MS-11** (Simplificar navegación y pantallas).
+
+### Evidencia MS-11 — 18 de noviembre de 2026
+
+- Consolidación de la navegación en torno a 3 destinos principales: **Jugar · Mis partidos · Perfil**:
+  - `BottomNavBar.js`: barra inferior nativa limpia con 3 botones de acceso prioritario (`JUGAR`, `MIS PARTIDOS`, `PERFIL`) y soporte para tamaños de fuente del sistema con `adjustsFontSizeToFit` y `numberOfLines={1}`.
+  - Accesos secundarios desvinculados de la barra inferior principal: encabezado superior con accesos directos a Notificaciones (🔔) y Clasificación/Ranking general (🏆).
+- Tarjetas de convocatorias y partidos con una **acción primaria clara destacada por estado**:
+  - Convocatoria abierta (`OPEN`): botón primario «Unirme al partido (X cupos) ➔» para visitantes o «Mi sala (faltan X) ➔» para miembros.
+  - Sala completa (`FULL`): botón primario «Entrar a la sala de coordinación ➔» para participantes o «Sala completa · Ver detalles» para externos.
+  - Partido en juego (`IN_PROGRESS`): «⚽ Reportar marcador final ➔» para capitanes o «En juego · Coordinar partido ➔» para jugadores.
+  - Marcador pendiente (`RESULT_PENDING`): «⚠️ Validar o disputar marcador ➔» para el capitán rival o «Marcador reportado · Ver detalle ➔».
+  - Disputa arbitral (`DISPUTED`): «⚖️ Disputa en revisión ➔».
+  - Partido finalizado (`FINISHED`): «🏆 Ver resultado (X-Y) ➔».
+  - Sala cancelada (`CANCELLED`): «Ver motivo de cierre ➔».
+- Filtros secundarios bajo demanda en pantalla `Jugar`:
+  - Panel desplegable («Filtros ▾») para filtrar por modalidad de fútbol (`5v5`, `6v6`, `7v7`, `9v9`, `11v11`) y distrito, manteniendo la vista despejada y limpia por defecto.
+- Eliminación absoluta de datos de demostración y recorridos ficticios en todo el cliente móvil:
+  - `LoginScreen.js`: eliminada la sección `demoSection` con cuentas de prueba ("Carlos", "Mateo", "Lucía"), retiro de draft ficticio y previews artificiales; formulario limpio de acceso y registro de cuenta con PIN seguro.
+  - `SplashScreen.js`: eliminada cifra ficticia `+24,500 JUGADORES` y etiqueta inventada `⚡ S11 FUT`; presencia real con modalidades 5v5/7v7/11v11 y acceso seguro con PIN.
+  - `ProfileScreen.js`: eliminación completa de `MOCK_MATCH_HISTORY` (partidos simulados contra "FC Miraflores", etc.) y estadísticas hardcodeadas; consulta e integración del historial oficial real mediante `/api/user/:userId/matches` y métricas reales (`wins`, `losses`, `draws`, `winRate`, `ratingOverall` Glicko-2).
+  - `LeaderboardScreen.js`: retiro del fallback `MOCK_LEADERS` de usuarios inventados; soporte para prop `onBack` y estado de clasificación honesto en base a datos reales.
+  - `NotificationsScreen.js`: eliminación de avisos sintéticos `INITIAL_NOTIFICATIONS`; estado honesto de bandeja vacía cuando no existen avisos pendientes.
+  - `LobbyRoomScreen.js`, `MatchRoomScreen.js` y `PeerReviewScreen.js`: erradicados los fallbacks ficticios (`demo_user_1`, `demo_match_1`, `Mateo Ramos`).
+- Estados explícitos y honestos de carga, error y vacío:
+  - Carga: `ActivityIndicator` con texto contextual descriptivo («Buscando convocatorias abiertas en tu zona...», «Cargando tus partidos e inscripciones...»).
+  - Error: banner accesible con botón de «Reintentar».
+  - Vacío en Jugar: vista vacía honesta cuando no hay salas abiertas con botón primario «+ Crear Convocatoria Ahora» y secundario «Tengo un código de invitación».
+  - Vacío en Mis Partidos: vista vacía honesta con botón de acción directa «Explorar Convocatorias en Jugar ➔» que transiciona fluidamente a la pestaña principal.
+  - Vacío en Historial de Perfil: aviso claro de ausencia de partidos previos con redirección a Jugar.
+- Accesibilidad en iPhone y tamaños de texto grande: uso de `flexShrink: 1`, flex wrapping, botones con minHeight adaptativo y scroll continuo.
+- **Suite de pruebas:** **97 de 97 pruebas del servidor aprobadas al 100%** (`npm run test:server`).
+- **Builds:** `npm run build:admin` (1886 módulos) y `expo export --platform ios` (773 módulos) aprobadas sin errores.
+- **Siguiente tarea prioritaria en el Backlog: MS-12** (SuperAdmin operativo y trazable).
 
 ## Trabajo pospuesto
 
