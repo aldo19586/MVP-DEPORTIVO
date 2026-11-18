@@ -79,7 +79,7 @@ export default function App() {
       adminSocket.off('onlineUsersUpdate', onOnlineUsersUpdate);
       adminSocket.off('matchDisputed', onMatchDisputed);
     };
-  }, [adminUser]);
+  }, [adminUser, attempt]);
 
   const handleLogout = async () => {
     setLoading(true); adminSocket.disconnect();
@@ -112,7 +112,29 @@ export default function App() {
           activeMatchesCount={activeMatches.length}
         />
         <main className="admin-content">
-          {dataError && <p role="alert">No se pudieron actualizar los datos: {dataError} <button onClick={() => setAttempt(value => value + 1)}>Reintentar</button></p>}
+          {dataError && (
+            <div role="alert" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 18px',
+              marginBottom: '20px',
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '8px',
+              color: '#f87171',
+              fontWeight: '500'
+            }}>
+              <span>⚠️ <strong>Error de sincronización con la API:</strong> {dataError}</span>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '6px 14px', fontSize: '12px' }}
+                onClick={() => setAttempt(value => value + 1)}
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
           {currentView === 'metrics' && !metrics && !dataError && <p role="status">Cargando métricas…</p>}
           {currentView === 'metrics' && metrics && (
             <MetricsOverviewView

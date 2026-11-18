@@ -4,7 +4,7 @@ import { resolveDisputeApi } from '../services/api';
 
 export default function DisputeResolutionView({ activeMatches = [] }) {
   // Buscar partidos con estado 'disputed'
-  const disputedMatches = activeMatches.filter((m) => m.status === 'disputed' || m.disputeAlert);
+  const disputedMatches = activeMatches.filter((m) => m.status === 'disputed' || m.status === 'DISPUTED' || m.disputeAlert);
 
   const [resolvedIds, setResolvedIds] = useState([]);
   const selectedMatch = disputedMatches.find(match => !resolvedIds.includes(match.id));
@@ -14,15 +14,21 @@ export default function DisputeResolutionView({ activeMatches = [] }) {
 
   const handleResolve = async (winnerTeam) => {
     if (!selectedMatch || saving) return;
+    const defaultReason = winnerTeam === 'draw'
+      ? 'Resolución arbitral SuperAdmin: Empate acordado tras revisión de evidencias'
+      : `Resolución arbitral SuperAdmin: Dictamen a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'} tras revisión de evidencias`;
+    const reason = prompt('Motivo formal del dictamen arbitral:', defaultReason);
+    if (!reason || !reason.trim()) return;
+
     setSaving(true); setError('');
 
     try {
-      await resolveDisputeApi(selectedMatch.id, winnerTeam);
+      await resolveDisputeApi(selectedMatch.id, winnerTeam, reason.trim());
       setResolvedIds(ids => [...ids, selectedMatch.id]);
 
       setResolvedStatus(winnerTeam === 'draw'
-        ? 'Disputa resuelta como Empate Oficial. Puntos distribuidos equitativamente y rating actualizado.'
-        : `Disputa resuelta a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}. Puntos asignados (+35 pts) y rating actualizado.`
+        ? `Disputa resuelta como Empate Oficial. Dictamen: "${reason.trim()}". Puntos distribuidos equitativamente y rating actualizado.`
+        : `Disputa resuelta a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}. Dictamen: "${reason.trim()}". Puntos asignados (+35 pts) y rating actualizado.`
       );
       setTimeout(() => setResolvedStatus(null), 6000);
     } catch (e) {

@@ -14,7 +14,7 @@ const competitionEventNames = new Set([
 const adminEvents = new Set(['onlineUsersUpdate', 'adminDisputeResolved']);
 const personalEvents = new Set(['queueStatus', 'queueStarted', 'queueCancelled', 'matchPromptAcceptance',
   'pendingMatchUpdated', 'matchPromptUpdated', 'matchAcceptanceFailed', 'session_replaced',
-  'userBannedNotification', 'lobbyError', 'peerReviewError', 'attendanceCancelledSuccess', 'reviewSubmitted',
+  'userBannedNotification', 'userUnbannedNotification', 'lobbyError', 'peerReviewError', 'attendanceCancelledSuccess', 'reviewSubmitted',
   'peerReviewAssigned', 'peerReviewReceived', 'peerReviewSubmitted']);
 const resourceEvents = new Set(['activeMatch', 'matchData', 'matchFound', 'matchFinished', 'matchCancelled',
   'matchCancelledAndConverted', 'matchPlayerLeft', 'matchTimerStarted', 'matchTimerStopped', 'matchDisputed',

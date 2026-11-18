@@ -241,6 +241,7 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         value.outcome = outcome;
         value.resolvedBy = actorId;
         value.resolutionReason = data.reason.trim();
+        value.resolvedAt = match.finishedAt;
         value.ratingUpdates = structuredClone(fin.ratingUpdates);
         value.finishedAt = match.finishedAt;
       } else if (command === 'cancel') {

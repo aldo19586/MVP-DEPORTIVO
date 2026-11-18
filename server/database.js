@@ -192,7 +192,16 @@ function createTables() {
       { name: 'has_completed_test', type: 'INTEGER DEFAULT 0' },
       { name: 'test_score', type: 'INTEGER' },
       { name: 'test_level', type: 'TEXT' },
-      { name: 'test_breakdown_json', type: "TEXT DEFAULT '{}'" }
+      { name: 'test_breakdown_json', type: "TEXT DEFAULT '{}'" },
+      { name: 'banned_by', type: 'TEXT' },
+      { name: 'banned_at', type: 'TEXT' },
+      { name: 'banned_hours', type: 'INTEGER' },
+      { name: 'unbanned_by', type: 'TEXT' },
+      { name: 'unbanned_at', type: 'TEXT' },
+      { name: 'unban_reason', type: 'TEXT' },
+      { name: 'pin_reset_by', type: 'TEXT' },
+      { name: 'pin_reset_at', type: 'TEXT' },
+      { name: 'pin_reset_reason', type: 'TEXT' }
     ];
 
     for (const c of newCols) {
@@ -368,8 +377,10 @@ export function sqlInsertUser(user) {
      age, weight, height, has_completed_profile, has_completed_test, test_score, test_level, test_breakdown_json,
      bio, position, role, verified_dni,
      rating_overall, likes_count, fut_stats_json, favorite_sports_json, primary_sport, declared_level, created_at,
-     session_version, is_banned, banned_until, ban_reason)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     session_version, is_banned, banned_until, ban_reason,
+     banned_by, banned_at, banned_hours, unbanned_by, unbanned_at, unban_reason,
+     pin_reset_by, pin_reset_at, pin_reset_reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     user.id,
     user.email,
@@ -403,7 +414,16 @@ export function sqlInsertUser(user) {
     user.sessionVersion || 0,
     user.isBanned ? 1 : 0,
     user.bannedUntil || null,
-    user.banReason || null
+    user.banReason || null,
+    user.bannedBy || null,
+    user.bannedAt || null,
+    user.bannedHours || null,
+    user.unbannedBy || null,
+    user.unbannedAt || null,
+    user.unbanReason || null,
+    user.pinResetBy || null,
+    user.pinResetAt || null,
+    user.pinResetReason || null
   ]);
   scheduleSave();
 }
@@ -644,6 +664,15 @@ function rowToUser(resultSet, rowIndex = 0) {
     isBanned: !!obj.is_banned,
     bannedUntil: obj.banned_until,
     banReason: obj.ban_reason,
+    bannedBy: obj.banned_by || null,
+    bannedAt: obj.banned_at || null,
+    bannedHours: obj.banned_hours || null,
+    unbannedBy: obj.unbanned_by || null,
+    unbannedAt: obj.unbanned_at || null,
+    unbanReason: obj.unban_reason || null,
+    pinResetBy: obj.pin_reset_by || null,
+    pinResetAt: obj.pin_reset_at || null,
+    pinResetReason: obj.pin_reset_reason || null,
     name: obj.name,
     avatar: obj.avatar,
     district: obj.district,

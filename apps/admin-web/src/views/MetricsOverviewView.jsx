@@ -3,12 +3,48 @@ import { Users, Trophy, Radio, ShieldAlert, Award, Server } from 'lucide-react';
 
 export default function MetricsOverviewView({ metrics, onlineCount = 0, activeMatchesCount = 0 }) {
   const cards = [
-    { title: 'Usuarios Registrados', value: metrics.totalUsers || 13, icon: Users, color: '#06b6d4', subtitle: 'Base de datos SQLite activa' },
-    { title: 'Partidos Totales Registrados', value: metrics.totalMatches || 2, icon: Trophy, color: '#f59e0b', subtitle: 'Histórico de enfrentamientos' },
-    { title: 'Partidos en Cancha (Live)', value: activeMatchesCount, icon: Radio, color: '#10b981', subtitle: 'Con temporizador en juego' },
-    { title: 'Búsquedas en Radar', value: metrics.activeSearches || 0, icon: Award, color: '#8b5cf6', subtitle: 'Emparejamiento Glicko-2' },
-    { title: 'Disputas Abiertas', value: metrics.disputes || 0, icon: ShieldAlert, color: metrics.disputes > 0 ? '#ef4444' : '#64748b', subtitle: 'Pendientes de resolución arbitral' },
-    { title: 'Deportes Habilitados', value: metrics.sportsCount || 4, icon: Server, color: '#10b981', subtitle: 'Fútbol, Pádel, Básquet, Tenis' }
+    {
+      title: 'Usuarios Registrados',
+      value: metrics ? (metrics.totalUsers ?? 0) : '—',
+      icon: Users,
+      color: '#06b6d4',
+      subtitle: 'Base de datos SQLite activa'
+    },
+    {
+      title: 'Partidos Totales Registrados',
+      value: metrics ? (metrics.totalMatches ?? 0) : '—',
+      icon: Trophy,
+      color: '#f59e0b',
+      subtitle: 'Histórico de enfrentamientos'
+    },
+    {
+      title: 'Partidos en Cancha (Live)',
+      value: activeMatchesCount,
+      icon: Radio,
+      color: '#10b981',
+      subtitle: 'Con temporizador en juego'
+    },
+    {
+      title: 'Búsquedas en Radar',
+      value: metrics ? (metrics.activeSearches ?? 0) : '—',
+      icon: Award,
+      color: '#8b5cf6',
+      subtitle: 'Emparejamiento Glicko-2'
+    },
+    {
+      title: 'Disputas Abiertas',
+      value: metrics ? (metrics.disputes ?? 0) : '—',
+      icon: ShieldAlert,
+      color: (metrics?.disputes || 0) > 0 ? '#ef4444' : '#64748b',
+      subtitle: 'Pendientes de resolución arbitral'
+    },
+    {
+      title: 'Deportes Habilitados',
+      value: metrics ? (metrics.sportsCount ?? 1) : '—',
+      icon: Server,
+      color: '#10b981',
+      subtitle: 'Fútbol (5v5, 6v6, 7v7, 9v9, 11v11)'
+    }
   ];
 
   return (

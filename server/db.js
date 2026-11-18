@@ -1238,23 +1238,41 @@ class Database {
     return user;
   }
 
-  setUserBanned(userId, hours = 24, reason = 'Infracción al código deportivo') {
+  setUserBanned(userId, hours = 24, reason = 'Infracción al código de conducta deportiva', actorId = null) {
     const user = this.getUser(userId);
     if (!user) return null;
 
-    user.isBanned = true;
-    user.bannedUntil = Date.now() + Number(hours) * 3600 * 1000;
-    user.banReason = reason;
-    this.revokeSessions(userId);
+    if (hours === 0) {
+      user.isBanned = false;
+      user.bannedUntil = 0;
+      user.unbannedBy = actorId;
+      user.unbannedAt = new Date().toISOString();
+      user.unbanReason = reason || 'Suspensión levantada por SuperAdmin';
+    } else {
+      user.isBanned = true;
+      user.bannedUntil = Date.now() + Number(hours) * 3600 * 1000;
+      user.banReason = reason;
+      user.bannedBy = actorId;
+      user.bannedAt = new Date().toISOString();
+      user.bannedHours = Number(hours);
+      this.revokeSessions(userId);
+    }
+    this._persistUser(user);
+    forceSave();
     return user;
   }
 
-  resetUserPin(userId, newPin = '1234') {
+  resetUserPin(userId, newPin = '1234', { actorId = null, reason = 'Recuperación acordada de acceso' } = {}) {
     const user = this.getUser(userId);
     if (!user) return null;
 
     user.pinHash = bcrypt.hashSync(String(newPin).trim(), 10);
+    user.pinResetBy = actorId;
+    user.pinResetAt = new Date().toISOString();
+    user.pinResetReason = reason;
     this.revokeSessions(userId);
+    this._persistUser(user);
+    forceSave();
     return user;
   }
 
@@ -1603,7 +1621,7 @@ class Database {
   }
 
   // Compatibility finalizer: MS-09 replaces the legacy scoring/confirmation rules.
-  finalizeLegacyMatch(matchId, winnerTeam, actorId, admin = false) {
+  finalizeLegacyMatch(matchId, winnerTeam, actorId, admin = false, reason = null) {
     if (!['teamA', 'teamB'].includes(winnerTeam)) throw new Error('Invalid winner');
     return this.atomic(() => {
       const key = `legacy-result:${matchId}`;
@@ -1632,7 +1650,13 @@ class Database {
       match.status = 'finished'; match.resultFinal = winnerTeam;
       match.revision = (match.revision || 0) + 1;
       match.disputeAlert = null;
-      if (admin) { match.disputeResolvedBy = actorId; match.disputeAlert = null; }
+      if (admin) {
+        match.disputeResolvedBy = actorId;
+        match.resolvedBy = actorId;
+        match.resolutionReason = reason || 'Resolución arbitral SuperAdmin';
+        match.resolvedAt = new Date().toISOString();
+        match.disputeAlert = null;
+      }
       else match.reportedBy = actorId;
       if (match.matchTimer) {
         match.matchTimer.active = false; match.matchTimer.endsAt = null; match.matchTimer.stoppedAt = Date.now();
@@ -1723,6 +1747,7 @@ class Database {
       if (source === 'admin') {
         match.resolvedBy = actorId;
         match.resolutionReason = reason;
+        match.resolvedAt = match.finishedAt;
       } else {
         match.confirmedBy = actorId;
         match.confirmedAt = match.finishedAt;

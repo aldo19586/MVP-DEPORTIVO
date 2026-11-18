@@ -560,14 +560,18 @@ app.post('/api/admin/disputes/resolve', (req, res) => {
   if (winnerTeam === 'draw') return res.status(400).json({ error: 'Partidos clásicos no admiten empate' });
   if (match.status === 'finished' || (match.status !== 'disputed' && !match.disputeAlert)) return res.status(409).json({ error: 'El partido no tiene una disputa pendiente' });
 
-  const { ratingUpdates } = db.finalizeLegacyMatch(matchId, winnerTeam, adminUserId, true);
+  const disputeReason = (req.body.reason && String(req.body.reason).trim()) || `Resolución arbitral SuperAdmin: Victoria para ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}`;
+  const { ratingUpdates } = db.finalizeLegacyMatch(matchId, winnerTeam, adminUserId, true, disputeReason);
 
   realtime.to(matchId).emit('matchFinished', {
     matchId,
     winnerTeam,
     ratingUpdates,
     match,
-    resolvedByAdmin: true
+    resolvedByAdmin: true,
+    resolvedBy: adminUserId,
+    resolutionReason: disputeReason,
+    resolvedAt: match.resolvedAt
   });
 
   broadcastPeerReviewAssignments(match);
@@ -577,28 +581,40 @@ app.post('/api/admin/disputes/resolve', (req, res) => {
 
 app.post('/api/admin/user/:userId/ban', (req, res) => {
   const { hours = 24, reason } = req.body;
-  if (!Number.isFinite(hours) || hours <= 0 || hours > 8760 || (reason !== undefined && typeof reason !== 'string')) {
+  if (!Number.isFinite(hours) || hours < 0 || hours > 8760 || (reason !== undefined && typeof reason !== 'string')) {
     return res.status(400).json({ error: 'Duración o motivo de sanción inválido' });
   }
-  const user = db.setUserBanned(req.params.userId, hours, reason);
+  const effectiveReason = (reason && String(reason).trim()) || (hours === 0 ? 'Suspensión levantada por SuperAdmin' : 'Infracción al código de conducta deportiva');
+  const adminActor = req.user?.userId || 'admin';
+  const user = db.setUserBanned(req.params.userId, hours, effectiveReason, adminActor);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
   const socketId = userSocketMap.get(req.params.userId);
   if (socketId) {
-    realtime.to(socketId).emit('userBannedNotification', {
-      hours,
-      reason,
-      bannedUntil: user.bannedUntil
-    });
+    if (hours > 0) {
+      realtime.to(socketId).emit('userBannedNotification', {
+        hours,
+        reason: effectiveReason,
+        bannedUntil: user.bannedUntil,
+        bannedBy: adminActor
+      });
+    } else {
+      realtime.to(socketId).emit('userUnbannedNotification', {
+        unbannedBy: adminActor,
+        reason: effectiveReason
+      });
+    }
   }
 
   res.json({ success: true, user: toClientUser(user) });
 });
 
 app.post('/api/admin/user/:userId/reset-pin', (req, res) => {
-  const { newPin = '1234' } = req.body;
+  const { newPin = '1234', reason } = req.body;
   if (typeof newPin !== 'string' || !/^\d{4}$/.test(newPin)) return res.status(400).json({ error: 'El PIN debe tener cuatro dígitos' });
-  const user = db.resetUserPin(req.params.userId, newPin);
+  const effectiveReason = (reason && String(reason).trim()) || 'Recuperación acordada de acceso';
+  const adminActor = req.user?.userId || 'admin';
+  const user = db.resetUserPin(req.params.userId, newPin, { actorId: adminActor, reason: effectiveReason });
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
   res.json({ success: true, user: toClientUser(user) });
 });

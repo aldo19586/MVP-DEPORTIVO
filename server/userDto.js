@@ -6,6 +6,8 @@ const CLIENT_FIELDS = [
   'testLevel', 'testBreakdown', 'bio', 'position', 'role', 'verifiedDni',
   'ratingOverall', 'likesCount', 'futStats', 'favoriteSports', 'primarySport',
   'declaredLevel', 'createdAt', 'matchesPlayed', 'isBanned', 'bannedUntil', 'banReason',
+  'bannedBy', 'bannedAt', 'bannedHours', 'unbannedBy', 'unbannedAt', 'unbanReason',
+  'pinResetBy', 'pinResetAt', 'pinResetReason',
 ];
 
 export function toClientUser(user) {

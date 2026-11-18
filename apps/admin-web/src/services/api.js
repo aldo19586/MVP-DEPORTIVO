@@ -36,11 +36,12 @@ export async function logoutAdmin() {
 export const fetchAdminMetrics = () => request('/admin/metrics');
 export const fetchLiveActivity = () => request('/admin/live-activity');
 export const fetchAdminUsers = () => request('/admin/users');
-export const banUser = (id, hours = 24, reason = 'Infracción al código de conducta') => post(`/admin/user/${encodeURIComponent(id)}/ban`, { hours, reason });
-export const resetUserPin = (id, newPin = '1234') => post(`/admin/user/${encodeURIComponent(id)}/reset-pin`, { newPin });
+export const banUser = (id, hours = 24, reason = 'Infracción al código de conducta deportiva') => post(`/admin/user/${encodeURIComponent(id)}/ban`, { hours, reason });
+export const unbanUser = (id, reason = 'Suspensión levantada por SuperAdmin') => post(`/admin/user/${encodeURIComponent(id)}/ban`, { hours: 0, reason });
+export const resetUserPin = (id, newPin = '1234', reason = 'Recuperación acordada de acceso') => post(`/admin/user/${encodeURIComponent(id)}/reset-pin`, { newPin, reason });
 export const toggleUserDni = id => post(`/admin/user/${encodeURIComponent(id)}/verify-dni`);
 export const fetchDisputes = () => request('/admin/disputes');
-export const resolveDisputeApi = (matchId, winnerTeam) => post('/admin/disputes/resolve', { matchId, winnerTeam });
+export const resolveDisputeApi = (matchId, winnerTeam, reason = '') => post('/admin/disputes/resolve', { matchId, winnerTeam, reason });
 export const fetchSports = () => request('/sports', { publicAccess: true });
 export const toggleSportFormat = (sportId, formatId, active) => post('/admin/sport/format', { sportId, formatId, active });
 export const fetchVenues = (district = 'all', sportId = 'all') => request(`/venues?${new URLSearchParams({ district, sportId })}`);
