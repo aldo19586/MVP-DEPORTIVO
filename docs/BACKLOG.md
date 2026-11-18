@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05, MS-07, MS-08 y MS-09 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09 y MS-10 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -16,7 +16,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-07 | P1 / L | **Hecho (implementación A/B):** crear/unirse/salir de convocatorias reales | MS-03/MS-04/MS-05 | Todas las entradas usan servidor; código real copiable/compartible; última plaza con dos solicitudes da un único ganador; sin duplicar miembros; fecha/hora/zona persistidas; sala recuperable tras reinicio. A-06/A-08 |
 | MS-08 | P1 / M | **Hecho (implementación):** chat y reconexión | MS-04/MS-07 | Dos conexiones reciben mismo mensaje una vez; historial y reintento; estados enviando/error; filtro por sala y limpieza de listeners; desconexión no borra membresía futura. Prueba física pendiente. A-07/A-08 |
 | MS-09 | P1 / L | **Hecho (MS-09-A y MS-09-B):** finalización, disputa y rating consistente | MS-04/MS-05/MS-06/MS-07 | Reporte y confirmación por capitanes, empates, disputas con evidencia congelada, rating Glicko-2 atómico, resolución SuperAdmin en web y UI móvil completa. A-10 |
-| MS-10 | P1 / L | Onboarding continuo y carta inicial | MS-03, D-02/D-03/D-06 | Cuenta → datos mínimos → test → carta; reanudar; 14 respuestas válidas exigidas por servidor; foto opcional; sin atributos inventados; conservar invitación. A-09/A-16 |
+| MS-10 | P1 / L | **Hecho:** Onboarding continuo y carta inicial | MS-03, D-02/D-03/D-06 | Cuenta → datos mínimos → test → carta; reanudar; 14 respuestas válidas exigidas por servidor; foto opcional; sin atributos inventados; conservar invitación. A-09/A-16 |
 | MS-11 | P2 / M | Simplificar navegación y pantallas | MS-07/MS-08/MS-10 | Jugar/Mis partidos/Perfil, acción primaria por estado, filtros secundarios, sin demos en recorrido real, carga/error/vacío explícitos; revisión en iPhone y tamaño de texto grande |
 | MS-12 | P1 / M | SuperAdmin operativo y trazable | MS-03/MS-04/MS-09 | Ban/reset/disputa registran actor/motivo/fecha; errores visibles; reset según recuperación acordada; no se muestra «0 usuarios» por fallo de API. A-17 |
 | MS-13 | P1 / M | Automatizar validaciones y build nativa | MS-01/MS-03/MS-04 | CI falla con test negativo roto; lockfile reproducible; build de apps/mobile identificada; pipeline Capacitor retirado del camino vigente; versiones soportadas fijadas. A-13/A-14 |
@@ -139,9 +139,25 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Sincronización en vivo con eventos de socket: `competitionScoreReported`, `competitionScoreConfirmed`, `competitionScoreDisputed`, `competitionDisputeResolved`.
 - Cuatro casos de prueba automatizados en `server/tests/competition-rating-dispute.test.js`; **91 pruebas conjuntas aprobadas al 100%**.
 - Build de `apps/admin-web` aprobada (1886 módulos). Exportación de bundle móvil iOS/Hermes aprobada (773 módulos). Base personal sin modificaciones.
-- **Sigue MS-10:** Onboarding continuo y carta inicial de jugador (14 respuestas validadas por servidor, distrito y preservación de sesión).
 
-Después de implementar resultados/persistencia se integra el onboarding simplificado. El diseño puede definirse durante el desarrollo, pero no se declara listo antes de conectarlo al servidor.
+### Evidencia MS-10 — 18 de noviembre de 2026
+
+- Flujo continuo de onboarding obligatorio para nuevos jugadores: `Cuenta (apodo + PIN) → Datos mínimos (distrito y posición) → Test de fútbol (14 preguntas) → Carta inicial estimada`.
+- Validación estricta por servidor en `/api/user/complete-profile` y `/api/user/submit-football-test`:
+  - Rechazo con HTTP 400 (`INVALID_DISTRICT`, `INVALID_POSITION`, `INVALID_AGE`) ante datos faltantes o fuera de rango.
+  - Validación de exactamente 14 respuestas válidas (letras A-E o enteros 1-5); rechazo estricto con HTTP 400 (`INVALID_ANSWERS`) ante envíos incompletos, vacíos o manipulados.
+  - Eliminación total de rellenos automáticos silenciosos y generación aleatoria de estadísticas.
+- Carta de jugador determinista y sin atributos inventados (D-06):
+  - Atributos FUT (`rit`, `tir`, `pas`, `reg`, `def`, `fis` y `ovr`) calculados matemáticamente a partir de las 4 categorías oficiales del test (Físico 20%, Técnica 25%, Lectura 20%, Posición 35%) y la demarcación del deportista.
+  - Calibración de rating inicial Glicko-2 vinculada al nivel oficial obtenido (1200 a 1600 pts) y sincronizada en los perfiles `user_profiles` (`1v1`, `5v5`, `6v6`, `7v7`, `8v8`, `11v11`) con `rd = 350` y `matchesPlayed = 0`.
+- Reanudación y preservación de invitaciones (V-05, V-06):
+  - Almacenamiento local de respuestas parciales en `@matchsport:partial_test_answers` para retomar el test en la pregunta pendiente tras cerrar o recargar la aplicación.
+  - Conservación de invitaciones en `@matchsport:pending_invite_code` para redirigir y unir al jugador automáticamente a la sala una vez obtenida su carta inicial.
+  - Interfaz de `ProfileScreen` y `FootballLevelTestScreen` con la insignia transparente `🎯 NIVEL INICIAL ESTIMADO` y nota explicativa de evolución competitiva; retiro de datos ficticios/demo.
+- Endpoint de verificación `/api/user/onboarding-status` para trazabilidad de estado del deportista.
+- Seis casos de prueba nuevos en `server/tests/onboarding.test.js` y `server/tests/client-session.test.js`; **97 pruebas conjuntas aprobadas al 100%**.
+- Build de `apps/admin-web` aprobada (1886 módulos). Exportación de bundle móvil iOS/Hermes aprobada (773 módulos). Base personal sin modificaciones.
+- **Siguiente tarea prioritaria en el Backlog: MS-11** (Simplificar navegación y pantallas).
 
 ## Trabajo pospuesto
 
