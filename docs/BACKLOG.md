@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10, MS-11, MS-12, MS-13 y MS-14 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10, MS-11, MS-12, MS-13, MS-14 y MS-15 implementados**; **MS-06 En curso**; **MS-16 Pendiente**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -21,7 +21,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-12 | P1 / M | **Hecho:** SuperAdmin operativo y trazable | MS-03/MS-04/MS-09 | Ban/reset/disputa registran actor/motivo/fecha; errores visibles; reset según recuperación acordada; no se muestra «0 usuarios» por fallo de API. A-17 |
 | MS-13 | P1 / M | **Hecho:** Automatizar validaciones y build nativa | MS-01/MS-03/MS-04 | CI falla con test negativo roto; lockfile reproducible; build de apps/mobile identificada; pipeline Capacitor retirado del camino vigente; versiones soportadas fijadas. A-13/A-14 |
 | MS-14 | P1 / L | **Hecho:** Entorno de piloto y operación | MS-06/MS-12/MS-13, D-05/D-07 | HTTPS/WSS, configuración por entorno, sin demos/secretos de respaldo; logs sin credenciales; monitoreo y restore ensayado; responsable de incidentes; dependencias revisadas. A-15 |
-| MS-15 | P1 / M | Avisos y validación en dispositivos | MS-07/MS-08/MS-14 | Permisos contextuales; aviso real llega al destinatario y abre el partido correcto; probar segundo plano/denegación; definir fallback al abrir app; validar iOS y Android si se incluye |
+| MS-15 | P1 / M | **Hecho:** Avisos y validación en dispositivos | MS-07/MS-08/MS-14 | Permisos contextuales; aviso real llega al destinatario y abre el partido correcto; probar segundo plano/denegación; definir fallback al abrir app; validar iOS y Android si se incluye |
 | MS-16 | P1 / M | Ensayo y piloto privado | MS-00…MS-15 necesarias para el alcance | Matriz de VALIDACION.md con evidencia; cero P0/P1 abiertos en alcance; usuarios invitados completan ciclo real; telemetría mínima y registro de incidencias; decisión explícita de ampliar o corregir |
 
 ## Primera entrega técnica propuesta
@@ -254,6 +254,42 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - **103 de 103 pruebas del backend aprobadas al 100%** (`npm run test:server`).
   - Compilación de `apps/admin-web` (`npm run build:admin`) y exportaciones móviles nativas iOS y Android (`npm run build:mobile`, `npm run build:mobile:android`) aprobadas sin errores.
 - **Siguiente tarea prioritaria en el Backlog: MS-15** (Avisos y validación en dispositivos).
+
+### Evidencia MS-15 — 18 de noviembre de 2026
+
+- **Permisos contextuales y manejo de denegación (V-15 / V-18):**
+  - `apps/mobile/src/services/notificationService.js`: comprobación de permisos no invasiva (`getPermissionStatus()`), solicitud contextual segura (`requestPermissions()`), configuración del canal nativo Android con alta prioridad y sonido (`setupAndroidChannel()`), y extracción segura de push tokens sin provocar excepciones en simuladores o Expo Go (`getPushToken()`).
+  - `apps/mobile/src/screens/NotificationsScreen.js`: banner explícito de aviso si los permisos del dispositivo están denegados («⚠️ Notificaciones Desactivadas - No recibirás avisos si la app está en segundo plano»), con botón interactivo «Activar» para reintentar la concesión del permiso sin bloquear ni congelar la interfaz.
+- **Registro de Push Token en Servidor y Persistencia Durable en SQLite:**
+  - `apps/mobile/src/services/api.js`: nuevo método `registerPushToken(userId, pushToken)` que invoca `POST /api/user/push-token`. Se sincroniza automáticamente tras el login o restauración de sesión.
+  - `server/database.js`: tabla `users` actualizada con columna `push_token TEXT` mediante migración segura en `createTables()`. Consultas `sqlInsertUser` y `rowToUser` extendidas para garantizar la persistencia atómica y durable del token tras reinicios del servidor.
+  - Privacidad estricta: `server/userDto.js` excluye rigurosamente `pushToken` y `push_token` tanto de perfiles públicos como de las respuestas cliente (`toPublicUser` y `toClientUser`).
+- **Despacho Push con entrega a «Solo Destinatario Correcto» (server/pushService.js):**
+  - Despachador de notificaciones push desacoplado y resiliente, con soporte para Expo Push Service (`https://exp.host/--/api/v2/push/send`).
+  - Filtros estrictos de seguridad: exclusión total de usuarios baneados (`isBanned: true`), descarte de tokens vacíos y tolerancia a fallos de red sin interrumpir las transacciones del servidor.
+  - Enrutamiento por evento de negocio:
+    - Chat de convocatoria (`notifyCompetitionMessage`): se envía exclusivamente a los miembros de la sala, omitiendo al propio remitente.
+    - Marcador reportado (`notifyScoreReported`): avisa al capitán rival y participantes con goles para validación o disputa.
+    - Marcador confirmado (`notifyScoreConfirmed`): notifica a todos los participantes la finalización oficial y actualización de ratings Glicko-2.
+    - Marcador disputado (`notifyScoreDisputed`): notifica apertura de arbitraje SuperAdmin con el motivo congelado.
+    - Disputa resuelta (`notifyDisputeResolved`): notifica el dictamen oficial emitido por el SuperAdmin.
+    - Convocatoria lista (`notifyMatchReady`): alerta cuando todos los cupos están cubiertos y confirmados.
+  - Integrado de forma reactiva con los eventos de negocio en `server/realtime.js`.
+- **Interacción desde segundo plano, pulsación y fallback al abrir la app:**
+  - `apps/mobile/src/services/storage.js`: persistencia local de intenciones pendientes (`savePendingNotificationIntent`, `getPendingNotificationIntent`, `clearPendingNotificationIntent`) y almacén histórico de notificaciones (`getNotifications`, `addNotification`, `markAllNotificationsRead`).
+  - `apps/mobile/App.js`: suscripción reactiva a pulsaciones de notificaciones (`addNotificationResponseReceivedListener`) y detección de apertura en frío (`getLastNotificationResponseAsync`).
+  - Navegación dirigida con fallback robusto:
+    - Si el usuario no ha iniciado sesión, la intención se conserva en storage y se ejecuta fluidamente tras completar el login y onboarding (V-06).
+    - Si la convocatoria o partido existe, `CompetitionScreen` transiciona inmediatamente a la vista detallada (`detail`).
+    - Si el partido ya finalizó, fue cancelado o no existe, se presenta un `Alert` nativo descriptivo y la app regresa de forma segura a la lista principal (`JUGAR`), sin colapsar ni mostrar datos demo inventados.
+- **Centro de Notificaciones Nativo Móvil:**
+  - Los eventos de socket en vivo (`lobbyNeedsOne`, `competitionScoreReported`, `competitionScoreConfirmed`, etc.) se registran automáticamente en el almacén local del dispositivo.
+  - Tarjetas de aviso interactivas con acceso directo («Toca para abrir partido o sala ➔») y acción rápida de «Marcar como leídas».
+- **Suite automatizada de pruebas y builds:**
+  - Nueva suite `server/tests/device-notifications.test.js`: prueba el rechazo 401 a usuarios anónimos, la protección 403 contra spoofing de tokens entre cuentas (`ownBody`), la persistencia del token en SQLite tras reinicio, la exclusión del token en DTOs públicos, el filtrado estricto a «Solo destinatario correcto», el bloqueo a usuarios baneados y la resiliencia ante errores de red del servicio push.
+  - **105 de 105 pruebas del servidor aprobadas al 100%** (`npm run test:server`).
+  - Compilación de `apps/admin-web` (`npm run build:admin`) y exportación nativa de Hermes aprobada para iOS (`npm run build:mobile`) y Android (`npm run build:mobile:android`).
+- **Siguiente tarea prioritaria en el Backlog: MS-16** (Ensayo y piloto privado).
 
 ## Trabajo pospuesto
 
