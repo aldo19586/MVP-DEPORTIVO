@@ -1,3 +1,17 @@
+/**
+ * ⚠️ SCRIPT HISTÓRICO OBSOLETO (Audit Finding A-14)
+ * ----------------------------------------------------
+ * Este script fue utilizado durante las fases iniciales de prototipado rápido
+ * y ejecutaba llamadas no autenticadas contra un servidor en vivo en localhost:3001,
+ * mutando la base de datos de desarrollo y validando supuestos ya superados.
+ * 
+ * La suite oficial y autoritativa de pruebas automatizadas del proyecto es:
+ *   npm run test:server
+ * 
+ * Dicha suite se encuentra en `server/tests/`, corre bajo un entorno estrictamente
+ * aislado (`.test-runs/`), valida tanto casos positivos como rechazos negativos
+ * de seguridad (401, 403, 409, RBAC y durabilidad SQLite) y no altera la base de datos real.
+ */
 import { io } from 'socket.io-client';
 
 async function runComprehensiveBackendTest() {

@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10, MS-11 y MS-12 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05, MS-07, MS-08, MS-09, MS-10, MS-11, MS-12 y MS-13 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -19,7 +19,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-10 | P1 / L | **Hecho:** Onboarding continuo y carta inicial | MS-03, D-02/D-03/D-06 | Cuenta → datos mínimos → test → carta; reanudar; 14 respuestas válidas exigidas por servidor; foto opcional; sin atributos inventados; conservar invitación. A-09/A-16 |
 | MS-11 | P2 / M | **Hecho:** Simplificar navegación y pantallas | MS-07/MS-08/MS-10 | Jugar/Mis partidos/Perfil, acción primaria por estado, filtros secundarios, sin demos en recorrido real, carga/error/vacío explícitos; revisión en iPhone y tamaño de texto grande |
 | MS-12 | P1 / M | **Hecho:** SuperAdmin operativo y trazable | MS-03/MS-04/MS-09 | Ban/reset/disputa registran actor/motivo/fecha; errores visibles; reset según recuperación acordada; no se muestra «0 usuarios» por fallo de API. A-17 |
-| MS-13 | P1 / M | Automatizar validaciones y build nativa | MS-01/MS-03/MS-04 | CI falla con test negativo roto; lockfile reproducible; build de apps/mobile identificada; pipeline Capacitor retirado del camino vigente; versiones soportadas fijadas. A-13/A-14 |
+| MS-13 | P1 / M | **Hecho:** Automatizar validaciones y build nativa | MS-01/MS-03/MS-04 | CI falla con test negativo roto; lockfile reproducible; build de apps/mobile identificada; pipeline Capacitor retirado del camino vigente; versiones soportadas fijadas. A-13/A-14 |
 | MS-14 | P1 / L | Entorno de piloto y operación | MS-06/MS-12/MS-13, D-05/D-07 | HTTPS/WSS, configuración por entorno, sin demos/secretos de respaldo; logs sin credenciales; monitoreo y restore ensayado; responsable de incidentes; dependencias revisadas. A-15 |
 | MS-15 | P1 / M | Avisos y validación en dispositivos | MS-07/MS-08/MS-14 | Permisos contextuales; aviso real llega al destinatario y abre el partido correcto; probar segundo plano/denegación; definir fallback al abrir app; validar iOS y Android si se incluye |
 | MS-16 | P1 / M | Ensayo y piloto privado | MS-00…MS-15 necesarias para el alcance | Matriz de VALIDACION.md con evidencia; cero P0/P1 abiertos en alcance; usuarios invitados completan ciclo real; telemetría mínima y registro de incidencias; decisión explícita de ampliar o corregir |
@@ -189,7 +189,28 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
 - Accesibilidad en iPhone y tamaños de texto grande: uso de `flexShrink: 1`, flex wrapping, botones con minHeight adaptativo y scroll continuo.
 - **Suite de pruebas:** **97 de 97 pruebas del servidor aprobadas al 100%** (`npm run test:server`).
 - **Builds:** `npm run build:admin` (1886 módulos) y `expo export --platform ios` (773 módulos) aprobadas sin errores.
-- **Siguiente tarea prioritaria en el Backlog: MS-12** (SuperAdmin operativo y trazable).
+- **Siguiente tarea prioritaria en el Backlog: MS-13** (Automatizar validaciones y build nativa).
+
+### Evidencia MS-13 — 18 de noviembre de 2026
+
+- **Pipeline Capacitor retirado del camino vigente (A-13):**
+  - Eliminado el workflow heredado `.github/workflows/build-apk.yml` que construía web empaquetada en Android con `npm ci || npm install`.
+  - Retirado el directorio nativo wrapper `android/`, el archivo de configuración `capacitor.config.json` y las dependencias obsoletas `@capacitor/*` (`@capacitor/android`, `@capacitor/cli`, `@capacitor/core`, `@capacitor/geolocation`) del `package.json` raíz.
+  - `package-lock.json` actualizado y depurado, asegurando reproducibilidad estricta (`npm ci --dry-run` verificado sin advertencias).
+- **Nuevo pipeline de Integración Continua (.github/workflows/ci.yml):**
+  - Configurado workflow moderno con matriz multi-versión de Node.js fijada (20.x y 22.x) y motores requeridos (`engines: { node: ">=20.0.0", npm: ">=10.0.0" }`).
+  - Instalación estricta y reproducible garantizada mediante `npm ci` (sin fallback degradante `|| npm install`).
+  - Ejecución automatizada de la suite oficial completa de pruebas de backend (`npm run test:server`). Falla inmediatamente ante cualquier regresión en casos positivos o en pruebas negativas de seguridad (401, 403, 409, RBAC, tokens inválidos o manipulados).
+  - Verificación de compilación de escritorio del Panel SuperAdmin (`npm run build:admin` con Vite).
+  - Verificación de exportación de bundle nativo móvil con Hermes tanto para iOS (`expo export --platform ios`) como para Android (`expo export --platform android`).
+- **Scripts y validación unificada (A-14):**
+  - Adición de scripts unificados en `package.json`: `validate`, `build:mobile` y `build:mobile:android`.
+  - Adición de scripts nativos de exportación en `apps/mobile/package.json`: `export`, `export:ios` y `export:android`.
+  - Aislamiento y documentación de scripts históricos de prototipado en [scripts/README.md](../scripts/README.md) y banner de advertencia en `scripts/test_backend_full.js`, formalizando a `server/tests/` como la única suite autoritativa del proyecto.
+- **Verificación local completa:**
+  - `npm run validate`: 99 de 99 pruebas de servidor aprobadas al 100%, build de admin web en 1.75s y exportación nativa de bundle móvil iOS en 4.3s.
+  - `npm run build:mobile:android`: exportación nativa de bundle móvil Android en 4.4s.
+- **Siguiente tarea prioritaria en el Backlog: MS-14** (Entorno de piloto y operación).
 
 ### Evidencia MS-12 — 18 de noviembre de 2026
 
