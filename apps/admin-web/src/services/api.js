@@ -1,5 +1,11 @@
 import { createHttpClient } from '../../../../shared/httpClient.mjs';
-const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api';
+const getBaseUrl = () => {
+  if (import.meta.env?.VITE_API_URL) {
+    return `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api`;
+  }
+  return window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api';
+};
+const BASE_URL = getBaseUrl();
 const TOKEN_KEY = 'matchsport_admin_token';
 const USER_KEY = 'matchsport_admin_user';
 const listeners = new Set();

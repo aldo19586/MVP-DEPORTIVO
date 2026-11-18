@@ -53,13 +53,18 @@ export function resolveRuntimeConfig(env = process.env) {
     logDir = path.join(testDir, 'logs');
     checkTestPath(testDir, logDir);
   }
+  const corsOrigin = env.CORS_ORIGIN || '*';
+  const publicUrl = env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, '') : null;
   return {
     isTest,
+    nodeEnv: env.NODE_ENV || 'development',
     port,
     host: isTest ? '127.0.0.1' : (env.HOST || '0.0.0.0'),
     dbPath,
     logDir,
     seedDemo: seedValue === 'true',
+    corsOrigin,
+    publicUrl,
   };
 }
 

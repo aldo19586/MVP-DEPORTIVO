@@ -20,17 +20,18 @@ import { toClientUser, toPublicUser, toResource } from './userDto.js';
 const app = express();
 const server = http.createServer(app);
 
-// Configuración CORS abierta para admitir conexiones desde PC y celulares en la LAN
+// Configuración CORS configurable por entorno para admitir clientes web y móviles
+const corsOrigin = runtimeConfig.corsOrigin || '*';
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST']
   },
   pingInterval: 2500,
   pingTimeout: 5000
 });
 
-app.use(cors());
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 app.use('/api', apiAccess);
 app.use('/api/competitions', competitionRouter);
@@ -96,11 +97,21 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  const mem = process.memoryUsage();
   res.json({
     status: 'ok',
+    env: runtimeConfig.nodeEnv,
     uptime: Math.floor(process.uptime()),
     database: db._sqliteReady ? 'connected' : 'initializing',
-    timestamp: new Date().toISOString()
+    schemaVersion: db.version || 5,
+    timestamp: new Date().toISOString(),
+    memory: {
+      rssMb: Math.round(mem.rss / (1024 * 1024)),
+      heapUsedMb: Math.round(mem.heapUsed / (1024 * 1024))
+    },
+    realtime: {
+      connectedSockets: io.engine ? io.engine.clientsCount : userSocketMap.size
+    }
   });
 });
 
