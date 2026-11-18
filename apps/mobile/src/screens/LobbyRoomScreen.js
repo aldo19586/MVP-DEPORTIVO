@@ -16,27 +16,13 @@ import { THEME } from '../theme';
 
 export default function LobbyRoomScreen({ lobby, user, onBack, onStartSquadRadar }) {
   const [currentLobby, setCurrentLobby] = useState(lobby || {
-    code: 'X8K2',
-    venueDistrict: 'Manuel Bonilla, Miraflores',
+    code: '',
+    venueDistrict: 'Cancha local',
     sportId: 'futbol',
     formatId: '5v5',
-    teamA: [
-      { id: user?.id || 'demo_user_1', name: user?.name || 'Mateo Ramos', position: 'DEL', rating: 1840, isReady: true, isMe: true },
-      { id: 'u2', name: 'Carlos Vega', position: 'POR', rating: 1780, isReady: true },
-      { id: 'u3', name: 'J. Morales', position: 'DEL', rating: 1860, isReady: true },
-      { id: 'u4', name: 'D. Paredes', position: 'DEF', rating: 1590, isReady: true }
-    ],
-    teamB: [
-      { id: 'u5', name: 'R. Quispe', position: 'MED', rating: 1850, isReady: true, isCaptain: true },
-      { id: 'u6', name: 'K. Barreto', position: 'DEF', rating: 1730, isReady: true },
-      { id: 'u7', name: 'S. Rojas', position: 'MED', rating: 1610, isReady: false },
-      { id: 'u8', name: 'L. Benítez', position: 'DEL', rating: 1800, isReady: true }
-    ],
-    chatMessages: [
-      { senderName: 'Carlos', text: 'Llevo chalecos naranjas por si acaso 🎽' },
-      { senderName: 'Rodrigo', text: '¿Arrancamos a las 8:00pm exacto?' },
-      { senderName: 'Mateo (Tú)', text: 'Sí, ya casi estamos completos. Faltan 2 cupos.' }
-    ]
+    teamA: user ? [{ id: user.id, name: user.name, position: user.position || 'DEL', rating: user.ratingOverall || 1500, isReady: true, isMe: true }] : [],
+    teamB: [],
+    chatMessages: []
   });
 
   const [isReady, setIsReady] = useState(true);

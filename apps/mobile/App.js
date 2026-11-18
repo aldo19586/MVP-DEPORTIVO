@@ -38,11 +38,11 @@ export default function App() {
   // Flujo Auth
   const [authScreen, setAuthScreen] = useState('SPLASH'); // 'SPLASH' | 'LOGIN' | 'REGISTER'
   
-  // Pestañas Principales
-  const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'SALAS' | 'RANKING' | 'PERFIL'
+  // Pestañas Principales (3 Destinos: Jugar · Mis partidos · Perfil - MS-11)
+  const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'MIS_PARTIDOS' | 'PERFIL'
   
-  // Sub-pantallas Nativas (Navegación Stack sin modales)
-  const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE' | 'BIOMETRICS' | 'FOOTBALL_TEST'
+  // Sub-pantallas Nativas (Navegación Stack sin modales, con accesos secundarios)
+  const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'LEADERBOARD' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE' | 'BIOMETRICS' | 'FOOTBALL_TEST'
   const [currentRadius, setCurrentRadius] = useState(8);
   const [currentDistrict, setCurrentDistrict] = useState('SURCO, LIMA');
   const [userDeclaredLevel, setUserDeclaredLevel] = useState('Intermedio');
@@ -380,6 +380,15 @@ export default function App() {
     );
   }
 
+  if (activeSubScreen === 'LEADERBOARD') {
+    return (
+      <LeaderboardScreen
+        currentUser={currentUser}
+        onBack={() => setActiveSubScreen(null)}
+      />
+    );
+  }
+
   if (activeSubScreen === 'CALIBRATION') {
     return (
       <CalibrationScreen
@@ -449,29 +458,73 @@ export default function App() {
   }
 
   // ==========================================
-  // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (4 TABS)
+  // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (3 TABS: JUGAR · MIS PARTIDOS · PERFIL)
+  // Accesos secundarios a Ranking y Notificaciones en Barra Superior (MS-11)
   // ==========================================
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" backgroundColor={THEME.colors.bgCanvas} />
 
+      {/* Top Header con Marca y Accesos Secundarios */}
+      <View style={styles.topHeader}>
+        <View style={styles.brandRow}>
+          <Text style={styles.brandTitleWhite}>MATCH</Text>
+          <Text style={styles.brandTitleGreen}>SPORT</Text>
+        </View>
+
+        <View style={styles.headerIconsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ver Tabla de Posiciones y Ranking"
+            style={styles.headerIconButton}
+            onPress={() => setActiveSubScreen('LEADERBOARD')}
+          >
+            <Text style={styles.headerIconText}>🏆</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ver Notificaciones"
+            style={styles.headerIconButton}
+            onPress={() => setActiveSubScreen('NOTIFICATIONS')}
+          >
+            <Text style={styles.headerIconText}>🔔</Text>
+          </Pressable>
+        </View>
+      </View>
+
       <View style={styles.tabContent}>
-        {(activeTab === 'JUGAR' || activeTab === 'SALAS') && (
-          <CompetitionScreen key={activeTab} user={currentUser} mine={activeTab === 'SALAS'} />
+        {activeTab === 'JUGAR' && (
+          <CompetitionScreen
+            key="JUGAR"
+            user={currentUser}
+            mine={false}
+            onNavigateToPlay={() => setActiveTab('JUGAR')}
+          />
         )}
 
-        {activeTab === 'RANKING' && (
-          <LeaderboardScreen currentUser={currentUser} />
+        {(activeTab === 'MIS_PARTIDOS' || activeTab === 'SALAS') && (
+          <CompetitionScreen
+            key="MIS_PARTIDOS"
+            user={currentUser}
+            mine={true}
+            onNavigateToPlay={() => setActiveTab('JUGAR')}
+          />
         )}
 
         {activeTab === 'PERFIL' && (
-          <ProfileScreen user={currentUser} onLogout={handleLogout} />
+          <ProfileScreen
+            user={currentUser}
+            onLogout={handleLogout}
+            onOpenLeaderboard={() => setActiveSubScreen('LEADERBOARD')}
+            onNavigateToPlay={() => setActiveTab('JUGAR')}
+          />
         )}
       </View>
 
-      {/* Persistent Bottom Bar */}
+      {/* Persistent Bottom Bar (3 Destinos Principales) */}
       <BottomNavBar
-        activeTab={activeTab}
+        activeTab={activeTab === 'SALAS' ? 'MIS_PARTIDOS' : activeTab}
         onSelectTab={setActiveTab}
         openRoomsCount={0}
       />
@@ -483,6 +536,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bgCanvas,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: THEME.colors.bgCanvas,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandTitleWhite: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  brandTitleGreen: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: THEME.colors.primary,
+    letterSpacing: 0.5,
+  },
+  headerIconsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: THEME.colors.cardBg,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIconText: {
+    fontSize: 18,
   },
   tabContent: {
     flex: 1,

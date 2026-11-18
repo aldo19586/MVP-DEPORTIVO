@@ -68,7 +68,7 @@ export default function SplashScreen({ onLoginPress, onRegisterPress }) {
       <View style={styles.topChipsRow}>
         <View style={styles.chipActivePlayers}>
           <View style={styles.greenDot} />
-          <Text style={styles.chipActiveText}>+24,500 JUGADORES</Text>
+          <Text style={styles.chipActiveText}>FÚTBOL 5v5 · 7v7 · 11v11</Text>
         </View>
         <View style={styles.chipLocation}>
           <Text style={styles.chipLocationIcon}>📍</Text>
@@ -93,9 +93,9 @@ export default function SplashScreen({ onLoginPress, onRegisterPress }) {
           ]}
         />
         
-        {/* FUT Season Badge */}
+        {/* Tag */}
         <View style={styles.seasonTag}>
-          <Text style={styles.seasonTagText}>⚡ S11 FUT</Text>
+          <Text style={styles.seasonTagText}>⚽ PARTIDOS REALES</Text>
         </View>
 
         {/* Central Geometric Pentagon Icon */}
@@ -134,7 +134,7 @@ export default function SplashScreen({ onLoginPress, onRegisterPress }) {
           activeOpacity={0.85}
         >
           <Text style={styles.secondaryButtonText}>
-            CREAR CUENTA <Text style={styles.secondaryButtonGold}>/ OBTENER CARTA FUT</Text>
+            CREAR CUENTA <Text style={styles.secondaryButtonGold}>NUEVA</Text>
           </Text>
         </TouchableOpacity>
 
@@ -142,7 +142,7 @@ export default function SplashScreen({ onLoginPress, onRegisterPress }) {
         <View style={styles.securityBadge}>
           <Text style={styles.shieldIcon}>🛡️</Text>
           <Text style={styles.securityText}>
-            Emparejamiento Justo por Habilidad Glicko-2 & DNI Seguro
+            Emparejamiento Justo por Habilidad Glicko-2 & Acceso Seguro
           </Text>
         </View>
       </View>

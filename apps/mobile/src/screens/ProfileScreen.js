@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,37 @@ import {
   StyleSheet,
   SafeAreaView,
   Image,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { api } from '../services/api';
 import { THEME } from '../theme';
 
-const MOCK_MATCH_HISTORY = [
-  { id: 'm1', result: 'VICTORIA', delta: '+35 pts', score: '4 - 3', opponent: 'FC Miraflores', venue: 'Cancha El Golazo, Surco', date: 'Ayer • 08:30 PM' },
-  { id: 'm2', result: 'VICTORIA', delta: '+30 pts', score: '5 - 2', opponent: 'La Reta SC', venue: 'Manuel Bonilla, Miraflores', date: '22 Sep • 09:00 PM' },
-  { id: 'm3', result: 'DERROTA', delta: '-25 pts', score: '2 - 3', opponent: 'Surco United', venue: 'Polideportivo San Borja', date: '19 Sep • 07:30 PM' },
-];
-
-export default function ProfileScreen({ user, onLogout }) {
+export default function ProfileScreen({ user, onLogout, onOpenLeaderboard, onNavigateToPlay }) {
   const [activeSubTab, setActiveSubTab] = useState('card'); // 'card' | 'history'
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const stats = user?.futStats || null;
   const isEstimated = !user?.matchesPlayed || user.matchesPlayed === 0;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    setLoadingHistory(true);
+    api.getUserMatches(user.id)
+      .then(res => {
+        if (active && res?.matches) {
+          setHistory(res.matches);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingHistory(false);
+      });
+    return () => { active = false; };
+  }, [user?.id]);
 
   const handleLogout = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
@@ -31,6 +46,12 @@ export default function ProfileScreen({ user, onLogout }) {
       { text: 'Cerrar Sesión', style: 'destructive', onPress: onLogout }
     ]);
   };
+
+  const matchesCount = user?.matchesPlayed || 0;
+  const winsCount = user?.wins || 0;
+  const drawsCount = user?.draws || 0;
+  const lossesCount = user?.losses || 0;
+  const winRate = matchesCount > 0 ? ((winsCount / matchesCount) * 100).toFixed(1) : '0.0';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -156,40 +177,86 @@ export default function ProfileScreen({ user, onLogout }) {
         {activeSubTab === 'card' ? (
           <View style={styles.statsCard}>
             <View style={styles.statLine}>
-              <Text style={styles.statLineLabel}>RATING GENERAL ELO</Text>
-              <Text style={styles.statLineVal}>{user?.ratingOverall || 1820} Pts</Text>
+              <Text style={styles.statLineLabel}>RATING GENERAL GLICKO-2</Text>
+              <Text style={styles.statLineVal}>{Math.round(user?.ratingOverall || user?.ratingGlicko || 1200)} Pts</Text>
             </View>
             <View style={styles.statLine}>
               <Text style={styles.statLineLabel}>PARTIDOS DISPUTADOS</Text>
-              <Text style={styles.statLineVal}>32 Pichangas</Text>
+              <Text style={styles.statLineVal}>{matchesCount} {matchesCount === 1 ? 'partido' : 'partidos'}</Text>
+            </View>
+            <View style={styles.statLine}>
+              <Text style={styles.statLineLabel}>BALANCE OFICIAL</Text>
+              <Text style={styles.statLineVal}>{winsCount}V - {drawsCount}E - {lossesCount}D</Text>
             </View>
             <View style={styles.statLine}>
               <Text style={styles.statLineLabel}>TASA DE VICTORIAS (WINRATE)</Text>
-              <Text style={styles.statLineGreen}>68.7%</Text>
+              <Text style={styles.statLineGreen}>{winRate}%</Text>
             </View>
             <View style={styles.statLine}>
               <Text style={styles.statLineLabel}>CALIFICACIONES DE COMPAÑEROS</Text>
-              <Text style={styles.statLineGold}>+28 Atributos Recibidos</Text>
+              <Text style={styles.statLineGold}>+{user?.likesCount || 0} Fair Play</Text>
             </View>
+
+            {onOpenLeaderboard && (
+              <TouchableOpacity
+                style={styles.leaderboardLinkBtn}
+                onPress={onOpenLeaderboard}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.leaderboardLinkText}>🏆 Ver Tabla de Posiciones y Clasificación</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.historyList}>
-            {MOCK_MATCH_HISTORY.map((match) => (
-              <View key={match.id} style={styles.historyCard}>
-                <View style={styles.historyTopRow}>
-                  <View style={[styles.resultTag, match.result === 'VICTORIA' ? styles.resultTagWin : styles.resultTagLoss]}>
-                    <Text style={[styles.resultText, match.result === 'VICTORIA' ? styles.resultTextWin : styles.resultTextLoss]}>
-                      {match.result}
-                    </Text>
-                  </View>
-                  <Text style={styles.matchScore}>{match.score}</Text>
-                  <Text style={styles.matchDelta}>{match.delta}</Text>
-                </View>
-
-                <Text style={styles.opponentName}>vs {match.opponent}</Text>
-                <Text style={styles.venueDate}>{match.venue} • {match.date}</Text>
+            {loadingHistory ? (
+              <ActivityIndicator color={THEME.colors.primary} style={{ marginVertical: 30 }} />
+            ) : history.length === 0 ? (
+              <View style={styles.emptyHistoryCard}>
+                <Text style={styles.emptyHistoryIcon}>📋</Text>
+                <Text style={styles.emptyHistoryTitle}>Sin partidos registrados</Text>
+                <Text style={styles.emptyHistoryText}>
+                  Tus partidos finalizados con marcadores oficiales y variaciones de rating se mostrarán aquí.
+                </Text>
+                {onNavigateToPlay && (
+                  <TouchableOpacity
+                    style={styles.emptyActionBtn}
+                    onPress={onNavigateToPlay}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.emptyActionText}>Explorar Convocatorias en Jugar ➔</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            ))}
+            ) : (
+              history.map((m) => {
+                const isDraw = m.outcome === 'draw';
+                const isWin = (m.winnerTeam && ((m.myTeam === 'teamA' && m.winnerTeam === 'teamA') || (m.myTeam === 'teamB' && m.winnerTeam === 'teamB'))) || m.result === 'VICTORIA';
+                const resultText = isDraw ? 'EMPATE' : (isWin ? 'VICTORIA' : 'DERROTA');
+                const scoreDisplay = m.finalScore ? `${m.finalScore.teamA} - ${m.finalScore.teamB}` : (m.score || '-');
+
+                return (
+                  <View key={m.id} style={styles.historyCard}>
+                    <View style={styles.historyTopRow}>
+                      <View style={[styles.resultTag, isDraw ? styles.resultTagDraw : (isWin ? styles.resultTagWin : styles.resultTagLoss)]}>
+                        <Text style={[styles.resultText, isDraw ? styles.resultTextDraw : (isWin ? styles.resultTextWin : styles.resultTextLoss)]}>
+                          {resultText}
+                        </Text>
+                      </View>
+                      <Text style={styles.matchScore}>{scoreDisplay}</Text>
+                      {m.ratingChange !== undefined && (
+                        <Text style={styles.matchDelta}>
+                          {m.ratingChange >= 0 ? `+${Math.round(m.ratingChange)}` : `${Math.round(m.ratingChange)}`} pts
+                        </Text>
+                      )}
+                    </View>
+
+                    <Text style={styles.opponentName}>{m.venue?.name || m.venueName || 'Cancha oficial'}</Text>
+                    <Text style={styles.venueDate}>{m.district || 'Lima'} • {m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' }) : 'Reciente'}</Text>
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
       </ScrollView>
@@ -463,6 +530,9 @@ const styles = StyleSheet.create({
   resultTagLoss: {
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
+  resultTagDraw: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+  },
   resultText: {
     fontSize: 9,
     fontWeight: '900',
@@ -472,6 +542,62 @@ const styles = StyleSheet.create({
   },
   resultTextLoss: {
     color: THEME.colors.dangerLight,
+  },
+  resultTextDraw: {
+    color: THEME.colors.gold,
+  },
+  leaderboardLinkBtn: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderRadius: THEME.radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  leaderboardLinkText: {
+    color: THEME.colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  emptyHistoryCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    gap: 8,
+    marginVertical: 10,
+  },
+  emptyHistoryIcon: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  emptyHistoryTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyHistoryText: {
+    color: THEME.colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  emptyActionBtn: {
+    backgroundColor: THEME.colors.primary,
+    borderRadius: THEME.radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  emptyActionText: {
+    color: '#00210B',
+    fontSize: 12,
+    fontWeight: '800',
   },
   matchScore: {
     fontSize: 15,

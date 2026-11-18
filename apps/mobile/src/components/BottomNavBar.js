@@ -13,23 +13,27 @@ export default function BottomNavBar({ activeTab, onSelectTab, openRoomsCount = 
     onSelectTab(tabKey);
   };
 
+  const normalizedActiveTab = activeTab === 'SALAS' ? 'MIS_PARTIDOS' : activeTab;
+
   const tabs = [
     { key: 'JUGAR', label: 'JUGAR', icon: '⚽' },
-    { key: 'SALAS', label: 'MIS SALAS', icon: '🏟️', badge: openRoomsCount > 0 ? openRoomsCount : null },
-    { key: 'RANKING', label: 'RANKING', icon: '🏆' },
+    { key: 'MIS_PARTIDOS', label: 'MIS PARTIDOS', icon: '🏟️', badge: openRoomsCount > 0 ? openRoomsCount : null },
     { key: 'PERFIL', label: 'PERFIL', icon: '👤' },
   ];
 
   return (
     <View style={styles.container}>
       {tabs.map((tab) => {
-        const isActive = activeTab === tab.key;
+        const isActive = normalizedActiveTab === tab.key;
         return (
           <TouchableOpacity
             key={tab.key}
             style={[styles.tabButton, isActive && styles.activeTabButton]}
             onPress={() => handleTabPress(tab.key)}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={tab.label}
           >
             <View style={styles.iconWrapper}>
               <Text style={[styles.tabIcon, isActive && styles.activeTabIcon]}>
@@ -41,7 +45,11 @@ export default function BottomNavBar({ activeTab, onSelectTab, openRoomsCount = 
                 </View>
               )}
             </View>
-            <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>
+            <Text
+              style={[styles.tabLabel, isActive && styles.activeTabLabel]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
               {tab.label}
             </Text>
             {isActive && <View style={styles.activeIndicator} />}

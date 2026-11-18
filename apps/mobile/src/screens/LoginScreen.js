@@ -116,13 +116,6 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
     }
   };
 
-  const handleDemoFill = async (demoName, demoPos, demoOvr) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setName(demoName);
-    setPin('1234');
-    setPosition(demoPos);
-  };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -159,56 +152,26 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
 
         {isRegistering ? (
           /* ========================================================
-             MODO REGISTRO: Personaliza tu Carta FUT (Stitch Screen 2)
+             MODO REGISTRO: Registro de Cuenta Real
              ======================================================== */
           <View style={styles.registerSection}>
-            <View style={styles.draftBadge}>
-              <View style={styles.draftGreenDot} />
-              <Text style={styles.draftBadgeText}>DRAFT TEMPORADA APERTURA</Text>
-            </View>
-
             <Text style={styles.mainTitle}>
-              Personaliza tu <Text style={styles.titleGreen}>Carta FUT</Text>
+              Crea tu <Text style={styles.titleGreen}>Cuenta de Jugador</Text>
             </Text>
             <Text style={styles.subtitle}>
-              Forja tu identidad competitiva y calcula tu Elo oficial para el radar de canchas locales.
+              Regístrate con tu apodo y PIN seguro. Completarás tu test de nivel para obtener tu carta oficial y jugar en cancha.
             </Text>
-
-            {/* FUT Card Preview */}
-            <View style={styles.futCardPreview}>
-              <View style={styles.cardHeaderRow}>
-                <View>
-                  <Text style={styles.cardOvr}>{calculatedOvr}</Text>
-                  <Text style={styles.cardPos}>{position}</Text>
-                </View>
-                <View style={styles.cardCountry}>
-                  <Text style={styles.cardFlag}>🇵🇪</Text>
-                  <Text style={styles.cardCountryCode}>PER</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity style={styles.avatarWrapper} onPress={handlePickAvatar}>
-                <Image source={{ uri: avatarUri }} style={styles.cardAvatar} />
-                <View style={styles.editPencil}>
-                  <Text style={styles.pencilIcon}>✏️</Text>
-                </View>
-              </TouchableOpacity>
-
-              <Text style={styles.cardPlayerName}>{name.trim() || 'TU NOMBRE'}</Text>
-              <Text style={styles.cardStatsPill}>
-                RIT <Text style={styles.statVal}>82</Text>   TIR <Text style={styles.statVal}>79</Text>   PAS <Text style={styles.statVal}>74</Text>
-              </Text>
-            </View>
 
             {/* Formulario */}
             <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>⚽ NOMBRE COMPLETO / APODO EN CANCHA</Text>
+              <Text style={styles.inputLabel}>⚽ APODO O NOMBRE EN CANCHA</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="Ej. Mateo Ramos"
                 placeholderTextColor={THEME.colors.textMuted}
                 value={name}
                 onChangeText={setName}
+                autoCapitalize="words"
               />
             </View>
 
@@ -227,14 +190,33 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
               <Text style={styles.inputHelper}>Este PIN te servirá para ingresar siempre desde cualquier dispositivo.</Text>
             </View>
 
-            {/* Selector de Ubicación: País, Departamento y Distrito */}
+            {/* Selector de Posición Preferida */}
             <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>📍 UBICACIÓN PRINCIPAL</Text>
-              <View style={styles.locationTagsRow}>
-                <View style={styles.locationTag}><Text style={styles.locationTagText}>🇵🇪 Perú</Text></View>
-                <View style={styles.locationTag}><Text style={styles.locationTagText}>Lima</Text></View>
+              <Text style={styles.inputLabel}>🏃 POSICIÓN EN CANCHA</Text>
+              <View style={styles.positionsRow}>
+                {POSITIONS.map((p) => (
+                  <TouchableOpacity
+                    key={p.key}
+                    style={[styles.posBtn, position === p.key && styles.posBtnActive]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setPosition(p.key);
+                    }}
+                  >
+                    <Text style={[styles.posBtnText, position === p.key && styles.posBtnTextActive]}>
+                      {p.label}
+                    </Text>
+                    <Text style={[styles.posSubText, position === p.key && styles.posSubTextActive]}>
+                      {p.sub}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <Text style={[styles.inputLabel, { marginTop: 8, fontSize: 10 }]}>SELECCIONA TU DISTRITO:</Text>
+            </View>
+
+            {/* Selector de Ubicación */}
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>📍 TU DISTRITO EN LIMA</Text>
               <View style={styles.districtChipsScroll}>
                 {QUICK_DISTRICTS.map((d) => (
                   <TouchableOpacity
@@ -263,7 +245,7 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
               {loading ? (
                 <ActivityIndicator color="#00210B" />
               ) : (
-                <Text style={styles.mainSubmitText}>⚡ CREAR CUENTA Y ENTRAR</Text>
+                <Text style={styles.mainSubmitText}>⚡ CREAR CUENTA Y CONTINUAR</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -276,14 +258,14 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
               Bienvenido de <Text style={styles.titleGreen}>Vuelta</Text>
             </Text>
             <Text style={styles.subtitle}>
-              Ingresa tu nombre y PIN para sincronizar tus partidos y estadísticas de cancha.
+              Ingresa tu apodo y PIN para acceder a tus convocatorias y partidos.
             </Text>
 
             <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>👤 NOMBRE O CORREO REGISTRADO</Text>
+              <Text style={styles.inputLabel}>👤 APODO O NOMBRE REGISTRADO</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Ej. Carlos Mendoza o demo_user_1"
+                placeholder="Ej. Mateo Ramos"
                 placeholderTextColor={THEME.colors.textMuted}
                 value={name}
                 onChangeText={setName}
@@ -319,36 +301,6 @@ export default function LoginScreen({ onLoginSuccess, initialIsRegistering = fal
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Demo Fast Switcher */}
-        <View style={styles.demoSection}>
-          <Text style={styles.demoSectionTitle}>⚡ CARGAR PERFILES DEMO</Text>
-          <View style={styles.demoButtonsRow}>
-            <TouchableOpacity
-              style={styles.demoBtn}
-              onPress={() => handleDemoFill('Carlos Mendoza', 'DEL', 84)}
-            >
-              <View style={styles.orangeDot} />
-              <Text style={styles.demoBtnText}>Carlos (DEL 84)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.demoBtn}
-              onPress={() => handleDemoFill('Mateo Ramos', 'MED', 82)}
-            >
-              <View style={styles.greenDot} />
-              <Text style={styles.demoBtnText}>Mateo (MED 82)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.demoBtn}
-              onPress={() => handleDemoFill('Lucía Morales', 'DEL', 80)}
-            >
-              <View style={styles.greenDot} />
-              <Text style={styles.demoBtnText}>Lucía (DEL 80)</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {onBackToSplash && (
           <TouchableOpacity style={styles.backSplashBtn} onPress={onBackToSplash}>
@@ -549,6 +501,42 @@ const styles = StyleSheet.create({
     color: THEME.colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  positionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  posBtn: {
+    flex: 1,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  posBtnActive: {
+    borderColor: THEME.colors.primary,
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+  },
+  posBtnText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  posBtnTextActive: {
+    color: THEME.colors.primary,
+    fontWeight: '900',
+  },
+  posSubText: {
+    color: THEME.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  posSubTextActive: {
+    color: THEME.colors.primary,
   },
   districtChipsScroll: {
     flexDirection: 'row',

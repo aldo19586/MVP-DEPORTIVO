@@ -6,53 +6,67 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { api } from '../services/api';
 import { THEME } from '../theme';
 
-const MOCK_LEADERS = [
-  { rank: 1, name: 'Franco Benítez', ovr: 89, elo: 1880, district: 'Surco, Lima', wins: 28, streak: '🔥 6x', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120' },
-  { rank: 2, name: 'Carlos Mendoza', ovr: 86, elo: 1855, district: 'Surco, Lima', wins: 24, streak: '🔥 4x', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120' },
-  { rank: 3, name: 'Mateo Ramos', ovr: 84, elo: 1820, district: 'Miraflores, Lima', wins: 21, streak: '🔥 3x', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120' },
-  { rank: 4, name: 'Lucía Morales', ovr: 82, elo: 1780, district: 'San Isidro, Lima', wins: 19, streak: '🔥 2x', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120' },
-  { rank: 5, name: 'Rodrigo Paz', ovr: 81, elo: 1750, district: 'San Borja, Lima', wins: 17, streak: '1x', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=120' },
-  { rank: 6, name: 'Diego Paredes', ovr: 79, elo: 1710, district: 'Surco, Lima', wins: 15, streak: '2x', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120' },
-];
-
-export default function LeaderboardScreen({ currentUser }) {
+export default function LeaderboardScreen({ currentUser, onBack }) {
   const [selectedSport, setSelectedSport] = useState('futbol');
   const [selectedFormat, setSelectedFormat] = useState('5v5');
-  const [leaders, setLeaders] = useState(MOCK_LEADERS);
+  const [leaders, setLeaders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
     (async () => {
       try {
         const res = await api.getLeaderboard(selectedSport, selectedFormat);
-        if (res && res.leaderboard && res.leaderboard.length > 0) {
-          setLeaders(res.leaderboard);
+        if (active) {
+          if (res && Array.isArray(res.leaderboard)) {
+            setLeaders(res.leaderboard);
+          } else {
+            setLeaders([]);
+          }
         }
       } catch (e) {
-        // Usa mock data
+        if (active) setLeaders([]);
+      } finally {
+        if (active) setLoading(false);
       }
     })();
+    return () => { active = false; };
   }, [selectedSport, selectedFormat]);
 
-  const top1 = leaders[0] || MOCK_LEADERS[0];
-  const top2 = leaders[1] || MOCK_LEADERS[1];
-  const top3 = leaders[2] || MOCK_LEADERS[2];
+  const top1 = leaders[0] || null;
+  const top2 = leaders[1] || null;
+  const top3 = leaders[2] || null;
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.brandSmall}>MATCHSPORT LEAGUE</Text>
-          <Text style={styles.topTitle}>TABLA DE POSICIONES</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {onBack && (
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={onBack}
+              accessibilityRole="button"
+              accessibilityLabel="Volver"
+            >
+              <Text style={styles.backBtnText}>←</Text>
+            </TouchableOpacity>
+          )}
+          <View>
+            <Text style={styles.brandSmall}>MATCHSPORT RANKING</Text>
+            <Text style={styles.topTitle}>TABLA DE POSICIONES</Text>
+          </View>
         </View>
         <View style={styles.seasonBadge}>
-          <Text style={styles.seasonText}>⚡ S11 APERTURA</Text>
+          <Text style={styles.seasonText}>OFICIAL</Text>
         </View>
       </View>
 
@@ -67,86 +81,98 @@ export default function LeaderboardScreen({ currentUser }) {
               ⚽ Fútbol
             </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, selectedSport === 'basket' && styles.filterChipActive]}
-            onPress={() => setSelectedSport('basket')}
-          >
-            <Text style={[styles.filterChipText, selectedSport === 'basket' && styles.filterChipTextActive]}>
-              🏀 Basket
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, selectedSport === 'padel' && styles.filterChipActive]}
-            onPress={() => setSelectedSport('padel')}
-          >
-            <Text style={[styles.filterChipText, selectedSport === 'padel' && styles.filterChipTextActive]}>
-              🎾 Pádel
-            </Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Podium Top 3 */}
-        <View style={styles.podiumContainer}>
-          {/* Top 2 - Plata */}
-          <View style={styles.podiumCol2}>
-            <View style={styles.avatarCrownWrap}>
-              <Text style={styles.silverCrown}>🥈</Text>
-              <Image source={{ uri: top2.avatar }} style={styles.podiumAvatar} />
-              <View style={styles.silverBadge}><Text style={styles.badgeRankNum}>2</Text></View>
-            </View>
-            <Text style={styles.podiumName} numberOfLines={1}>{top2.name.split(' ')[0]}</Text>
-            <Text style={styles.podiumElo}>{top2.elo} Elo</Text>
-            <View style={styles.podiumStep2} />
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator color={THEME.colors.primary} size="large" />
+            <Text style={{ color: THEME.colors.textMuted, fontSize: 13, marginTop: 12 }}>
+              Cargando ranking de jugadores...
+            </Text>
           </View>
-
-          {/* Top 1 - Oro */}
-          <View style={styles.podiumCol1}>
-            <View style={styles.avatarCrownWrap}>
-              <Text style={styles.goldCrown}>👑</Text>
-              <Image source={{ uri: top1.avatar }} style={[styles.podiumAvatar, styles.avatarGold]} />
-              <View style={styles.goldBadge}><Text style={styles.badgeRankNum}>1</Text></View>
-            </View>
-            <Text style={styles.podiumNameGold} numberOfLines={1}>{top1.name.split(' ')[0]}</Text>
-            <Text style={styles.podiumEloGold}>{top1.elo} Elo</Text>
-            <View style={styles.podiumStep1} />
+        ) : leaders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🏆</Text>
+            <Text style={styles.emptyTitle}>Sin jugadores clasificados</Text>
+            <Text style={styles.emptyText}>
+              Aún no hay suficientes jugadores clasificados en esta modalidad. Completa partidos oficiales para liderar la tabla.
+            </Text>
+            {onBack && (
+              <TouchableOpacity style={styles.emptyBtn} onPress={onBack}>
+                <Text style={styles.emptyBtnText}>Volver a Jugar</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        ) : (
+          <>
+            {/* Podium Top 3 */}
+            {top1 && (
+              <View style={styles.podiumContainer}>
+                {/* Top 2 - Plata */}
+                {top2 && (
+                  <View style={styles.podiumCol2}>
+                    <View style={styles.avatarCrownWrap}>
+                      <Text style={styles.silverCrown}>🥈</Text>
+                      <Image source={{ uri: top2.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(top2.name)}` }} style={styles.podiumAvatar} />
+                      <View style={styles.silverBadge}><Text style={styles.badgeRankNum}>2</Text></View>
+                    </View>
+                    <Text style={styles.podiumName} numberOfLines={1}>{top2.name.split(' ')[0]}</Text>
+                    <Text style={styles.podiumElo}>{top2.elo || top2.rating || 1500} Elo</Text>
+                    <View style={styles.podiumStep2} />
+                  </View>
+                )}
 
-          {/* Top 3 - Bronce */}
-          <View style={styles.podiumCol3}>
-            <View style={styles.avatarCrownWrap}>
-              <Text style={styles.bronzeCrown}>🥉</Text>
-              <Image source={{ uri: top3.avatar }} style={styles.podiumAvatar} />
-              <View style={styles.bronzeBadge}><Text style={styles.badgeRankNum}>3</Text></View>
-            </View>
-            <Text style={styles.podiumName} numberOfLines={1}>{top3.name.split(' ')[0]}</Text>
-            <Text style={styles.podiumElo}>{top3.elo} Elo</Text>
-            <View style={styles.podiumStep3} />
-          </View>
-        </View>
-
-        {/* Full Table List */}
-        <View style={styles.tableCard}>
-          <Text style={styles.tableHeader}>RANKING GLOBAL EN LIMA</Text>
-          {leaders.map((item, index) => {
-            const isUser = currentUser?.id === item.id;
-            return (
-              <View key={item.id || index} style={[styles.tableRow, isUser && styles.tableRowMe]}>
-                <Text style={styles.rankCol}>#{item.rank || index + 1}</Text>
-                <Image source={{ uri: item.avatar }} style={styles.tableAvatar} />
-                <View style={styles.nameCol}>
-                  <Text style={[styles.tableName, isUser && styles.tableNameMe]}>{item.name}</Text>
-                  <Text style={styles.tableSub}>{item.district || 'Lima'} • {item.wins || 18}W</Text>
+                {/* Top 1 - Oro */}
+                <View style={styles.podiumCol1}>
+                  <View style={styles.avatarCrownWrap}>
+                    <Text style={styles.goldCrown}>👑</Text>
+                    <Image source={{ uri: top1.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(top1.name)}` }} style={[styles.podiumAvatar, styles.avatarGold]} />
+                    <View style={styles.goldBadge}><Text style={styles.badgeRankNum}>1</Text></View>
+                  </View>
+                  <Text style={styles.podiumNameGold} numberOfLines={1}>{top1.name.split(' ')[0]}</Text>
+                  <Text style={styles.podiumEloGold}>{top1.elo || top1.rating || 1600} Elo</Text>
+                  <View style={styles.podiumStep1} />
                 </View>
-                <View style={styles.eloCol}>
-                  <Text style={styles.tableElo}>{item.elo || 1750}</Text>
-                  <Text style={styles.tableStreak}>{item.streak || '🔥 3x'}</Text>
-                </View>
+
+                {/* Top 3 - Bronce */}
+                {top3 && (
+                  <View style={styles.podiumCol3}>
+                    <View style={styles.avatarCrownWrap}>
+                      <Text style={styles.bronzeCrown}>🥉</Text>
+                      <Image source={{ uri: top3.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(top3.name)}` }} style={styles.podiumAvatar} />
+                      <View style={styles.bronzeBadge}><Text style={styles.badgeRankNum}>3</Text></View>
+                    </View>
+                    <Text style={styles.podiumName} numberOfLines={1}>{top3.name.split(' ')[0]}</Text>
+                    <Text style={styles.podiumElo}>{top3.elo || top3.rating || 1450} Elo</Text>
+                    <View style={styles.podiumStep3} />
+                  </View>
+                )}
               </View>
-            );
-          })}
-        </View>
+            )}
+
+            {/* Full Table List */}
+            <View style={styles.tableCard}>
+              <Text style={styles.tableHeader}>CLASIFICACIÓN GENERAL</Text>
+              {leaders.map((item, index) => {
+                const isUser = currentUser?.id === item.id;
+                return (
+                  <View key={item.id || index} style={[styles.tableRow, isUser && styles.tableRowMe]}>
+                    <Text style={styles.rankCol}>#{item.rank || index + 1}</Text>
+                    <Image source={{ uri: item.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.name)}` }} style={styles.tableAvatar} />
+                    <View style={styles.nameCol}>
+                      <Text style={[styles.tableName, isUser && styles.tableNameMe]}>{item.name}</Text>
+                      <Text style={styles.tableSub}>{item.district || 'Lima'} • {item.wins || 0}W</Text>
+                    </View>
+                    <View style={styles.eloCol}>
+                      <Text style={styles.tableElo}>{item.elo || item.rating || 1500}</Text>
+                      {item.streak ? <Text style={styles.tableStreak}>{item.streak}</Text> : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -166,6 +192,57 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: THEME.colors.border,
+  },
+  backBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.cardBg,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  backBtnText: {
+    color: THEME.colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    marginVertical: 20,
+    gap: 8,
+  },
+  emptyIcon: {
+    fontSize: 36,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: THEME.colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  emptyBtn: {
+    backgroundColor: THEME.colors.primary,
+    borderRadius: THEME.radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  emptyBtnText: {
+    color: '#00210B',
+    fontSize: 12,
+    fontWeight: '800',
   },
   brandSmall: {
     fontSize: 9,

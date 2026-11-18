@@ -63,26 +63,18 @@ export default function PeerReviewScreen({ match, user, onVoteCompleted, onSkip 
   useEffect(() => {
     // 1. Obtener la asignación circular del compañero asignado (A != B)
     (async () => {
+      if (!match?.id || !user?.id) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        const matchId = match?.id || 'demo_match_1';
-        const res = await api.getPeerReviewAssignment(matchId, user?.id || 'demo_user_1');
+        const res = await api.getPeerReviewAssignment(match.id, user.id);
         if (res) {
           setAssignedData(res);
         }
       } catch (err) {
-        // Fallback demo si es offline
-        setAssignedData({
-          targetPlayer: {
-            id: 'demo_user_2',
-            name: 'Mateo Ramos',
-            position: 'DEL',
-            rating: 1840,
-            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-            futStats: { ovr: 84, rit: 86, tir: 84, pas: 80, reg: 83, def: 62, fis: 78 }
-          },
-          hasVoted: false
-        });
+        setAssignedData(null);
       } finally {
         setLoading(false);
       }
@@ -90,7 +82,7 @@ export default function PeerReviewScreen({ match, user, onVoteCompleted, onSkip 
   }, [match?.id, user?.id]);
 
   const handleVote = async (attributeTag) => {
-    if (submitting) return;
+    if (submitting || !match?.id || !user?.id) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     } catch (e) {}
@@ -99,8 +91,8 @@ export default function PeerReviewScreen({ match, user, onVoteCompleted, onSkip 
     setSubmitting(true);
 
     try {
-      const matchId = match?.id || 'demo_match_1';
-      const evaluatorId = user?.id || 'demo_user_1';
+      const matchId = match.id;
+      const evaluatorId = user.id;
 
       // Enviar voto al backend
       const result = await api.submitPeerReview({
@@ -127,11 +119,36 @@ export default function PeerReviewScreen({ match, user, onVoteCompleted, onSkip 
     }
   };
 
-  const target = assignedData?.targetPlayer || {
-    name: 'Mateo Ramos',
-    position: 'DEL',
-    futStats: { ovr: 84, rit: 86, tir: 84, pas: 80, reg: 83, def: 62, fis: 78 }
-  };
+  const target = assignedData?.targetPlayer || null;
+
+  if (!target && !loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={onSkip}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.topTitle}>DETALLE DEL PARTIDO</Text>
+          <View style={{ width: 32 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 }}>
+          <Text style={{ fontSize: 36 }}>🤝</Text>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center' }}>
+            Sin evaluación pendiente
+          </Text>
+          <Text style={{ color: THEME.colors.textMuted, fontSize: 13, textAlign: 'center' }}>
+            No se encontró un compañero asignado para evaluar en este encuentro.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: THEME.colors.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginTop: 10 }}
+            onPress={onSkip}
+          >
+            <Text style={{ color: '#00210B', fontWeight: '800' }}>Continuar ➔</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

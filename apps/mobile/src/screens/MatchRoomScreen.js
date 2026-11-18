@@ -76,10 +76,10 @@ export default function MatchRoomScreen({ match, currentUser, onMatchFinished, o
           text: 'Confirmar',
           onPress: () => {
             const socket = socketService.getSocket();
-            if (socket) {
+            if (socket && match?.id && currentUser?.id) {
               socket.emit('reportResult', {
-                matchId: match?.id || 'demo_match_1',
-                userId: currentUser?.id || 'demo_user_1',
+                matchId: match.id,
+                userId: currentUser.id,
                 winnerTeam
               });
             }

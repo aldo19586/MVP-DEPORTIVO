@@ -12,53 +12,8 @@ import * as Haptics from 'expo-haptics';
 import { socketService } from '../services/socket';
 import { THEME } from '../theme';
 
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'notif_sup_1',
-    type: 'SUPLENTE_URGENTE',
-    title: '¡FALTA 1 EN CANCHA! ⚽',
-    venue: 'Manuel Bonilla, Miraflores',
-    sport: 'Fútbol 5v5',
-    time: 'Hoy 08:30 PM',
-    code: 'BON5',
-    missing: '¡Falta 1 delantero / medio!',
-    level: 'Intermedio (~1450)',
-    timeAgo: 'Hace 4 min',
-    unread: true
-  },
-  {
-    id: 'notif_sup_2',
-    type: 'SUPLENTE_URGENTE',
-    title: 'BAJA DE ÚLTIMO MINUTO 🎾',
-    venue: 'Club Pádel Surco',
-    sport: 'Pádel Dobles 2v2',
-    time: 'Hoy 07:45 PM',
-    code: 'PAD2',
-    missing: '¡Falta 1 jugador!',
-    level: 'Abierto',
-    timeAgo: 'Hace 12 min',
-    unread: true
-  },
-  {
-    id: 'notif_like_1',
-    type: 'FAIR_PLAY',
-    title: '¡Recibiste un Like Deportivo! 👍',
-    body: 'Mateo K. elogió tu fair play y puntualidad en el último partido.',
-    timeAgo: 'Hace 1 hora',
-    unread: true
-  },
-  {
-    id: 'notif_calib_1',
-    type: 'SISTEMA',
-    title: '🎯 Calibración de Rating Activa',
-    body: 'Juega 3 partidos en cualquier modalidad para calcular tu Elo oficial y OVR FUT.',
-    timeAgo: 'Hace 2 horas',
-    unread: false
-  }
-];
-
 export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
 
   const handleApplySuplente = (item) => {
     try {
@@ -114,63 +69,88 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Banner de Bolsa de Suplentes */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeaderTitle}>🚨 BOLSA DE SUPLENTES (¡FALTA 1!)</Text>
-          <View style={styles.urgentBadge}>
-            <Text style={styles.urgentBadgeText}>EN VIVO</Text>
-          </View>
-        </View>
-
-        {notifications
-          .filter((n) => n.type === 'SUPLENTE_URGENTE')
-          .map((item) => (
-            <View key={item.id} style={styles.suplenteCard}>
-              <View style={styles.suplenteCardHeader}>
-                <View style={styles.suplenteTitleRow}>
-                  <Text style={styles.suplenteIcon}>🚨</Text>
-                  <Text style={styles.suplenteTitle}>{item.title}</Text>
-                </View>
-                <View style={styles.codePill}>
-                  <Text style={styles.codePillText}>#{item.code}</Text>
-                </View>
-              </View>
-
-              <Text style={styles.suplenteVenue}>📍 {item.venue} • {item.sport}</Text>
-              <Text style={styles.suplenteTime}>⏰ {item.time} ({item.timeAgo})</Text>
-
-              <View style={styles.suplenteMissingBox}>
-                <Text style={styles.suplenteMissingText}>⚠️ {item.missing}</Text>
-                <Text style={styles.suplenteLevelText}>Nivel: {item.level}</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.suplenteApplyBtn}
-                onPress={() => handleApplySuplente(item)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.suplenteApplyText}>⚡ Postularme de Inmediato</Text>
+        {notifications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🔔</Text>
+            <Text style={styles.emptyTitle}>Sin notificaciones pendientes</Text>
+            <Text style={styles.emptyText}>
+              Aquí recibirás avisos en tiempo real sobre confirmaciones de partido, reportes de marcador y convocatorias.
+            </Text>
+            {onBack && (
+              <TouchableOpacity style={styles.emptyBtn} onPress={onBack}>
+                <Text style={styles.emptyBtnText}>Volver</Text>
               </TouchableOpacity>
-            </View>
-          ))}
+            )}
+          </View>
+        ) : (
+          <>
+            {/* Banner de Bolsa de Suplentes */}
+            {notifications.some((n) => n.type === 'SUPLENTE_URGENTE') && (
+              <>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderTitle}>🚨 BOLSA DE SUPLENTES (¡FALTA 1!)</Text>
+                  <View style={styles.urgentBadge}>
+                    <Text style={styles.urgentBadgeText}>EN VIVO</Text>
+                  </View>
+                </View>
 
-        {/* Sección de Avisos y Notificaciones del Sistema */}
-        <Text style={[styles.sectionHeaderTitle, { marginTop: 14 }]}>AVISOS Y FAIR PLAY</Text>
+                {notifications
+                  .filter((n) => n.type === 'SUPLENTE_URGENTE')
+                  .map((item) => (
+                    <View key={item.id} style={styles.suplenteCard}>
+                      <View style={styles.suplenteCardHeader}>
+                        <View style={styles.suplenteTitleRow}>
+                          <Text style={styles.suplenteIcon}>🚨</Text>
+                          <Text style={styles.suplenteTitle}>{item.title}</Text>
+                        </View>
+                        <View style={styles.codePill}>
+                          <Text style={styles.codePillText}>#{item.code}</Text>
+                        </View>
+                      </View>
 
-        {notifications
-          .filter((n) => n.type !== 'SUPLENTE_URGENTE')
-          .map((item) => (
-            <View key={item.id} style={[styles.normalNotifCard, item.unread && styles.unreadCard]}>
-              <View style={styles.notifTopRow}>
-                <Text style={styles.notifTitle}>
-                  {item.type === 'FAIR_PLAY' ? '👍 ' : '📌 '}
-                  {item.title}
-                </Text>
-                <Text style={styles.notifTime}>{item.timeAgo}</Text>
-              </View>
-              <Text style={styles.notifBody}>{item.body}</Text>
-            </View>
-          ))}
+                      <Text style={styles.suplenteVenue}>📍 {item.venue} • {item.sport}</Text>
+                      <Text style={styles.suplenteTime}>⏰ {item.time} ({item.timeAgo})</Text>
+
+                      <View style={styles.suplenteMissingBox}>
+                        <Text style={styles.suplenteMissingText}>⚠️ {item.missing}</Text>
+                        <Text style={styles.suplenteLevelText}>Nivel: {item.level}</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.suplenteApplyBtn}
+                        onPress={() => handleApplySuplente(item)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.suplenteApplyText}>⚡ Postularme de Inmediato</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+              </>
+            )}
+
+            {/* Sección de Avisos y Notificaciones del Sistema */}
+            {notifications.some((n) => n.type !== 'SUPLENTE_URGENTE') && (
+              <>
+                <Text style={[styles.sectionHeaderTitle, { marginTop: 14 }]}>AVISOS Y FAIR PLAY</Text>
+
+                {notifications
+                  .filter((n) => n.type !== 'SUPLENTE_URGENTE')
+                  .map((item) => (
+                    <View key={item.id} style={[styles.normalNotifCard, item.unread && styles.unreadCard]}>
+                      <View style={styles.notifTopRow}>
+                        <Text style={styles.notifTitle}>
+                          {item.type === 'FAIR_PLAY' ? '👍 ' : '📌 '}
+                          {item.title}
+                        </Text>
+                        <Text style={styles.notifTime}>{item.timeAgo}</Text>
+                      </View>
+                      <Text style={styles.notifBody}>{item.body}</Text>
+                    </View>
+                  ))}
+              </>
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -369,5 +349,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: THEME.colors.textSecondary,
     lineHeight: 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: THEME.radius.lg,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    marginVertical: 20,
+    gap: 8,
+  },
+  emptyIcon: {
+    fontSize: 36,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: THEME.colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  emptyBtn: {
+    backgroundColor: THEME.colors.primary,
+    borderRadius: THEME.radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  emptyBtnText: {
+    color: '#00210B',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });
