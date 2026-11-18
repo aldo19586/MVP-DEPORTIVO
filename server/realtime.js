@@ -7,7 +7,10 @@ import { competitionEvents } from './competitionEvents.js';
 
 export const ADMIN_ROOM = 'admin_monitor';
 const publicEvents = new Set(['sportsUpdated', 'lobbyListUpdated', 'lobbyNeedsOne', 'replacementMarketUpdated', 'replacementLobbiesList', 'competitionListUpdated']);
-const competitionEventNames = new Set(['competitionUpdated', 'competitionMessage']);
+const competitionEventNames = new Set([
+  'competitionUpdated', 'competitionMessage',
+  'competitionScoreReported', 'competitionScoreConfirmed', 'competitionScoreDisputed'
+]);
 const adminEvents = new Set(['onlineUsersUpdate', 'adminDisputeResolved']);
 const personalEvents = new Set(['queueStatus', 'queueStarted', 'queueCancelled', 'matchPromptAcceptance',
   'pendingMatchUpdated', 'matchPromptUpdated', 'matchAcceptanceFailed', 'session_replaced',
@@ -105,11 +108,23 @@ export function createRealtime(io) {
     broadcast(null, 'competitionListUpdated', {});
   };
   const message = payload => broadcast(null, 'competitionMessage', payload);
+  const scoreReported = payload => broadcast(null, 'competitionScoreReported', payload);
+  const scoreConfirmed = payload => broadcast(null, 'competitionScoreConfirmed', payload);
+  const scoreDisputed = payload => {
+    broadcast(null, 'competitionScoreDisputed', payload);
+    broadcast(ADMIN_ROOM, 'competitionScoreDisputed', payload);
+  };
   competitionEvents.on('changed', changed);
   competitionEvents.on('message', message);
+  competitionEvents.on('scoreReported', scoreReported);
+  competitionEvents.on('scoreConfirmed', scoreConfirmed);
+  competitionEvents.on('scoreDisputed', scoreDisputed);
   io.httpServer.once('close', () => {
     competitionEvents.off('changed', changed);
     competitionEvents.off('message', message);
+    competitionEvents.off('scoreReported', scoreReported);
+    competitionEvents.off('scoreConfirmed', scoreConfirmed);
+    competitionEvents.off('scoreDisputed', scoreDisputed);
   });
   return { send, to: target => ({ emit: (event, payload) => broadcast(target, event, payload) }),
     emit: (event, payload) => broadcast(null, event, payload) };

@@ -302,7 +302,8 @@ export function sqlGetCompetitionMatches() {
   return (_db.exec('SELECT data_json FROM competition_matches')[0]?.values || []).map(row => JSON.parse(row[0]));
 }
 export function sqlInsertCompetitionMatch(value) {
-  _db.run('INSERT INTO competition_matches (id,competition_id,data_json) VALUES (?,?,?)', [value.id, value.competitionId, JSON.stringify(value)]);
+  _db.run('INSERT INTO competition_matches (id,competition_id,data_json) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json',
+    [value.id, value.competitionId, JSON.stringify(value)]);
   scheduleSave();
 }
 

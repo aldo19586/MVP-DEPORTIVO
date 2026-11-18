@@ -2,12 +2,16 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { Router } from 'express';
 import { db } from './db.js';
 import { sqlGetReceipt, sqlInsertReceipt, sqlSaveCompetition } from './database.js';
-import { validateCompetitionCommand } from '../shared/competitionContract.mjs';
+import { validateCompetitionCommand, outcomeFromScore } from '../shared/competitionContract.mjs';
 import districts from './peru_districts.json' with { type: 'json' };
 import { competitionEvents } from './competitionEvents.js';
 import { competitionChatRouter } from './competitionChat.js';
 
-const supported = new Set(['create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost', 'transferCaptain', 'setReady', 'updateDetails', 'start']);
+const supported = new Set([
+  'create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost',
+  'transferCaptain', 'setReady', 'updateDetails', 'start',
+  'reportScore', 'confirmScore', 'disputeScore'
+]);
 const idOf = user => user.id;
 const members = competition => [...competition.teamA, ...competition.teamB];
 const participant = (competition, userId) => members(competition).some(user => idOf(user) === userId);
@@ -61,7 +65,16 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
       value = command === 'join' ? [...db.competitions.values()].find(room => room.code === data.code.trim().toUpperCase()) : db.competitions.get(data.competitionId);
       if (!value) fail('NOT_FOUND', 'Convocatoria no encontrada', 404);
       if (value.revision !== data.expectedRevision) fail('REVISION_CONFLICT', 'La convocatoria cambió. Actualízala y vuelve a intentar');
-      if (!['OPEN', 'FULL'].includes(value.status)) fail('INVALID_STATE', 'La convocatoria está cerrada');
+      if (['reportScore', 'confirmScore', 'disputeScore'].includes(command)) {
+        if (command === 'reportScore' && !['IN_PROGRESS', 'RESULT_PENDING'].includes(value.status)) {
+          fail('INVALID_STATE', 'El partido debe estar en juego o esperando confirmación');
+        }
+        if (['confirmScore', 'disputeScore'].includes(command) && value.status !== 'RESULT_PENDING') {
+          fail('INVALID_STATE', 'No hay reporte pendiente');
+        }
+      } else {
+        if (!['OPEN', 'FULL'].includes(value.status)) fail('INVALID_STATE', 'La convocatoria está cerrada');
+      }
       if (command !== 'join' && !participant(value, actorId)) fail('FORBIDDEN', 'Debes pertenecer a esta convocatoria', 403);
       if (command === 'join') {
         if (Date.parse(value.scheduledAt) <= now) fail('INVALID_STATE', 'La hora de la convocatoria ya pasó');
@@ -93,6 +106,122 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         db.competitionMatches.set(match.id, match);
         db._persistCompetitionMatch(match);
         value.status = 'IN_PROGRESS'; value.matchId = match.id; value.startedAt = match.startedAt;
+      } else if (command === 'reportScore') {
+        const match = db.competitionMatches.get(value.matchId);
+        if (!match) fail('NOT_FOUND', 'Partido no encontrado', 404);
+        const actorTeam = value.captains.teamA === actorId ? 'teamA' : value.captains.teamB === actorId ? 'teamB' : null;
+        if (!actorTeam) fail('FORBIDDEN', 'Solo los capitanes pueden reportar el marcador', 403);
+
+        if (!value.report || value.status === 'IN_PROGRESS') {
+          const reportId = randomUUID();
+          value.report = {
+            reportId,
+            reportedBy: actorId,
+            reportedTeam: actorTeam,
+            reportedAt: new Date(now).toISOString(),
+            score: { teamA: data.score.teamA, teamB: data.score.teamB },
+          };
+          value.status = 'RESULT_PENDING';
+          match.status = 'RESULT_PENDING';
+          match.report = structuredClone(value.report);
+          match.revision++;
+          db._persistCompetitionMatch(match);
+        } else if (value.report.reportedTeam === actorTeam) {
+          const reportId = randomUUID();
+          value.report = {
+            reportId,
+            reportedBy: actorId,
+            reportedTeam: actorTeam,
+            reportedAt: new Date(now).toISOString(),
+            score: { teamA: data.score.teamA, teamB: data.score.teamB },
+          };
+          match.report = structuredClone(value.report);
+          match.revision++;
+          db._persistCompetitionMatch(match);
+        } else {
+          if (data.score.teamA === value.report.score.teamA && data.score.teamB === value.report.score.teamB) {
+            value.status = 'FINISHED';
+            value.confirmedBy = actorId;
+            value.confirmedAt = new Date(now).toISOString();
+            value.finalScore = structuredClone(value.report.score);
+            value.outcome = outcomeFromScore(value.finalScore);
+            match.status = 'FINISHED';
+            match.confirmedBy = actorId;
+            match.confirmedAt = value.confirmedAt;
+            match.finalScore = structuredClone(value.finalScore);
+            match.outcome = value.outcome;
+            match.revision++;
+            db._persistCompetitionMatch(match);
+          } else {
+            const disputeId = randomUUID();
+            value.status = 'DISPUTED';
+            value.dispute = {
+              disputeId,
+              reportId: value.report.reportId,
+              disputedBy: actorId,
+              disputedAt: new Date(now).toISOString(),
+              reason: `Discrepancia: ${value.report.reportedTeam} reportó ${value.report.score.teamA}-${value.report.score.teamB}, ${actorTeam} reportó ${data.score.teamA}-${data.score.teamB}`,
+              initialReport: structuredClone(value.report),
+              counterReport: {
+                reportedBy: actorId,
+                reportedTeam: actorTeam,
+                score: { teamA: data.score.teamA, teamB: data.score.teamB },
+              },
+            };
+            match.status = 'DISPUTED';
+            match.dispute = structuredClone(value.dispute);
+            match.revision++;
+            db._persistCompetitionMatch(match);
+          }
+        }
+      } else if (command === 'confirmScore') {
+        const match = db.competitionMatches.get(value.matchId);
+        if (!match) fail('NOT_FOUND', 'Partido no encontrado', 404);
+        if (!value.report || value.report.reportId !== data.reportId) {
+          fail('REPORT_SUPERSEDED', 'El reporte no existe o fue reemplazado');
+        }
+        const actorTeam = value.captains.teamA === actorId ? 'teamA' : value.captains.teamB === actorId ? 'teamB' : null;
+        if (!actorTeam) fail('FORBIDDEN', 'Solo los capitanes pueden confirmar el marcador', 403);
+        if (actorTeam === value.report.reportedTeam) {
+          fail('FORBIDDEN', 'El reporte debe ser confirmado por el capitán del equipo rival', 403);
+        }
+        value.status = 'FINISHED';
+        value.confirmedBy = actorId;
+        value.confirmedAt = new Date(now).toISOString();
+        value.finalScore = structuredClone(value.report.score);
+        value.outcome = outcomeFromScore(value.finalScore);
+        match.status = 'FINISHED';
+        match.confirmedBy = actorId;
+        match.confirmedAt = value.confirmedAt;
+        match.finalScore = structuredClone(value.finalScore);
+        match.outcome = value.outcome;
+        match.revision++;
+        db._persistCompetitionMatch(match);
+      } else if (command === 'disputeScore') {
+        const match = db.competitionMatches.get(value.matchId);
+        if (!match) fail('NOT_FOUND', 'Partido no encontrado', 404);
+        if (!value.report || value.report.reportId !== data.reportId) {
+          fail('REPORT_SUPERSEDED', 'El reporte no existe o fue reemplazado');
+        }
+        const actorTeam = value.captains.teamA === actorId ? 'teamA' : value.captains.teamB === actorId ? 'teamB' : null;
+        if (!actorTeam) fail('FORBIDDEN', 'Solo los capitanes pueden disputar el marcador', 403);
+        if (actorTeam === value.report.reportedTeam) {
+          fail('FORBIDDEN', 'El reporte solo puede ser disputado por el capitán del equipo rival', 403);
+        }
+        const disputeId = randomUUID();
+        value.status = 'DISPUTED';
+        value.dispute = {
+          disputeId,
+          reportId: data.reportId,
+          disputedBy: actorId,
+          disputedAt: new Date(now).toISOString(),
+          reason: data.reason.trim(),
+          initialReport: structuredClone(value.report),
+        };
+        match.status = 'DISPUTED';
+        match.dispute = structuredClone(value.dispute);
+        match.revision++;
+        db._persistCompetitionMatch(match);
       } else if (command === 'cancel') {
         if (value.hostUserId !== actorId) fail('FORBIDDEN', 'Solo el anfitrión puede cancelar', 403);
         value.status = 'CANCELLED'; value.cancelledBy = actorId; value.cancelReason = data.reason.trim();
@@ -136,7 +265,16 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
     sqlInsertReceipt(key, { fingerprint, result });
     return result;
   });
-  if (!result.replayed) competitionEvents.emit('changed', { competitionId: result.competitionId, revision: result.revision });
+  if (!result.replayed) {
+    competitionEvents.emit('changed', { competitionId: result.competitionId, revision: result.revision });
+    if (result.data.status === 'RESULT_PENDING' && result.data.report) {
+      competitionEvents.emit('scoreReported', { competitionId: result.competitionId, matchId: result.data.matchId, report: result.data.report, revision: result.revision });
+    } else if (result.data.status === 'FINISHED' && result.data.finalScore) {
+      competitionEvents.emit('scoreConfirmed', { competitionId: result.competitionId, matchId: result.data.matchId, finalScore: result.data.finalScore, outcome: result.data.outcome, revision: result.revision });
+    } else if (result.data.status === 'DISPUTED' && result.data.dispute) {
+      competitionEvents.emit('scoreDisputed', { competitionId: result.competitionId, matchId: result.data.matchId, dispute: result.data.dispute, revision: result.revision });
+    }
+  }
   return result;
 }
 
