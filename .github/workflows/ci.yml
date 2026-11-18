@@ -1,0 +1,55 @@
+name: MatchSport MVP - CI & Validation Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'codex/**'
+  pull_request:
+    branches:
+      - main
+      - master
+      - 'codex/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Test & Build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies (Strict reproducible lockfile)
+        run: npm ci
+
+      - name: Run Backend Automated Test Suite (Positive & Negative RBAC/Audit Tests)
+        run: npm run test:server
+        env:
+          NODE_ENV: test
+          MATCHSPORT_TEST_DIR: .test-runs
+          JWT_SECRET: test-ci-secret-value-32-chars-long
+
+      - name: Verify SuperAdmin Web Panel Build
+        run: npm run build:admin
+
+      - name: Verify Mobile Native Bundle Export (iOS Hermes)
+        run: npm run build:mobile
+
+      - name: Verify Mobile Native Bundle Export (Android Hermes)
+        run: npm run build:mobile:android
