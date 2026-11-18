@@ -52,4 +52,5 @@ export const api = {
   completeProfile: data => post('/user/complete-profile', data),
   submitFootballTest: data => post('/user/submit-football-test', data),
   getOnboardingStatus: () => request('/user/onboarding-status'),
+  registerPushToken: (userId, pushToken) => post('/user/push-token', { userId, pushToken }),
 };

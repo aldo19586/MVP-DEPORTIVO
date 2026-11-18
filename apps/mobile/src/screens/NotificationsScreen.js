@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,30 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { socketService } from '../services/socket';
+import { storage } from '../services/storage';
 import { THEME } from '../theme';
 
-export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
+export default function NotificationsScreen({
+  user,
+  onBack,
+  onEnterLobby,
+  onOpenCompetition,
+  permissionStatus = 'granted',
+  onRequestPermissions
+}) {
   const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    storage.getNotifications().then((items) => {
+      if (mounted && Array.isArray(items)) {
+        setNotifications(items);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleApplySuplente = (item) => {
     try {
@@ -27,12 +47,14 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
 
     Alert.alert(
       '¡Postulación Confirmada!',
-      `Te has unido a la convocatoria de emergencia #${item.code} en ${item.venue}.`,
+      `Te has unido a la convocatoria de emergencia #${item.code} en ${item.venue || 'la sede'}.`,
       [
         {
           text: 'Ir a la Sala',
           onPress: () => {
-            if (onEnterLobby) {
+            if (onOpenCompetition && item.data?.competitionId) {
+              onOpenCompetition({ competitionId: item.data.competitionId, code: item.code });
+            } else if (onEnterLobby) {
               onEnterLobby({ code: item.code });
             } else {
               onBack();
@@ -43,11 +65,31 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
     );
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     try {
       Haptics.selectionAsync();
     } catch (e) {}
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    const updated = await storage.markAllNotificationsRead();
+    setNotifications(updated || []);
+  };
+
+  const handlePressNotification = (item) => {
+    try {
+      Haptics.selectionAsync();
+    } catch (e) {}
+
+    if (item.data?.competitionId || item.data?.code) {
+      if (onOpenCompetition) {
+        onOpenCompetition({
+          competitionId: item.data?.competitionId,
+          code: item.data?.code
+        });
+      }
+    } else if (item.data?.lobbyCode || item.code) {
+      if (onEnterLobby) {
+        onEnterLobby({ code: item.data?.lobbyCode || item.code });
+      }
+    }
   };
 
   return (
@@ -69,6 +111,27 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Banner de Estado de Permisos Denegados (V-15 / V-18) */}
+        {permissionStatus === 'denied' && (
+          <View style={styles.deniedBanner}>
+            <View style={styles.deniedBannerContent}>
+              <Text style={styles.deniedBannerTitle}>⚠️ Notificaciones Desactivadas</Text>
+              <Text style={styles.deniedBannerText}>
+                No recibirás avisos si la app está en segundo plano. Puedes activar las notificaciones en los Ajustes de tu dispositivo.
+              </Text>
+            </View>
+            {onRequestPermissions && (
+              <TouchableOpacity
+                style={styles.deniedBannerBtn}
+                onPress={onRequestPermissions}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.deniedBannerBtnText}>Activar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🔔</Text>
@@ -108,12 +171,12 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
                         </View>
                       </View>
 
-                      <Text style={styles.suplenteVenue}>📍 {item.venue} • {item.sport}</Text>
-                      <Text style={styles.suplenteTime}>⏰ {item.time} ({item.timeAgo})</Text>
+                      {item.venue && <Text style={styles.suplenteVenue}>📍 {item.venue} • {item.sport || 'Fútbol'}</Text>}
+                      {item.time && <Text style={styles.suplenteTime}>⏰ {item.time}</Text>}
 
                       <View style={styles.suplenteMissingBox}>
-                        <Text style={styles.suplenteMissingText}>⚠️ {item.missing}</Text>
-                        <Text style={styles.suplenteLevelText}>Nivel: {item.level}</Text>
+                        <Text style={styles.suplenteMissingText}>⚠️ {item.missing || 'Falta 1 jugador para completar la sala'}</Text>
+                        {item.level && <Text style={styles.suplenteLevelText}>Nivel: {item.level}</Text>}
                       </View>
 
                       <TouchableOpacity
@@ -131,22 +194,35 @@ export default function NotificationsScreen({ user, onBack, onEnterLobby }) {
             {/* Sección de Avisos y Notificaciones del Sistema */}
             {notifications.some((n) => n.type !== 'SUPLENTE_URGENTE') && (
               <>
-                <Text style={[styles.sectionHeaderTitle, { marginTop: 14 }]}>AVISOS Y FAIR PLAY</Text>
+                <Text style={[styles.sectionHeaderTitle, { marginTop: 14 }]}>AVISOS Y COMPETICIÓN</Text>
 
                 {notifications
                   .filter((n) => n.type !== 'SUPLENTE_URGENTE')
-                  .map((item) => (
-                    <View key={item.id} style={[styles.normalNotifCard, item.unread && styles.unreadCard]}>
-                      <View style={styles.notifTopRow}>
-                        <Text style={styles.notifTitle}>
-                          {item.type === 'FAIR_PLAY' ? '👍 ' : '📌 '}
-                          {item.title}
-                        </Text>
-                        <Text style={styles.notifTime}>{item.timeAgo}</Text>
-                      </View>
-                      <Text style={styles.notifBody}>{item.body}</Text>
-                    </View>
-                  ))}
+                  .map((item) => {
+                    const hasAction = item.data?.competitionId || item.data?.code || item.data?.lobbyCode;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[styles.normalNotifCard, item.unread && styles.unreadCard]}
+                        onPress={() => handlePressNotification(item)}
+                        activeOpacity={hasAction ? 0.75 : 1}
+                      >
+                        <View style={styles.notifTopRow}>
+                          <Text style={styles.notifTitle}>
+                            {item.type === 'FAIR_PLAY' ? '👍 ' : (item.type === 'COMPETITION_MATCH' ? '⚽ ' : '📌 ')}
+                            {item.title}
+                          </Text>
+                          <Text style={styles.notifTime}>
+                            {item.time ? new Date(item.time).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.notifBody}>{item.body}</Text>
+                        {hasAction && (
+                          <Text style={styles.notifActionPrompt}>Toca para abrir partido o sala ➔</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
               </>
             )}
           </>
@@ -216,6 +292,43 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 30,
     gap: 12,
+  },
+  deniedBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: THEME.radius.md,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 4,
+  },
+  deniedBannerContent: {
+    flex: 1,
+    gap: 2,
+  },
+  deniedBannerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FCA5A5',
+  },
+  deniedBannerText: {
+    fontSize: 11,
+    color: THEME.colors.textSecondary,
+    lineHeight: 15,
+  },
+  deniedBannerBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  deniedBannerBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -349,6 +462,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: THEME.colors.textSecondary,
     lineHeight: 16,
+  },
+  notifActionPrompt: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.primary,
+    marginTop: 4,
   },
   emptyContainer: {
     alignItems: 'center',

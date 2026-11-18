@@ -54,18 +54,61 @@ export default function App() {
   const [peerReviewMatch, setPeerReviewMatch] = useState(null);
   const [summaryData, setSummaryData] = useState(null);
 
+  // Navegación por Notificaciones Push y Avisos (MS-15)
+  const [targetCompetitionId, setTargetCompetitionId] = useState(null);
+  const [targetCompetitionCode, setTargetCompetitionCode] = useState(null);
+  const [pushPermissionStatus, setPushPermissionStatus] = useState('undetermined');
+
+  const handleNotificationIntent = (data) => {
+    if (!data) return;
+    if (!currentUser) {
+      storage.savePendingNotificationIntent(data);
+      return;
+    }
+    if (data.competitionId || data.code) {
+      setTargetCompetitionId(data.competitionId || null);
+      setTargetCompetitionCode(data.code || null);
+      setActiveSubScreen(null);
+      setSelectedLobby(null);
+      setActiveMatch(null);
+      setActiveTab('JUGAR');
+    } else if (data.lobbyCode) {
+      setActiveSubScreen(null);
+      setSelectedLobby({ code: data.lobbyCode });
+    }
+  };
+
   useEffect(() => {
-    // 1. Permisos de Notificaciones Push
+    // 1. Verificación Contextual de Permisos de Notificaciones Push (MS-15 / V-15 / V-18)
     (async () => {
       try {
-        const status = await notificationService.requestPermissions();
+        const { status } = await notificationService.getPermissionStatus();
+        setPushPermissionStatus(status);
         if (status === 'granted') {
-          console.log('[NOTIFICATIONS] Permisos push otorgados.');
+          console.log('[NOTIFICATIONS] Permisos push disponibles.');
         }
       } catch (err) {
-        console.warn('[NOTIFICATIONS] Error solicitando permisos:', err);
+        console.warn('[NOTIFICATIONS] Error verificando estado de permisos:', err);
       }
     })();
+
+    // 2. Suscripción a interacción con avisos (tap desde segundo plano o en vivo)
+    const responseSub = notificationService.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data) {
+        console.log('[NOTIFICATIONS] Notificación pulsada:', data);
+        handleNotificationIntent(data);
+      }
+    });
+
+    // 3. Revisar si la app fue abierta en frío desde una notificación
+    notificationService.getLastNotificationResponseAsync().then((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data) {
+        console.log('[NOTIFICATIONS] App abierta desde notificación en frío:', data);
+        handleNotificationIntent(data);
+      }
+    });
 
     let mounted = true;
     const unsubscribe = onSessionExpired(() => { if (mounted) resetSession(); });
@@ -81,11 +124,29 @@ export default function App() {
         if (!mounted) return;
         setCurrentUser(user);
         initSocketSession(user);
+
+        // Registrar token push en el backend de forma segura
+        const pushToken = await notificationService.getPushToken();
+        if (pushToken && user?.id) {
+          await api.registerPushToken(user.id, pushToken).catch(() => {});
+        }
+
+        // Si existía una intención de notificación previa al login, resolverla
+        const pendingIntent = await storage.getPendingNotificationIntent();
+        if (pendingIntent) {
+          await storage.clearPendingNotificationIntent();
+          handleNotificationIntent(pendingIntent);
+        }
       } catch (error) {
         if (mounted && error.status !== 401) setSessionError('No pudimos verificar tu sesión. Revisa tu conexión y vuelve a intentar.');
       } finally { if (mounted) setLoading(false); }
     })();
-    return () => { mounted = false; unsubscribe(); socketService.disconnect(); };
+    return () => {
+      mounted = false;
+      unsubscribe();
+      if (responseSub && responseSub.remove) responseSub.remove();
+      socketService.disconnect();
+    };
   }, [restoreAttempt]);
 
   const initSocketSession = (user) => {
@@ -153,12 +214,72 @@ export default function App() {
     socket.on('peerReviewAssigned', (data) => {
       console.log('[APP] 🗳️ Evaluación circular asignada:', data);
     });
+
+    // Avisos de Bolsa de Suplentes y Estado de Convocatoria para el Centro de Notificaciones (V-18)
+    socket.on('lobbyNeedsOne', (data) => {
+      storage.addNotification({
+        type: 'SUPLENTE_URGENTE',
+        title: '¡FALTA 1 SUPLENTE!',
+        body: `Se necesita un suplente de emergencia en ${data?.venue || data?.district || 'tu zona'}.`,
+        code: data?.code,
+        data: { lobbyCode: data?.code, venue: data?.venue, district: data?.district }
+      });
+    });
+
+    socket.on('competitionScoreReported', (data) => {
+      storage.addNotification({
+        type: 'COMPETITION_MATCH',
+        title: 'Marcador Reportado ⚽',
+        body: `El capitán rival reportó el marcador en la convocatoria #${data?.code || data?.competitionId}.`,
+        data: { competitionId: data?.competitionId, matchId: data?.matchId, code: data?.code }
+      });
+    });
+
+    socket.on('competitionScoreConfirmed', (data) => {
+      storage.addNotification({
+        type: 'COMPETITION_MATCH',
+        title: 'Marcador Confirmado 🏆',
+        body: `El partido #${data?.code || data?.competitionId} finalizó oficialmente. Ratings Glicko-2 actualizados.`,
+        data: { competitionId: data?.competitionId, matchId: data?.matchId, code: data?.code }
+      });
+    });
+
+    socket.on('competitionScoreDisputed', (data) => {
+      storage.addNotification({
+        type: 'COMPETITION_MATCH',
+        title: 'Marcador en Disputa ⚠️',
+        body: `Se abrió una disputa arbitral en el partido #${data?.code || data?.competitionId}.`,
+        data: { competitionId: data?.competitionId, matchId: data?.matchId, code: data?.code }
+      });
+    });
+
+    socket.on('competitionDisputeResolved', (data) => {
+      storage.addNotification({
+        type: 'COMPETITION_MATCH',
+        title: 'Disputa Resuelta ⚖️',
+        body: `El SuperAdmin dictaminó el resultado oficial del partido #${data?.code || data?.competitionId}.`,
+        data: { competitionId: data?.competitionId, matchId: data?.matchId, code: data?.code }
+      });
+    });
   };
 
-  const handleLoginSuccess = (user) => {
+  const handleLoginSuccess = async (user) => {
     setCurrentUser(user);
     initSocketSession(user);
     setActiveTab('JUGAR');
+
+    // Registrar token push tras login
+    const pushToken = await notificationService.getPushToken();
+    if (pushToken && user?.id) {
+      await api.registerPushToken(user.id, pushToken).catch(() => {});
+    }
+
+    // Resolver intención de notificación pendiente si existía
+    const pendingIntent = await storage.getPendingNotificationIntent();
+    if (pendingIntent) {
+      await storage.clearPendingNotificationIntent();
+      handleNotificationIntent(pendingIntent);
+    }
   };
 
   const resetSession = () => {
@@ -275,6 +396,12 @@ export default function App() {
               socket.emit('joinLobby', { code: pendingCode, user: updatedUser || currentUser });
             }
           }
+          // Si existía una intención de notificación pendiente, resolverla (V-18)
+          const pendingIntent = await storage.getPendingNotificationIntent();
+          if (pendingIntent) {
+            await storage.clearPendingNotificationIntent();
+            handleNotificationIntent(pendingIntent);
+          }
           setActiveSubScreen(null);
           setActiveTab('JUGAR');
         }}
@@ -371,7 +498,22 @@ export default function App() {
     return (
       <NotificationsScreen
         user={currentUser}
+        permissionStatus={pushPermissionStatus}
+        onRequestPermissions={async () => {
+          const status = await notificationService.requestPermissions();
+          setPushPermissionStatus(status);
+          if (status === 'granted' && currentUser) {
+            const token = await notificationService.getPushToken();
+            if (token) api.registerPushToken(currentUser.id, token).catch(() => {});
+          }
+        }}
         onBack={() => setActiveSubScreen(null)}
+        onOpenCompetition={({ competitionId, code }) => {
+          setActiveSubScreen(null);
+          setTargetCompetitionId(competitionId || null);
+          setTargetCompetitionCode(code || null);
+          setActiveTab('JUGAR');
+        }}
         onEnterLobby={(lobby) => {
           setActiveSubScreen(null);
           setSelectedLobby(lobby);
@@ -499,6 +641,12 @@ export default function App() {
             key="JUGAR"
             user={currentUser}
             mine={false}
+            initialCompetitionId={targetCompetitionId}
+            initialCode={targetCompetitionCode}
+            onClearInitialTarget={() => {
+              setTargetCompetitionId(null);
+              setTargetCompetitionCode(null);
+            }}
             onNavigateToPlay={() => setActiveTab('JUGAR')}
           />
         )}
@@ -508,6 +656,12 @@ export default function App() {
             key="MIS_PARTIDOS"
             user={currentUser}
             mine={true}
+            initialCompetitionId={targetCompetitionId}
+            initialCode={targetCompetitionCode}
+            onClearInitialTarget={() => {
+              setTargetCompetitionId(null);
+              setTargetCompetitionCode(null);
+            }}
             onNavigateToPlay={() => setActiveTab('JUGAR')}
           />
         )}

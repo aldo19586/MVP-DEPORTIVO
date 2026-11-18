@@ -62,7 +62,14 @@ function Field({ label, ...props }) {
   );
 }
 
-export default function CompetitionScreen({ user, mine = false, onNavigateToPlay }) {
+export default function CompetitionScreen({
+  user,
+  mine = false,
+  onNavigateToPlay,
+  initialCompetitionId = null,
+  initialCode = null,
+  onClearInitialTarget = null
+}) {
   const [page, setPage] = useState('list'); // 'list' | 'create' | 'details' | 'detail' | 'code' | 'filter' | 'chat'
   const [list, setList] = useState([]);
   const [room, setRoom] = useState(null);
@@ -129,6 +136,54 @@ export default function CompetitionScreen({ user, mine = false, onNavigateToPlay
   useEffect(() => {
     refresh();
   }, [mine, filterDistrict]);
+
+  useEffect(() => {
+    if (!initialCompetitionId && !initialCode) return;
+    let cancelled = false;
+
+    const navigateToTarget = async () => {
+      setBusy(true);
+      setError('');
+      try {
+        let comp = null;
+        if (initialCompetitionId) {
+          const res = await api.competition(initialCompetitionId);
+          comp = res?.competition;
+        } else if (initialCode) {
+          const res = await api.competitionByCode(initialCode);
+          comp = res?.competition;
+        }
+
+        if (cancelled || !mounted.current) return;
+
+        if (comp) {
+          await open(comp);
+        } else {
+          Alert.alert(
+            'Aviso',
+            'La convocatoria no se encuentra disponible o ha sido finalizada.',
+            [{ text: 'Entendido' }]
+          );
+        }
+      } catch (e) {
+        if (!cancelled && mounted.current) {
+          Alert.alert(
+            'Aviso',
+            'No se pudo abrir el partido solicitado. Es posible que haya sido cancelado.',
+            [{ text: 'Entendido' }]
+          );
+        }
+      } finally {
+        if (!cancelled && mounted.current) {
+          setBusy(false);
+          if (onClearInitialTarget) onClearInitialTarget();
+        }
+      }
+    };
+
+    navigateToTarget();
+    return () => { cancelled = true; };
+  }, [initialCompetitionId, initialCode]);
 
   useEffect(() => {
     if (page !== 'create' && page !== 'filter') return;
