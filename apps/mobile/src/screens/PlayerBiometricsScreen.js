@@ -29,10 +29,15 @@ export default function PlayerBiometricsScreen({ user, onCompleteProfile, onCanc
   const [weight, setWeight] = useState(user?.weight ? String(user.weight) : '72');
   const [height, setHeight] = useState(user?.height ? String(user.height) : '175');
   const [position, setPosition] = useState(user?.position || 'Delantero');
+  const [district, setDistrict] = useState(user?.district || 'Surco, Lima');
   const [reference, setReference] = useState(user?.reference || '');
   const [loading, setLoading] = useState(false);
 
   const handleContinue = async () => {
+    if (!district || district.trim().length < 2) {
+      Alert.alert('Distrito requerido', 'Ingresa el distrito donde sueles jugar.');
+      return;
+    }
     if (!age || parseInt(age, 10) < 12 || parseInt(age, 10) > 75) {
       Alert.alert('Edad requerida', 'Ingresa una edad válida (entre 12 y 75 años).');
       return;
@@ -58,7 +63,7 @@ export default function PlayerBiometricsScreen({ user, onCompleteProfile, onCanc
         position,
         reference: reference.trim(),
         department: user?.department || 'Lima',
-        district: user?.district || 'Surco, Lima',
+        district: district.trim(),
         country: user?.country || 'Perú',
         primarySport: 'futbol'
       });
@@ -69,6 +74,7 @@ export default function PlayerBiometricsScreen({ user, onCompleteProfile, onCanc
         weight: parseFloat(weight),
         height: parseInt(height, 10),
         position,
+        district: district.trim(),
         reference: reference.trim(),
         hasCompletedProfile: true
       };

@@ -51,4 +51,5 @@ export const api = {
   submitPeerReview: ({ matchId, evaluatorId, attributeTag }) => post('/match/peer-review', { matchId, evaluatorId, attributeTag }),
   completeProfile: data => post('/user/complete-profile', data),
   submitFootballTest: data => post('/user/submit-football-test', data),
+  getOnboardingStatus: () => request('/user/onboarding-status'),
 };

@@ -21,15 +21,8 @@ const MOCK_MATCH_HISTORY = [
 export default function ProfileScreen({ user, onLogout }) {
   const [activeSubTab, setActiveSubTab] = useState('card'); // 'card' | 'history'
 
-  const stats = user?.futStats || {
-    ovr: 84,
-    rit: 86,
-    tir: 84,
-    pas: 80,
-    reg: 83,
-    def: 62,
-    fis: 78
-  };
+  const stats = user?.futStats || null;
+  const isEstimated = !user?.matchesPlayed || user.matchesPlayed === 0;
 
   const handleLogout = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
@@ -45,7 +38,7 @@ export default function ProfileScreen({ user, onLogout }) {
       <View style={styles.topBar}>
         <View>
           <Text style={styles.brandSmall}>PERFIL DEL JUGADOR</Text>
-          <Text style={styles.topTitle}>{user?.name || 'Carlos Mendoza'}</Text>
+          <Text style={styles.topTitle}>{user?.name || 'Mi Perfil'}</Text>
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -54,69 +47,89 @@ export default function ProfileScreen({ user, onLogout }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Giant FUT Gold Card */}
+        {/* Giant FUT Card */}
         <View style={styles.giantCard}>
+          {isEstimated && (
+            <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: THEME.colors.primary, borderWidth: 1, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 10 }}>
+              <Text style={{ color: THEME.colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }}>🎯 NIVEL INICIAL ESTIMADO</Text>
+            </View>
+          )}
+
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.giantOvr}>{stats.ovr || 84}</Text>
+              <Text style={styles.giantOvr}>{stats?.ovr ? stats.ovr : (user?.hasCompletedTest ? '65' : '--')}</Text>
               <Text style={styles.giantPos}>{user?.position || 'DEL'}</Text>
               <Text style={styles.giantFlag}>🇵🇪 PER</Text>
             </View>
 
             <View style={styles.giantAvatarWrap}>
               <Image
-                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200' }}
+                source={{ uri: user?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.name || 'jugador')}` }}
                 style={styles.giantAvatar}
               />
               <View style={styles.ovrBadgeCircle}>
-                <Text style={styles.ovrBadgeText}>{stats.ovr || 84}</Text>
+                <Text style={styles.ovrBadgeText}>{stats?.ovr ? stats.ovr : (user?.hasCompletedTest ? '65' : '--')}</Text>
               </View>
             </View>
           </View>
 
-          <Text style={styles.giantName}>{user?.name || 'MATEO RAMOS'}</Text>
-          <Text style={styles.giantSub}>{user?.district || 'Surco, Lima'} • {user?.email || 'jugador@matchsport.pe'}</Text>
+          <Text style={styles.giantName}>{user?.name || 'JUGADOR'}</Text>
+          <Text style={styles.giantSub}>{user?.district || 'Surco, Lima'}{user?.email ? ` • ${user.email}` : ''}</Text>
+
+          {isEstimated && (
+            <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontStyle: 'italic', marginTop: 4, marginBottom: 8 }}>
+              Este nivel evolucionará conforme disputes partidos oficiales en cancha.
+            </Text>
+          )}
 
           {/* DNI & Fair Play Chips */}
           <View style={styles.badgesRow}>
             <View style={styles.dniBadge}>
               <Text style={styles.dniIcon}>🛡️</Text>
-              <Text style={styles.dniText}>{user?.dniVerified ? 'DNI VERIFICADO OFICIAL' : 'DNI EN VERIFICACIÓN'}</Text>
+              <Text style={styles.dniText}>{user?.verifiedDni ? 'DNI VERIFICADO OFICIAL' : 'DNI EN VERIFICACIÓN'}</Text>
             </View>
 
             <View style={styles.fairPlayBadge}>
               <Text style={styles.fairPlayIcon}>👍</Text>
-              <Text style={styles.fairPlayText}>{user?.likesCount || 14} Fair Play</Text>
+              <Text style={styles.fairPlayText}>{user?.likesCount || 0} Fair Play</Text>
             </View>
           </View>
 
           {/* 6 FUT Attributes Matrix */}
-          <View style={styles.attributesMatrix}>
-            <View style={styles.attrCol}>
-              <Text style={styles.attrTitle}>RIT</Text>
-              <Text style={styles.attrVal}>{stats.rit || 86}</Text>
+          {stats ? (
+            <View style={styles.attributesMatrix}>
+              <View style={styles.attrCol}>
+                <Text style={styles.attrTitle}>RIT</Text>
+                <Text style={styles.attrVal}>{stats.rit}</Text>
+              </View>
+              <View style={styles.attrCol}>
+                <Text style={styles.attrTitle}>TIR</Text>
+                <Text style={[styles.attrVal, styles.goldVal]}>{stats.tir}</Text>
+              </View>
+              <View style={styles.attrCol}>
+                <Text style={styles.attrTitle}>PAS</Text>
+                <Text style={styles.attrVal}>{stats.pas}</Text>
+              </View>
+              <View style={styles.attrCol}>
+                <Text style={styles.attrTitle}>REG</Text>
+                <Text style={styles.attrVal}>{stats.reg}</Text>
+              </View>
+              <View style={styles.attrCol}>
+                <Text style={styles.attrTitle}>DEF</Text>
+                <Text style={styles.attrVal}>{stats.def}</Text>
+              </View>
+              <View style={styles.attrCol}>
+                <Text style={styles.attrTitle}>FIS</Text>
+                <Text style={styles.attrVal}>{stats.fis}</Text>
+              </View>
             </View>
-            <View style={styles.attrCol}>
-              <Text style={styles.attrTitle}>TIR</Text>
-              <Text style={[styles.attrVal, styles.goldVal]}>{stats.tir || 84}</Text>
+          ) : (
+            <View style={{ padding: 14, backgroundColor: THEME.colors.cardElevated, borderRadius: 8, marginTop: 12, alignItems: 'center' }}>
+              <Text style={{ color: THEME.colors.textMuted, fontSize: 13, textAlign: 'center' }}>
+                Test inicial de nivel pendiente. Completa el test de 14 preguntas para activar los 6 atributos de tu carta.
+              </Text>
             </View>
-            <View style={styles.attrCol}>
-              <Text style={styles.attrTitle}>PAS</Text>
-              <Text style={styles.attrVal}>{stats.pas || 80}</Text>
-            </View>
-            <View style={styles.attrCol}>
-              <Text style={styles.attrTitle}>REG</Text>
-              <Text style={styles.attrVal}>{stats.reg || 83}</Text>
-            </View>
-            <View style={styles.attrCol}>
-              <Text style={styles.attrTitle}>DEF</Text>
-              <Text style={styles.attrVal}>{stats.def || 62}</Text>
-            </View>
-            <View style={styles.attrCol}>
-              <Text style={styles.attrTitle}>FIS</Text>
-              <Text style={styles.attrVal}>{stats.fis || 78}</Text>
-            </View>
-          </View>
+          )}
         </View>
 
         {/* Sub-tab Switcher: Carta vs Historial */}

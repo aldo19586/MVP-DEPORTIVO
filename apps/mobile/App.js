@@ -244,6 +244,46 @@ export default function App() {
   }
 
   // ==========================================
+  // ONBOARDING CONTINUO OBLIGATORIO (MS-10 / D-02 / D-06 / V-05 / V-06)
+  // Cuenta -> Datos mínimos (distrito y posición) -> Test (14 preguntas) -> Carta Inicial
+  // ==========================================
+  if (currentUser && !currentUser.hasCompletedTest) {
+    if (!currentUser.district || !currentUser.position) {
+      return (
+        <PlayerBiometricsScreen
+          user={currentUser}
+          onCompleteProfile={(updatedUser) => {
+            setCurrentUser(updatedUser);
+          }}
+          onCancel={handleLogout}
+        />
+      );
+    }
+
+    return (
+      <FootballLevelTestScreen
+        user={currentUser}
+        onFinishTest={async () => {
+          const updatedUser = await storage.getUserSession();
+          if (updatedUser) setCurrentUser(updatedUser);
+          // Si existía una invitación pendiente, unirse automáticamente a la convocatoria (V-06)
+          const pendingCode = await storage.getPendingInviteCode();
+          if (pendingCode) {
+            await storage.clearPendingInviteCode();
+            const socket = socketService.getSocket();
+            if (socket && (updatedUser || currentUser)) {
+              socket.emit('joinLobby', { code: pendingCode, user: updatedUser || currentUser });
+            }
+          }
+          setActiveSubScreen(null);
+          setActiveTab('JUGAR');
+        }}
+        onCancel={handleLogout}
+      />
+    );
+  }
+
+  // ==========================================
   // FLUJOS NATIVOS A PANTALLA COMPLETA (PRIORIDAD ALTA)
   // ==========================================
 

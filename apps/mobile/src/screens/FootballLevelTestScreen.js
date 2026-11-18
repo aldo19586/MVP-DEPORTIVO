@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -392,6 +392,26 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
   const [loading, setLoading] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
+  // Reanudar test si existían respuestas guardadas localmente (MS-10 / V-05)
+  useEffect(() => {
+    (async () => {
+      try {
+        const partial = await storage.getPartialTestAnswers();
+        if (Array.isArray(partial) && partial.length === 14) {
+          setAnswers(partial);
+          const nextUnanswered = partial.findIndex(a => a === null);
+          if (nextUnanswered !== -1) {
+            setCurrentIndex(nextUnanswered);
+          } else {
+            setCurrentIndex(13);
+          }
+        }
+      } catch (err) {
+        console.warn('[TEST] Error restaurando progreso parcial:', err);
+      }
+    })();
+  }, []);
+
   const currentQ = allQuestions[currentIndex];
   const progressPercent = Math.round(((currentIndex + 1) / 14) * 100);
 
@@ -400,6 +420,9 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
     const updated = [...answers];
     updated[currentIndex] = letter;
     setAnswers(updated);
+
+    // Guardar progreso en almacenamiento local inmediatamente
+    storage.savePartialTestAnswers(updated);
 
     // Si aún faltan preguntas, pasar automáticamente a la siguiente tras breve delay
     if (currentIndex < 13) {
@@ -435,12 +458,16 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
         position: userPos
       });
 
+      // Limpiar progreso parcial una vez enviado satisfactoriamente
+      await storage.clearPartialTestAnswers();
+
       const updatedUser = res.user || {
         ...user,
         hasCompletedTest: true,
         testScore: res.result?.score,
         testLevel: res.result?.level,
-        testBreakdown: res.result?.breakdown
+        testBreakdown: res.result?.breakdown,
+        futStats: res.result?.futStats || res.user?.futStats
       };
 
       await storage.saveUserSession(updatedUser);
@@ -458,13 +485,13 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
   // PANTALLA DE RESULTADOS DEL TEST
   // ==========================================
   if (testResult) {
-    const { score, level, breakdown } = testResult;
+    const { score, level, breakdown, futStats } = testResult;
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.resultScroll} showsVerticalScrollIndicator={false}>
           <View style={styles.resultHeader}>
-            <Text style={styles.resultBadgeText}>🎯 EVALUACIÓN COMPLETADA</Text>
-            <Text style={styles.resultTitle}>Ficha Oficial de Nivel</Text>
+            <Text style={styles.resultBadgeText}>🎯 NIVEL INICIAL ESTIMADO</Text>
+            <Text style={styles.resultTitle}>Carta Inicial de Jugador</Text>
             <Text style={styles.resultSub}>Jugador: <Text style={{ color: '#FFF', fontWeight: '900' }}>{user?.name}</Text> • {userPos.toUpperCase()}</Text>
           </View>
 
@@ -472,13 +499,44 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
           <View style={styles.scoreCard}>
             <View style={styles.scoreTop}>
               <View>
-                <Text style={styles.scoreLabel}>PUNTAJE TEST</Text>
-                <Text style={styles.scoreNum}>{score}<Text style={styles.scoreTotal}>/100</Text></Text>
+                <Text style={styles.scoreLabel}>NIVEL ESTIMADO</Text>
+                <Text style={styles.scoreNum}>{futStats?.ovr || Math.round(50 + (score / 100) * 35)}<Text style={styles.scoreTotal}> OVR</Text></Text>
+                <Text style={{ color: THEME.colors.textMuted, fontSize: 12, marginTop: 2 }}>Test: {score}/100 pts</Text>
               </View>
               <View style={styles.levelBadge}>
                 <Text style={styles.levelBadgeText}>{level.toUpperCase()}</Text>
               </View>
             </View>
+
+            {/* 6 Atributos Deterministas de la Carta */}
+            {futStats && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: THEME.colors.cardElevated, padding: 12, borderRadius: 10, marginVertical: 12 }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>RIT</Text>
+                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.rit}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>TIR</Text>
+                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.tir}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>PAS</Text>
+                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.pas}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>REG</Text>
+                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.reg}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>DEF</Text>
+                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.def}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>FIS</Text>
+                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.fis}</Text>
+                </View>
+              </View>
+            )}
 
             {/* Desglose por Categorías */}
             <View style={styles.categoriesWrap}>
@@ -529,7 +587,7 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
           {/* Nota Oficial de Transparencia */}
           <View style={styles.infoBox}>
             <Text style={styles.infoBoxText}>
-              ℹ️ <Text style={{ fontWeight: '800', color: '#FFF' }}>Calibración activa:</Text> Este puntaje es tu punto de partida. Ahora deberás disputar tus primeros <Text style={{ fontWeight: '800', color: THEME.colors.primary }}>3 partidos</Text> en cancha para que el algoritmo Glicko-2 y la evaluación de tus rivales validen tu ranking oficial.
+              ℹ️ <Text style={{ fontWeight: '800', color: '#FFF' }}>Nivel inicial estimado:</Text> Este puntaje es tu punto de partida derivado de tus 14 respuestas. Calibrará de forma real y matemática conforme disputes partidos oficiales en MatchSport.
             </Text>
           </View>
 
