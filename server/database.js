@@ -201,7 +201,8 @@ function createTables() {
       { name: 'unban_reason', type: 'TEXT' },
       { name: 'pin_reset_by', type: 'TEXT' },
       { name: 'pin_reset_at', type: 'TEXT' },
-      { name: 'pin_reset_reason', type: 'TEXT' }
+      { name: 'pin_reset_reason', type: 'TEXT' },
+      { name: 'push_token', type: 'TEXT' }
     ];
 
     for (const c of newCols) {
@@ -379,8 +380,8 @@ export function sqlInsertUser(user) {
      rating_overall, likes_count, fut_stats_json, favorite_sports_json, primary_sport, declared_level, created_at,
      session_version, is_banned, banned_until, ban_reason,
      banned_by, banned_at, banned_hours, unbanned_by, unbanned_at, unban_reason,
-     pin_reset_by, pin_reset_at, pin_reset_reason)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     pin_reset_by, pin_reset_at, pin_reset_reason, push_token)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     user.id,
     user.email,
@@ -423,7 +424,8 @@ export function sqlInsertUser(user) {
     user.unbanReason || null,
     user.pinResetBy || null,
     user.pinResetAt || null,
-    user.pinResetReason || null
+    user.pinResetReason || null,
+    user.pushToken || user.push_token || null
   ]);
   scheduleSave();
 }
@@ -673,6 +675,7 @@ function rowToUser(resultSet, rowIndex = 0) {
     pinResetBy: obj.pin_reset_by || null,
     pinResetAt: obj.pin_reset_at || null,
     pinResetReason: obj.pin_reset_reason || null,
+    pushToken: obj.push_token || null,
     name: obj.name,
     avatar: obj.avatar,
     district: obj.district,

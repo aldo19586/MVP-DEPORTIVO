@@ -8,7 +8,7 @@
     "apps/*"
   ],
   "scripts": {
-    "test:server": "node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js server/tests/competitions.test.js server/tests/competition-start.test.js server/tests/competition-chat.test.js server/tests/competition-chat-client.test.js server/tests/competition-results.test.js server/tests/competition-rating-dispute.test.js server/tests/onboarding.test.js server/tests/admin-audit.test.js server/tests/environment-operation.test.js",
+    "test:server": "node --test --test-concurrency=1 server/tests/config.test.js server/tests/isolation.test.js server/tests/identity.test.js server/tests/access.test.js server/tests/client-session.test.js server/tests/socket-access.test.js server/tests/competition-contract.test.js server/tests/persistence.test.js server/tests/transactions.test.js server/tests/competitions.test.js server/tests/competition-start.test.js server/tests/competition-chat.test.js server/tests/competition-chat-client.test.js server/tests/competition-results.test.js server/tests/competition-rating-dispute.test.js server/tests/onboarding.test.js server/tests/admin-audit.test.js server/tests/environment-operation.test.js server/tests/device-notifications.test.js",
     "dev:server": "node --watch-path=server server/server.js",
     "dev:admin": "npm --workspace=@matchsport/admin-web run dev",
     "build:admin": "npm --workspace=@matchsport/admin-web run build",

@@ -4,6 +4,7 @@ import { isParticipant } from './access.js';
 import { toPublicUser, toResource } from './userDto.js';
 import { sessionEvents } from './sessionEvents.js';
 import { competitionEvents } from './competitionEvents.js';
+import { pushService } from './pushService.js';
 
 export const ADMIN_ROOM = 'admin_monitor';
 const publicEvents = new Set(['sportsUpdated', 'lobbyListUpdated', 'lobbyNeedsOne', 'replacementMarketUpdated', 'replacementLobbiesList', 'competitionListUpdated']);
@@ -107,16 +108,53 @@ export function createRealtime(io) {
     broadcast(null, 'competitionUpdated', payload);
     broadcast(null, 'competitionListUpdated', {});
   };
-  const message = payload => broadcast(null, 'competitionMessage', payload);
-  const scoreReported = payload => broadcast(null, 'competitionScoreReported', payload);
-  const scoreConfirmed = payload => broadcast(null, 'competitionScoreConfirmed', payload);
+  const message = payload => {
+    broadcast(null, 'competitionMessage', payload);
+    pushService.notifyCompetitionMessage({
+      competitionId: payload.competitionId,
+      senderId: payload.message?.senderId,
+      senderName: payload.message?.senderName,
+      text: payload.message?.text
+    }).catch(() => {});
+  };
+  const scoreReported = payload => {
+    broadcast(null, 'competitionScoreReported', payload);
+    pushService.notifyScoreReported({
+      competitionId: payload.competitionId,
+      matchId: payload.matchId,
+      reporterId: payload.report?.reporterId,
+      scoreA: payload.report?.scoreA,
+      scoreB: payload.report?.scoreB
+    }).catch(() => {});
+  };
+  const scoreConfirmed = payload => {
+    broadcast(null, 'competitionScoreConfirmed', payload);
+    pushService.notifyScoreConfirmed({
+      competitionId: payload.competitionId,
+      matchId: payload.matchId,
+      confirmedBy: payload.confirmedBy,
+      winnerTeam: payload.winnerTeam
+    }).catch(() => {});
+  };
   const scoreDisputed = payload => {
     broadcast(null, 'competitionScoreDisputed', payload);
     broadcast(ADMIN_ROOM, 'competitionScoreDisputed', payload);
+    pushService.notifyScoreDisputed({
+      competitionId: payload.competitionId,
+      matchId: payload.matchId,
+      disputerId: payload.dispute?.disputerId,
+      reason: payload.dispute?.reason
+    }).catch(() => {});
   };
   const disputeResolved = payload => {
     broadcast(null, 'competitionDisputeResolved', payload);
     broadcast(ADMIN_ROOM, 'adminDisputeResolved', payload);
+    pushService.notifyDisputeResolved({
+      competitionId: payload.competitionId,
+      matchId: payload.matchId,
+      winnerTeam: payload.winnerTeam,
+      reason: payload.reason
+    }).catch(() => {});
   };
   competitionEvents.on('changed', changed);
   competitionEvents.on('message', message);
