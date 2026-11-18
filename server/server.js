@@ -206,7 +206,8 @@ app.post('/api/user/complete-profile', ownBody(), authRateLimiter, (req, res) =>
   }
   const result = db.completeUserProfile(userId, { age, weight, height, position, reference, department, district, country, primarySport });
   if (result.error) {
-    return res.status(404).json({ error: result.error });
+    const status = result.code ? 400 : 404;
+    return res.status(status).json({ error: result.error, code: result.code });
   }
   res.json({ success: true, user: toClientUser(result.user) });
 });
@@ -217,14 +218,33 @@ app.post('/api/user/submit-football-test', ownBody(), authRateLimiter, (req, res
   if (!userId) {
     return res.status(400).json({ error: 'userId es requerido' });
   }
-  if (!answers || !Array.isArray(answers)) {
-    return res.status(400).json({ error: 'answers (array de 14 respuestas) es requerido' });
+  if (!answers || !Array.isArray(answers) || answers.length !== 14) {
+    return res.status(400).json({ error: 'El test exige exactamente 14 respuestas válidas (A-E o 1-5)', code: 'INVALID_ANSWERS' });
   }
   const result = db.submitFootballTest(userId, { answers, position });
   if (result.error) {
-    return res.status(404).json({ error: result.error });
+    const status = result.code ? 400 : 404;
+    return res.status(status).json({ error: result.error, code: result.code });
   }
   res.json({ success: true, user: toClientUser(result.user), result: result.result });
+});
+
+// Consultar Estado de Onboarding del Jugador
+app.get('/api/user/onboarding-status', (req, res) => {
+  const user = db.getUser(req.user.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json({
+    userId: user.id,
+    hasCompletedProfile: !!user.hasCompletedProfile,
+    hasCompletedTest: !!user.hasCompletedTest,
+    position: user.position || 'DEL',
+    district: user.district || null,
+    ratingOverall: user.ratingOverall || 1500,
+    testScore: user.testScore !== undefined ? user.testScore : null,
+    testLevel: user.testLevel || null,
+    testBreakdown: user.testBreakdown || null,
+    futStats: user.futStats || null
+  });
 });
 
 // Autenticación administrativa para SuperAdmin

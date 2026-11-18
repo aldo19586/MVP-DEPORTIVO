@@ -898,19 +898,6 @@ class Database {
     const id = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const syntheticEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${id.substring(5, 10)}@matchsport.local`;
 
-    // Generar stats base para su carta FUT según el nivel, con un TOPE MÁXIMO DE 70 para recién registrados
-    const baseVal = declaredLevel === 'Competitivo' ? 68 : declaredLevel === 'Avanzado' ? 66 : declaredLevel === 'Principiante' ? 58 : 63;
-    const initialFutStats = {
-      rit: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      tir: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      pas: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      reg: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      def: Math.min(70, Math.max(50, baseVal - 3 + Math.floor(Math.random() * 5 - 2))),
-      fis: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      reviewsCount: 1
-    };
-    initialFutStats.ovr = calculateOvrFromStats(initialFutStats, baseVal * 20);
-
     const user = {
       id,
       email: syntheticEmail,
@@ -937,7 +924,7 @@ class Database {
       role: 'player',
       verifiedDni: true,
       likesCount: 0,
-      futStats: initialFutStats,
+      futStats: null,
       createdAt: new Date().toISOString()
     };
 
@@ -957,13 +944,55 @@ class Database {
     const user = this.getUser(userId);
     if (!user) return { error: 'Usuario no encontrado' };
 
-    if (age !== undefined && age !== null && age !== '') user.age = parseInt(age, 10);
-    if (weight !== undefined && weight !== null && weight !== '') user.weight = parseFloat(weight);
-    if (height !== undefined && height !== null && height !== '') user.height = parseInt(height, 10);
-    if (position) user.position = position;
-    if (reference !== undefined) user.reference = reference;
+    if (district !== undefined) {
+      if (typeof district !== 'string' || district.trim().length < 2 || district.trim().length > 100) {
+        return { error: 'El distrito es requerido y debe tener entre 2 y 100 caracteres', code: 'INVALID_DISTRICT' };
+      }
+      user.district = district.trim();
+    } else if (!user.district) {
+      return { error: 'El distrito es requerido', code: 'INVALID_DISTRICT' };
+    }
+
+    if (position !== undefined && position !== null && position !== '') {
+      const normPos = String(position).trim().toUpperCase();
+      const posMap = {
+        POR: 'POR', PORTERO: 'POR', ARQUERO: 'POR',
+        DEF: 'DEF', DEFENSA: 'DEF', DEFENSOR: 'DEF',
+        MED: 'MED', MEDIOCAMPISTA: 'MED', VOLANTE: 'MED', MEDIOCAMPO: 'MED',
+        DEL: 'DEL', DELANTERO: 'DEL', ATACANTE: 'DEL'
+      };
+      if (!posMap[normPos]) {
+        return { error: 'Posición no válida (debe ser POR, DEF, MED o DEL)', code: 'INVALID_POSITION' };
+      }
+      user.position = posMap[normPos];
+    }
+
+    if (age !== undefined && age !== null && age !== '') {
+      const numAge = parseInt(age, 10);
+      if (isNaN(numAge) || numAge < 12 || numAge > 99) {
+        return { error: 'Edad inválida (debe estar entre 12 y 99 años)', code: 'INVALID_AGE' };
+      }
+      user.age = numAge;
+    }
+
+    if (weight !== undefined && weight !== null && weight !== '') {
+      const numWeight = parseFloat(weight);
+      if (isNaN(numWeight) || numWeight < 30 || numWeight > 250) {
+        return { error: 'Peso inválido (debe estar entre 30 y 250 kg)', code: 'INVALID_WEIGHT' };
+      }
+      user.weight = numWeight;
+    }
+
+    if (height !== undefined && height !== null && height !== '') {
+      const numHeight = parseInt(height, 10);
+      if (isNaN(numHeight) || numHeight < 100 || numHeight > 250) {
+        return { error: 'Estatura inválida (debe estar entre 100 y 250 cm)', code: 'INVALID_HEIGHT' };
+      }
+      user.height = numHeight;
+    }
+
+    if (reference !== undefined) user.reference = typeof reference === 'string' ? reference.trim() : '';
     if (department) user.department = department;
-    if (district) user.district = district;
     if (country) user.country = country;
     user.primarySport = primarySport || 'futbol';
     user.hasCompletedProfile = true;
@@ -977,19 +1006,23 @@ class Database {
     const user = this.getUser(userId);
     if (!user) return { error: 'Usuario no encontrado' };
 
-    // answers: array de 14 valores (letras A-E o números 1-5)
-    // P1, P2, P3: FÍSICO (20%)
-    // P4, P5, P6: TÉCNICA (25%)
-    // P7, P8, P9: LECTURA DE JUEGO (20%)
-    // P10, P11, P12, P13, P14: POSICIÓN (35%)
-    const letterToPoints = (val) => {
-      if (typeof val === 'number') return Math.min(5, Math.max(1, val));
-      const map = { A: 1, B: 2, C: 3, D: 4, E: 5, a: 1, b: 2, c: 3, d: 4, e: 5 };
-      return map[val] || 3;
-    };
+    // answers: array de exactamente 14 respuestas válidas (A-E o 1-5)
+    if (!answers || !Array.isArray(answers) || answers.length !== 14) {
+      return { error: 'El test exige exactamente 14 respuestas válidas (A-E o 1-5)', code: 'INVALID_ANSWERS' };
+    }
 
-    const numAnswers = (answers || []).map(letterToPoints);
-    while (numAnswers.length < 14) numAnswers.push(3);
+    const validLetters = { A: 1, B: 2, C: 3, D: 4, E: 5, a: 1, b: 2, c: 3, d: 4, e: 5 };
+    const numAnswers = [];
+    for (let i = 0; i < 14; i++) {
+      const ans = answers[i];
+      if (typeof ans === 'number' && Number.isInteger(ans) && ans >= 1 && ans <= 5) {
+        numAnswers.push(ans);
+      } else if (typeof ans === 'string' && validLetters[ans] !== undefined) {
+        numAnswers.push(validLetters[ans]);
+      } else {
+        return { error: `La respuesta a la pregunta ${i + 1} no es válida. Debe ser de A a E o de 1 a 5.`, code: 'INVALID_ANSWERS' };
+      }
+    }
 
     // Categoría 1: FÍSICO (P1, P2, P3) -> peso 20%
     const avgFisico = (numAnswers[0] + numAnswers[1] + numAnswers[2]) / 3;
@@ -1007,32 +1040,82 @@ class Database {
     const avgPosicion = (numAnswers[9] + numAnswers[10] + numAnswers[11] + numAnswers[12] + numAnswers[13]) / 5;
     const posicionScore = ((avgPosicion - 1) / 4) * 100;
 
-    // Puntaje final exacto según la fórmula
+    // Puntaje final exacto según fórmula oficial
     const puntajeFinalRaw = (fisicoScore * 0.20) + (tecnicaScore * 0.25) + (lecturaScore * 0.20) + (posicionScore * 0.35);
     const puntajeFinal = Math.min(100, Math.max(0, Math.round(puntajeFinalRaw)));
 
-    // Determinar Nivel oficial
+    // Determinar Nivel oficial y Rating Glicko inicial calibrado (1200 a 1600)
     let testLevel = 'Intermedio';
-    if (puntajeFinal <= 24) testLevel = 'Principiante';
-    else if (puntajeFinal <= 44) testLevel = 'Recreativo';
-    else if (puntajeFinal <= 64) testLevel = 'Intermedio';
-    else if (puntajeFinal <= 84) testLevel = 'Avanzado';
-    else testLevel = 'Élite amateur';
+    let initialRating = 1400;
+    if (puntajeFinal <= 24) { testLevel = 'Principiante'; initialRating = 1200; }
+    else if (puntajeFinal <= 44) { testLevel = 'Recreativo'; initialRating = 1300; }
+    else if (puntajeFinal <= 64) { testLevel = 'Intermedio'; initialRating = 1400; }
+    else if (puntajeFinal <= 84) { testLevel = 'Avanzado'; initialRating = 1500; }
+    else { testLevel = 'Élite amateur'; initialRating = 1600; }
+
+    const rawPos = String(position || user.position || 'DEL').trim().toUpperCase();
+    const posMap = {
+      POR: 'POR', PORTERO: 'POR', ARQUERO: 'POR',
+      DEF: 'DEF', DEFENSA: 'DEF', DEFENSOR: 'DEF',
+      MED: 'MED', MEDIOCAMPISTA: 'MED', VOLANTE: 'MED', MEDIOCAMPO: 'MED',
+      DEL: 'DEL', DELANTERO: 'DEL', ATACANTE: 'DEL'
+    };
+    const normPos = posMap[rawPos] || 'DEL';
+    const posLabels = { POR: 'Portero', DEF: 'Defensa', MED: 'Mediocampista', DEL: 'Delantero' };
 
     const categories = [
       { name: 'Físico', score: Math.round(fisicoScore) },
       { name: 'Técnica', score: Math.round(tecnicaScore) },
       { name: 'Lectura de juego', score: Math.round(lecturaScore) },
-      { name: `Posición (${position || user.position || 'Delantero'})`, score: Math.round(posicionScore) }
+      { name: `Posición (${posLabels[normPos]})`, score: Math.round(posicionScore) }
     ];
     categories.sort((a, b) => b.score - a.score);
     const strongPoint = categories[0].name;
     const weakPoint = categories[categories.length - 1].name;
 
+    // Derivación determinista de los 6 atributos FUT sin valores inventados (D-06 / MS-10)
+    const val = (idx) => numAnswers[idx];
+    const scalePoints = (pts) => Math.min(85, Math.max(45, Math.round(45 + (pts - 1) * 10)));
+
+    let ritVal, tirVal, pasVal, regVal, defVal, fisVal;
+    if (normPos === 'DEL') {
+      ritVal = scalePoints(val(0) * 0.6 + val(10) * 0.4);
+      tirVal = scalePoints(val(5) * 0.3 + val(9) * 0.7);
+      pasVal = scalePoints(val(4) * 0.4 + val(8) * 0.2 + val(12) * 0.4);
+      regVal = scalePoints(val(3) * 0.5 + val(8) * 0.2 + val(11) * 0.3);
+      defVal = scalePoints(val(2) * 0.3 + val(7) * 0.3 + val(13) * 0.4);
+      fisVal = scalePoints(val(1) * 0.5 + val(2) * 0.3 + val(12) * 0.2);
+    } else if (normPos === 'MED') {
+      ritVal = scalePoints(val(0) * 0.6 + val(13) * 0.4);
+      tirVal = scalePoints(val(5) * 0.3 + val(11) * 0.7);
+      pasVal = scalePoints(val(4) * 0.4 + val(8) * 0.2 + val(9) * 0.2 + val(10) * 0.2);
+      regVal = scalePoints(val(3) * 0.5 + val(8) * 0.2 + val(9) * 0.3);
+      defVal = scalePoints(val(2) * 0.3 + val(7) * 0.3 + val(12) * 0.4);
+      fisVal = scalePoints(val(1) * 0.5 + val(2) * 0.3 + val(13) * 0.2);
+    } else if (normPos === 'DEF') {
+      ritVal = scalePoints(val(0) * 0.6 + val(9) * 0.4);
+      tirVal = scalePoints(val(5) * 0.65 + val(10) * 0.35);
+      pasVal = scalePoints(val(4) * 0.4 + val(8) * 0.2 + val(12) * 0.4);
+      regVal = scalePoints(val(3) * 0.5 + val(8) * 0.2 + val(9) * 0.3);
+      defVal = scalePoints(val(2) * 0.2 + val(7) * 0.2 + val(9) * 0.3 + val(11) * 0.3);
+      fisVal = scalePoints(val(1) * 0.5 + val(2) * 0.3 + val(10) * 0.2);
+    } else { // POR
+      ritVal = scalePoints(val(0) * 0.6 + val(9) * 0.4);
+      tirVal = scalePoints(val(5) * 0.65 + val(12) * 0.35);
+      pasVal = scalePoints(val(4) * 0.4 + val(8) * 0.2 + val(12) * 0.4);
+      regVal = scalePoints(val(3) * 0.5 + val(8) * 0.2 + val(9) * 0.3);
+      defVal = scalePoints(val(2) * 0.2 + val(7) * 0.2 + val(10) * 0.3 + val(11) * 0.3);
+      fisVal = scalePoints(val(1) * 0.5 + val(2) * 0.3 + val(10) * 0.2);
+    }
+
+    const ovr = Math.min(85, Math.max(50, Math.round(50 + (puntajeFinal / 100) * 35)));
+
     user.hasCompletedTest = true;
     user.testScore = puntajeFinal;
     user.testLevel = testLevel;
-    if (position) user.position = position;
+    user.position = normPos;
+    user.ratingOverall = initialRating;
+    user.declaredLevel = testLevel;
     user.testBreakdown = {
       fisico: Math.round(fisicoScore),
       tecnica: Math.round(tecnicaScore),
@@ -1041,20 +1124,27 @@ class Database {
       strongPoint,
       weakPoint
     };
-
-    // Rating Glicko inicial estimado a partir del test
-    user.ratingOverall = Math.round(1100 + (puntajeFinal * 8));
-    user.declaredLevel = testLevel;
+    user.futStats = {
+      rit: ritVal,
+      tir: tirVal,
+      pas: pasVal,
+      reg: regVal,
+      def: defVal,
+      fis: fisVal,
+      ovr,
+      isInitialCard: true
+    };
 
     this.users.set(userId, user);
     this._persistUser(user);
 
-    // Actualizar perfiles activos de fútbol
+    // Actualizar perfiles activos de fútbol en estado inicial
     const formats = ['1v1', '5v5', '6v6', '7v7', '8v8', '11v11'];
     for (const fmt of formats) {
       const prof = this.getProfile(userId, 'futbol', fmt);
       if (prof && prof.matchesPlayed === 0) {
         prof.rating = user.ratingOverall;
+        prof.rd = 350;
         prof.declaredLevel = testLevel;
         this.setProfile(userId, 'futbol', fmt, prof);
       }
@@ -1065,7 +1155,8 @@ class Database {
       result: {
         score: puntajeFinal,
         level: testLevel,
-        breakdown: user.testBreakdown
+        breakdown: user.testBreakdown,
+        futStats: user.futStats
       }
     };
   }
@@ -1077,16 +1168,15 @@ class Database {
 
     const id = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
 
-    // Generar stats base para su carta FUT según el nivel, con un TOPE MÁXIMO DE 70 para recién registrados
-    // Nivel Principiante: 58-62, Intermedio: 62-66, Avanzado: 66-68, Competitivo: 68-70 (Máximo 70)
+    // Stats deterministas para perfiles sintéticos de prueba según nivel
     const baseVal = declaredLevel === 'Competitivo' ? 68 : declaredLevel === 'Avanzado' ? 66 : declaredLevel === 'Principiante' ? 58 : 63;
     const initialFutStats = {
-      rit: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      tir: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      pas: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      reg: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
-      def: Math.min(70, Math.max(50, baseVal - 3 + Math.floor(Math.random() * 5 - 2))),
-      fis: Math.min(70, Math.max(50, baseVal + Math.floor(Math.random() * 5 - 2))),
+      rit: baseVal,
+      tir: baseVal,
+      pas: baseVal,
+      reg: baseVal,
+      def: Math.max(50, baseVal - 3),
+      fis: baseVal,
       reviewsCount: 1
     };
     initialFutStats.ovr = calculateOvrFromStats(initialFutStats, baseVal * 20);

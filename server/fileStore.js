@@ -81,7 +81,16 @@ export function atomicWrite(file, bytes, io = fs) {
     io.writeFileSync(descriptor, bytes);
     io.fsyncSync(descriptor);
     io.closeSync(descriptor); descriptor = undefined;
-    io.renameSync(temporary, file);
+    try {
+      io.renameSync(temporary, file);
+    } catch (renameErr) {
+      if (process.platform === 'win32' && (renameErr.code === 'EPERM' || renameErr.code === 'EBUSY')) {
+        io.copyFileSync(temporary, file);
+        io.unlinkSync(temporary);
+      } else {
+        throw renameErr;
+      }
+    }
     if (process.platform !== 'win32') {
       const directory = io.openSync(path.dirname(file), 'r');
       try { io.fsyncSync(directory); } finally { io.closeSync(directory); }
