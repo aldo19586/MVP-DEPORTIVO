@@ -20,7 +20,10 @@ export default function DisputeResolutionView({ activeMatches = [] }) {
       await resolveDisputeApi(selectedMatch.id, winnerTeam);
       setResolvedIds(ids => [...ids, selectedMatch.id]);
 
-      setResolvedStatus(`Disputa resuelta a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}. Puntos asignados (+35 pts) y rating actualizado.`);
+      setResolvedStatus(winnerTeam === 'draw'
+        ? 'Disputa resuelta como Empate Oficial. Puntos distribuidos equitativamente y rating actualizado.'
+        : `Disputa resuelta a favor de ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}. Puntos asignados (+35 pts) y rating actualizado.`
+      );
       setTimeout(() => setResolvedStatus(null), 6000);
     } catch (e) {
       setError(e.message);
@@ -143,6 +146,18 @@ export default function DisputeResolutionView({ activeMatches = [] }) {
           </button>
         </div>
 
+      </div>
+
+      {/* Opción de Resolución como Empate Oficial */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button
+          className="btn btn-secondary"
+          style={{ padding: '10px 24px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}
+          disabled={saving}
+          onClick={() => handleResolve('draw')}
+        >
+          <Scale size={16} /> Declarar Empate Oficial (0.5 pts por equipo)
+        </button>
       </div>
 
       {/* Transcripción de Chat del Partido */}

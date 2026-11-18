@@ -11,7 +11,7 @@ import { issueToken, authRateLimiter } from './auth.js';
 import { apiAccess, ownParam, ownRead, ownBody, matchAccess, isParticipant } from './access.js';
 import { VENUES, getVenueSlots } from './venues.js';
 import { runtimeConfig } from './config.js';
-import { competitionRouter } from './competitions.js';
+import { competitionRouter, competitionCommand } from './competitions.js';
 import { createRealtime, ADMIN_ROOM } from './realtime.js';
 import { sessionEvents } from './sessionEvents.js';
 import { installSocketAccess } from './socketAccess.js';
@@ -465,18 +465,79 @@ app.get('/api/admin/live-activity', (req, res) => {
 
 // Moderación y Resolución de Disputas SuperAdmin
 app.get('/api/admin/disputes', (req, res) => {
-  const disputed = Array.from(db.matches.values()).filter(
+  const legacyDisputed = Array.from(db.matches.values()).filter(
     (m) => m.status === 'disputed' || m.disputeAlert
-  );
-  res.json({ disputes: disputed.map(match => toResource(match, req.user)) });
+  ).map(match => toResource(match, req.user));
+
+  const compDisputed = Array.from(db.competitions.values()).filter(
+    (c) => c.status === 'DISPUTED'
+  ).map(c => {
+    return {
+      id: c.matchId || c.id,
+      competitionId: c.id,
+      matchId: c.matchId,
+      isCompetition: true,
+      status: 'disputed',
+      sportId: c.sportId,
+      formatId: c.formatId,
+      disputeAlert: {
+        reason: c.dispute?.reason || 'Discrepancia en el marcador final',
+        disputeId: c.dispute?.disputeId
+      },
+      teamA: c.teamA.map(p => ({
+        ...toPublicUser(p),
+        claim: c.dispute?.initialReport?.reportedTeam === 'teamA'
+          ? `Marcador: ${c.dispute.initialReport.score.teamA} - ${c.dispute.initialReport.score.teamB}`
+          : (c.dispute?.counterReport?.reportedTeam === 'teamA'
+              ? `Marcador: ${c.dispute.counterReport.score.teamA} - ${c.dispute.counterReport.score.teamB}`
+              : 'Sin reclamo')
+      })),
+      teamB: c.teamB.map(p => ({
+        ...toPublicUser(p),
+        claim: c.dispute?.initialReport?.reportedTeam === 'teamB'
+          ? `Marcador: ${c.dispute.initialReport.score.teamA} - ${c.dispute.initialReport.score.teamB}`
+          : (c.dispute?.counterReport?.reportedTeam === 'teamB'
+              ? `Marcador: ${c.dispute.counterReport.score.teamA} - ${c.dispute.counterReport.score.teamB}`
+              : 'Sin reclamo')
+      })),
+      dispute: c.dispute
+    };
+  });
+
+  res.json({ disputes: [...legacyDisputed, ...compDisputed] });
 });
 
 app.post('/api/admin/disputes/resolve', (req, res) => {
   const { matchId, winnerTeam } = req.body;
   const adminUserId = req.user.userId;
-  if (!['teamA', 'teamB'].includes(winnerTeam)) return res.status(400).json({ error: 'Equipo ganador inválido' });
+  if (!['teamA', 'teamB', 'draw'].includes(winnerTeam)) return res.status(400).json({ error: 'Equipo ganador o resultado inválido' });
+
+  const compRoom = [...db.competitions.values()].find(c => c.matchId === matchId || c.id === matchId);
+  if (compRoom) {
+    if (compRoom.status !== 'DISPUTED') return res.status(409).json({ error: 'La convocatoria no está en disputa' });
+    const score = req.body.score || (winnerTeam === 'draw'
+      ? { teamA: 1, teamB: 1 }
+      : winnerTeam === 'teamA'
+        ? (compRoom.dispute?.initialReport?.reportedTeam === 'teamA' ? compRoom.dispute.initialReport.score : (compRoom.dispute?.counterReport?.reportedTeam === 'teamA' ? compRoom.dispute.counterReport.score : { teamA: 1, teamB: 0 }))
+        : (compRoom.dispute?.initialReport?.reportedTeam === 'teamB' ? compRoom.dispute.initialReport.score : (compRoom.dispute?.counterReport?.reportedTeam === 'teamB' ? compRoom.dispute.counterReport.score : { teamA: 0, teamB: 1 })));
+    try {
+      const result = competitionCommand(adminUserId, 'resolveDispute', {
+        competitionId: compRoom.id,
+        disputeId: compRoom.dispute?.disputeId,
+        score,
+        reason: req.body.reason || `Resolución arbitral SuperAdmin: Victoria para ${winnerTeam === 'teamA' ? 'Equipo A' : 'Equipo B'}`,
+        expectedRevision: compRoom.revision,
+        requestId: req.body.requestId || `admin-resolve-${compRoom.id}-${Date.now()}`
+      });
+      return res.json({ success: true, match: result.data, ratingUpdates: result.data.ratingUpdates });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message, code: err.code });
+    }
+  }
+
   const match = db.getMatch(matchId);
   if (!match) return res.status(404).json({ error: 'Partido no encontrado' });
+  if (winnerTeam === 'draw') return res.status(400).json({ error: 'Partidos clásicos no admiten empate' });
   if (match.status === 'finished' || (match.status !== 'disputed' && !match.disputeAlert)) return res.status(409).json({ error: 'El partido no tiene una disputa pendiente' });
 
   const { ratingUpdates } = db.finalizeLegacyMatch(matchId, winnerTeam, adminUserId, true);

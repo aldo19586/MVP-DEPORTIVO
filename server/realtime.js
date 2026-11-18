@@ -9,7 +9,7 @@ export const ADMIN_ROOM = 'admin_monitor';
 const publicEvents = new Set(['sportsUpdated', 'lobbyListUpdated', 'lobbyNeedsOne', 'replacementMarketUpdated', 'replacementLobbiesList', 'competitionListUpdated']);
 const competitionEventNames = new Set([
   'competitionUpdated', 'competitionMessage',
-  'competitionScoreReported', 'competitionScoreConfirmed', 'competitionScoreDisputed'
+  'competitionScoreReported', 'competitionScoreConfirmed', 'competitionScoreDisputed', 'competitionDisputeResolved'
 ]);
 const adminEvents = new Set(['onlineUsersUpdate', 'adminDisputeResolved']);
 const personalEvents = new Set(['queueStatus', 'queueStarted', 'queueCancelled', 'matchPromptAcceptance',
@@ -114,17 +114,23 @@ export function createRealtime(io) {
     broadcast(null, 'competitionScoreDisputed', payload);
     broadcast(ADMIN_ROOM, 'competitionScoreDisputed', payload);
   };
+  const disputeResolved = payload => {
+    broadcast(null, 'competitionDisputeResolved', payload);
+    broadcast(ADMIN_ROOM, 'adminDisputeResolved', payload);
+  };
   competitionEvents.on('changed', changed);
   competitionEvents.on('message', message);
   competitionEvents.on('scoreReported', scoreReported);
   competitionEvents.on('scoreConfirmed', scoreConfirmed);
   competitionEvents.on('scoreDisputed', scoreDisputed);
+  competitionEvents.on('disputeResolved', disputeResolved);
   io.httpServer.once('close', () => {
     competitionEvents.off('changed', changed);
     competitionEvents.off('message', message);
     competitionEvents.off('scoreReported', scoreReported);
     competitionEvents.off('scoreConfirmed', scoreConfirmed);
     competitionEvents.off('scoreDisputed', scoreDisputed);
+    competitionEvents.off('disputeResolved', disputeResolved);
   });
   return { send, to: target => ({ emit: (event, payload) => broadcast(target, event, payload) }),
     emit: (event, payload) => broadcast(null, event, payload) };

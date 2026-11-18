@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import { sessionEvents } from './sessionEvents.js';
 import { runtimeConfig } from './config.js';
 import { hashPassword, isPasswordHash, matchesPassword } from './credentials.js';
-import { getInitialGlicko } from './glicko2.js';
+import { getInitialGlicko, calculateGlicko2Match } from './glicko2.js';
 import {
   initDatabase,
   sqlGetUser, sqlGetUserByEmail, sqlGetUserByName, sqlGetAllUsers, sqlInsertUser, sqlUpdateUser, sqlGetUserCount,
@@ -14,7 +14,7 @@ import {
   sqlInsertLobby, sqlGetLobby, sqlGetAllLobbies, sqlDeleteLobby, sqlGetOpenReplacementLobbies,
   sqlInsertReview, sqlGetUserReviews, sqlInsertFutReview,
   sqlGetConfig, sqlSetConfig,
-  forceSave, withTransaction, sqlGetReceipt, sqlInsertReceipt, sqlGetCompetitions, sqlGetCompetitionMatches, sqlInsertCompetitionMatch
+  forceSave, withTransaction, isInTransaction, sqlGetReceipt, sqlInsertReceipt, sqlGetCompetitions, sqlGetCompetitionMatches, sqlInsertCompetitionMatch
 } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1402,6 +1402,7 @@ class Database {
         matchesPlayed: 0,
         wins: 0,
         losses: 0,
+        draws: 0,
         declaredLevel: 'Intermedio'
       };
       this.profiles.set(key, profile);
@@ -1551,6 +1552,107 @@ class Database {
       sqlInsertReceipt(key, result);
       return { ...result, match, replayed: false };
     });
+  }
+
+  finalizeCompetitionMatch(match, outcome, finalScore, actorId, source = 'confirmation', reason = null) {
+    if (!['teamA', 'teamB', 'draw'].includes(outcome)) throw new Error('Resultado inválido');
+    const execute = () => {
+      const key = `competition-result:${match.id}`;
+      const receipt = sqlGetReceipt(key);
+      if (receipt) {
+        return { ...receipt, match, replayed: true };
+      }
+      const ids = [...match.teamA, ...match.teamB].map(p => p.id || p.userId);
+      if (new Set(ids).size !== ids.length) throw new Error('Participante duplicado en el partido');
+
+      // Obtener perfiles de ambos equipos
+      const teamAProfiles = match.teamA.map(p => this.getProfile(p.id || p.userId, match.sportId, match.formatId));
+      const teamBProfiles = match.teamB.map(p => this.getProfile(p.id || p.userId, match.sportId, match.formatId));
+
+      const avgRatingA = teamAProfiles.reduce((sum, p) => sum + (p.rating || 1500), 0) / (teamAProfiles.length || 1);
+      const avgRdA = teamAProfiles.reduce((sum, p) => sum + (p.rd || 350), 0) / (teamAProfiles.length || 1);
+
+      const avgRatingB = teamBProfiles.reduce((sum, p) => sum + (p.rating || 1500), 0) / (teamBProfiles.length || 1);
+      const avgRdB = teamBProfiles.reduce((sum, p) => sum + (p.rd || 350), 0) / (teamBProfiles.length || 1);
+
+      const scoreA = outcome === 'teamA' ? 1 : outcome === 'draw' ? 0.5 : 0;
+      const scoreB = outcome === 'teamB' ? 1 : outcome === 'draw' ? 0.5 : 0;
+
+      const ratingUpdates = {};
+
+      for (const p of match.teamA) {
+        const id = p.id || p.userId;
+        const before = this.getProfile(id, match.sportId, match.formatId);
+        const glicko = calculateGlicko2Match(before, { rating: avgRatingB, rd: avgRdB }, scoreA);
+        const after = this.setProfile(id, match.sportId, match.formatId, {
+          rating: glicko.rating,
+          rd: glicko.rd,
+          volatility: glicko.volatility,
+          matchesPlayed: (before.matchesPlayed || 0) + 1,
+          wins: (before.wins || 0) + Number(scoreA === 1),
+          losses: (before.losses || 0) + Number(scoreA === 0),
+          draws: (before.draws || 0) + Number(scoreA === 0.5),
+        });
+        ratingUpdates[id] = {
+          oldRating: before.rating,
+          newRating: after.rating,
+          ratingChange: glicko.ratingChange,
+          score: scoreA,
+          outcome,
+        };
+      }
+
+      for (const p of match.teamB) {
+        const id = p.id || p.userId;
+        const before = this.getProfile(id, match.sportId, match.formatId);
+        const glicko = calculateGlicko2Match(before, { rating: avgRatingA, rd: avgRdA }, scoreB);
+        const after = this.setProfile(id, match.sportId, match.formatId, {
+          rating: glicko.rating,
+          rd: glicko.rd,
+          volatility: glicko.volatility,
+          matchesPlayed: (before.matchesPlayed || 0) + 1,
+          wins: (before.wins || 0) + Number(scoreB === 1),
+          losses: (before.losses || 0) + Number(scoreB === 0),
+          draws: (before.draws || 0) + Number(scoreB === 0.5),
+        });
+        ratingUpdates[id] = {
+          oldRating: before.rating,
+          newRating: after.rating,
+          ratingChange: glicko.ratingChange,
+          score: scoreB,
+          outcome,
+        };
+      }
+
+      match.status = 'FINISHED';
+      match.finalScore = structuredClone(finalScore);
+      match.outcome = outcome;
+      match.ratingUpdates = ratingUpdates;
+      match.finishedAt = new Date().toISOString();
+      match.revision = (match.revision || 1) + 1;
+      if (source === 'admin') {
+        match.resolvedBy = actorId;
+        match.resolutionReason = reason;
+      } else {
+        match.confirmedBy = actorId;
+        match.confirmedAt = match.finishedAt;
+      }
+      this._persistCompetitionMatch(match);
+
+      const result = {
+        matchId: match.id,
+        outcome,
+        finalScore,
+        ratingUpdates,
+        actorId,
+        source,
+        reason,
+        appliedAt: match.finishedAt,
+      };
+      sqlInsertReceipt(key, result);
+      return { ...result, match, replayed: false };
+    };
+    return isInTransaction() ? execute() : this.atomic(execute);
   }
 
   getMatchForUser(userId) {
@@ -1800,7 +1902,8 @@ class Database {
     const totalMatches = this.matches.size;
     const activeMatches = Array.from(this.matches.values()).filter(m => m.status === 'active' || m.status === 'in_progress').length;
     const activeSearches = this.challenges.length;
-    const disputes = Array.from(this.matches.values()).filter(m => m.status === 'disputed').length;
+    const compDisputes = Array.from(this.competitions.values()).filter(c => c.status === 'DISPUTED').length;
+    const disputes = Array.from(this.matches.values()).filter(m => m.status === 'disputed').length + compDisputes;
 
     return {
       totalUsers,

@@ -37,6 +37,9 @@ export default function CompetitionScreen({ user, mine = false }) {
   const [match, setMatch] = useState(null);
   const [manageRoles, setManageRoles] = useState(false);
   const [filterDistrict, setFilterDistrict] = useState(null);
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+  const [disputeReason, setDisputeReason] = useState('');
   const pending = useRef(null);
   const mounted = useRef(true);
   const loadVersion = useRef(0);
@@ -103,6 +106,7 @@ export default function CompetitionScreen({ user, mine = false }) {
   const preparing = !!room && ['OPEN', 'FULL'].includes(room.status);
   const myTeam = own ? (room.teamA.some(member => member.id === user.id) ? 'teamA' : 'teamB') : null;
   const me = own ? room[myTeam].find(member => member.id === user.id) : null;
+  const isCaptain = own && room?.captains?.[myTeam] === user.id;
   useEffect(() => {
     if (page !== 'list') return;
     const socket = socketService.getSocket();
@@ -131,11 +135,25 @@ export default function CompetitionScreen({ user, mine = false }) {
     const updated = payload => { if (payload.competitionId === room.id) recover(); };
     const publicUpdated = () => { if (!own) recover(); };
     socket?.on('competitionUpdated', updated);
+    socket?.on('competitionScoreReported', updated);
+    socket?.on('competitionScoreConfirmed', updated);
+    socket?.on('competitionScoreDisputed', updated);
+    socket?.on('competitionDisputeResolved', updated);
     socket?.on('competitionListUpdated', publicUpdated);
     socket?.on('connect', recover);
     const subscription = AppState.addEventListener('change', value => { if (value === 'active') recover(); });
     recover();
-    return () => { active = false; socket?.off('competitionUpdated', updated); socket?.off('competitionListUpdated', publicUpdated); socket?.off('connect', recover); subscription.remove(); };
+    return () => {
+      active = false;
+      socket?.off('competitionUpdated', updated);
+      socket?.off('competitionScoreReported', updated);
+      socket?.off('competitionScoreConfirmed', updated);
+      socket?.off('competitionScoreDisputed', updated);
+      socket?.off('competitionDisputeResolved', updated);
+      socket?.off('competitionListUpdated', publicUpdated);
+      socket?.off('connect', recover);
+      subscription.remove();
+    };
   }, [room?.id, own]);
   useEffect(() => {
     setMatch(null);
@@ -194,12 +212,66 @@ export default function CompetitionScreen({ user, mine = false }) {
         </>}
       </>}
       {page === 'detail' && room && <>
-        <Text style={styles.heading}>Fútbol {room.formatId.split('v')[0]} · {room.status === 'CANCELLED' ? 'Cancelada' : room.status === 'IN_PROGRESS' ? 'En juego' : room.status === 'FULL' ? 'Completa' : 'Convocando'}</Text>
+        <Text style={styles.heading}>Fútbol {room.formatId.split('v')[0]} · {room.status === 'CANCELLED' ? 'Cancelada' : room.status === 'IN_PROGRESS' ? 'En juego' : room.status === 'RESULT_PENDING' ? 'Confirmando marcador' : room.status === 'DISPUTED' ? 'En disputa' : room.status === 'FINISHED' ? 'Finalizado' : room.status === 'FULL' ? 'Completa' : 'Convocando'}</Text>
         <Text style={styles.text}>{room.venue.name}</Text><Text style={styles.muted}>{room.venue.address} · {room.district}</Text><Text style={styles.text}>{dateLabel(room.scheduledAt)}</Text>
         <Text selectable style={styles.code}>{room.code}</Text>
         <View style={styles.row}><Button title="Copiar código" secondary onPress={async () => { try { await Clipboard.setStringAsync(room.code); Alert.alert('Código copiado'); } catch(e) { setError(e.message); } }} /><Button title="Compartir" secondary onPress={() => Share.share({ message: `MatchSport · Fútbol ${room.formatId.split('v')[0]}\n${room.venue.name}, ${room.district}\n${dateLabel(room.scheduledAt)} (Perú)\nCódigo: ${room.code}` }).catch(e => setError(e.message))} /></View>
         {match && <Text style={styles.text}>Partido en curso · {dateLabel(match.startedAt)}. Equipos confirmados.</Text>}
         {own && <Button title="Abrir chat de la sala" secondary onPress={() => setPage('chat')} />}
+        {room.status === 'FINISHED' && <View style={[styles.card, { borderColor: '#10b981', borderWidth: 1 }]}>
+          <Text style={styles.heading}>Resultado Oficial</Text>
+          <Text style={[styles.title, { textAlign: 'center', marginVertical: 4 }]}>
+            {room.finalScore ? `${room.finalScore.teamA} - ${room.finalScore.teamB}` : '-'}
+          </Text>
+          <Text style={[styles.text, { textAlign: 'center', fontWeight: '700' }]}>
+            {room.outcome === 'draw' ? 'Empate' : room.outcome === 'teamA' ? '¡Victoria Equipo A!' : '¡Victoria Equipo B!'}
+          </Text>
+          {room.ratingUpdates && room.ratingUpdates[user.id] && (
+            <Text style={[styles.muted, { textAlign: 'center', marginTop: 4 }]}>
+              Tu nuevo rating: {Math.round(room.ratingUpdates[user.id].newRating)} ({room.ratingUpdates[user.id].ratingChange >= 0 ? '+' : ''}{Math.round(room.ratingUpdates[user.id].ratingChange)} pts)
+            </Text>
+          )}
+          {room.resolvedBy && (
+            <Text style={[styles.muted, { textAlign: 'center', fontSize: 12, marginTop: 4 }]}>
+              Dictamen SuperAdmin: {room.resolutionReason}
+            </Text>
+          )}
+        </View>}
+        {room.status === 'DISPUTED' && <View style={[styles.card, { borderColor: '#f59e0b', borderWidth: 1 }]}>
+          <Text style={styles.heading}>Disputa Arbitral en Revisión</Text>
+          <Text style={styles.text}>{room.dispute?.reason || 'Discrepancia en el marcador reportado'}</Text>
+          <Text style={styles.muted}>El SuperAdmin está evaluando la evidencia para emitir la resolución final.</Text>
+        </View>}
+        {room.status === 'RESULT_PENDING' && <View style={[styles.card, { borderColor: '#06b6d4', borderWidth: 1 }]}>
+          <Text style={styles.heading}>Marcador Reportado</Text>
+          <Text style={styles.text}>
+            Capitán {room.report?.reportedTeam === 'teamA' ? 'Equipo A' : 'Equipo B'} reportó: {room.report?.score.teamA} - {room.report?.score.teamB}
+          </Text>
+          {isCaptain && room.report?.reportedTeam !== myTeam ? <>
+            <Button title={`Confirmar resultado (${room.report?.score.teamA} - ${room.report?.score.teamB})`} disabled={busy} onPress={() => command('confirmScore', payload({ reportId: room.report?.reportId }))} />
+            <Field label="Motivo si hay discrepancia" value={disputeReason} onChangeText={setDisputeReason} maxLength={200} />
+            <Button title="Disputar marcador" secondary disabled={busy || !disputeReason.trim()} onPress={() => command('disputeScore', payload({ reportId: room.report?.reportId, reason: disputeReason.trim() }))} />
+          </> : <Text style={styles.muted}>
+            {room.report?.reportedTeam === myTeam ? 'Esperando confirmación del capitán rival...' : 'Esperando validación de los capitanes.'}
+          </Text>}
+        </View>}
+        {room.status === 'IN_PROGRESS' && isCaptain && <View style={styles.card}>
+          <Text style={styles.heading}>Reportar Marcador Final</Text>
+          <Text style={styles.muted}>Como capitán, ingresa los goles al terminar el partido:</Text>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Field label="Goles Equipo A" value={scoreA} onChangeText={setScoreA} keyboardType="numeric" maxLength={2} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Goles Equipo B" value={scoreB} onChangeText={setScoreB} keyboardType="numeric" maxLength={2} />
+            </View>
+          </View>
+          <Button
+            title="Enviar marcador"
+            disabled={busy || scoreA === '' || scoreB === '' || isNaN(Number(scoreA)) || isNaN(Number(scoreB))}
+            onPress={() => command('reportScore', payload({ score: { teamA: Number(scoreA), teamB: Number(scoreB) } }))}
+          />
+        </View>}
         {room.status === 'CANCELLED' ? <Text style={styles.muted}>{room.cancelReason || 'Convocatoria cerrada'}</Text> : !own ? <>
           {!preparing && <Text style={styles.muted}>El partido ya comenzó. No se admiten más participantes.</Text>}
           {preparing && ['teamA', 'teamB'].map((team, index) => <Button key={team} title={`Unirme al equipo ${index ? 'B' : 'A'} (${index ? room.teamBCount : room.teamACount}/${room.playersPerTeam})`} disabled={busy || (index ? room.teamBCount : room.teamACount) >= room.playersPerTeam} onPress={() => command('join', { code: room.code, team, expectedRevision: room.revision })} />)}

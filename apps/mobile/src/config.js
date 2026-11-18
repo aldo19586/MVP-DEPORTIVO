@@ -11,7 +11,7 @@ const getBackendUrl = () => {
     }
 
     // Fallback con IP local Wi-Fi detectada
-    return 'http://192.168.1.117:3001';
+    return 'http://192.168.1.82:3001';
   }
   return 'https://api.matchsport.app';
 };

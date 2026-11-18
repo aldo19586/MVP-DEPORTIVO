@@ -25,6 +25,10 @@ let _releaseLock = null;
 let _failed = false;
 let _inTransaction = false;
 
+export function isInTransaction() {
+  return _inTransaction;
+}
+
 export function withTransaction(operation) {
   if (_inTransaction) throw new Error('Nested transactions are not supported');
   if (operation.constructor.name === 'AsyncFunction') throw new Error('Transactions must be synchronous');
@@ -684,6 +688,7 @@ function rowToProfile(resultSet, rowIndex = 0) {
     matchesPlayed: obj.matches_played || 0,
     wins: obj.wins || 0,
     losses: obj.losses || 0,
+    draws: Math.max(0, (obj.matches_played || 0) - (obj.wins || 0) - (obj.losses || 0)),
     declaredLevel: obj.declared_level || 'Intermedio',
     lastMatchDate: obj.last_match_date
   };

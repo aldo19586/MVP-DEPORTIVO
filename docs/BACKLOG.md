@@ -1,6 +1,6 @@
 # Backlog de ejecución
 
-Estado: **MS-01 a MS-05, MS-07 y MS-08 implementados**; **MS-06 y MS-09 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
+Estado: **MS-01 a MS-05, MS-07, MS-08 y MS-09 implementados**; **MS-06 En curso**; las demás tareas siguen **Pendientes**. Tamaño relativo: S (acotada), M (varios componentes), L (requiere dividir en entregas). No son estimaciones de días.
 
 Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones y fecha. Antes de implementar una tarea L, dividirla por criterios verificables sin perder su dependencia de integración.
 
@@ -15,7 +15,7 @@ Cada tarea cerrada debe registrar commit/PR, evidencia de pruebas, limitaciones 
 | MS-06 | P1 / L | **En curso (A/B locales hechas; piloto pendiente):** persistencia durable y recuperación | MS-01, D-05 antes del piloto | Elegir almacenamiento con decisión escrita; migraciones; backups y restauración comprobada; interrupción de escritura sin pérdida silenciosa; tests sobre archivo aislado. A-11 |
 | MS-07 | P1 / L | **Hecho (implementación A/B):** crear/unirse/salir de convocatorias reales | MS-03/MS-04/MS-05 | Todas las entradas usan servidor; código real copiable/compartible; última plaza con dos solicitudes da un único ganador; sin duplicar miembros; fecha/hora/zona persistidas; sala recuperable tras reinicio. A-06/A-08 |
 | MS-08 | P1 / M | **Hecho (implementación):** chat y reconexión | MS-04/MS-07 | Dos conexiones reciben mismo mensaje una vez; historial y reintento; estados enviando/error; filtro por sala y limpieza de listeners; desconexión no borra membresía futura. Prueba física pendiente. A-07/A-08 |
-| MS-09 | P1 / L | **En curso (MS-09-A hecha):** finalización, disputa y rating consistente | MS-04/MS-05/MS-06/MS-07 | Reporte y confirmación por capitanes, empates, transición a DISPUTED con evidencia congelada y persistencia transaccional. MS-09-B pendiente (rating atómico y panel SuperAdmin). A-10 |
+| MS-09 | P1 / L | **Hecho (MS-09-A y MS-09-B):** finalización, disputa y rating consistente | MS-04/MS-05/MS-06/MS-07 | Reporte y confirmación por capitanes, empates, disputas con evidencia congelada, rating Glicko-2 atómico, resolución SuperAdmin en web y UI móvil completa. A-10 |
 | MS-10 | P1 / L | Onboarding continuo y carta inicial | MS-03, D-02/D-03/D-06 | Cuenta → datos mínimos → test → carta; reanudar; 14 respuestas válidas exigidas por servidor; foto opcional; sin atributos inventados; conservar invitación. A-09/A-16 |
 | MS-11 | P2 / M | Simplificar navegación y pantallas | MS-07/MS-08/MS-10 | Jugar/Mis partidos/Perfil, acción primaria por estado, filtros secundarios, sin demos en recorrido real, carga/error/vacío explícitos; revisión en iPhone y tamaño de texto grande |
 | MS-12 | P1 / M | SuperAdmin operativo y trazable | MS-03/MS-04/MS-09 | Ban/reset/disputa registran actor/motivo/fecha; errores visibles; reset según recuperación acordada; no se muestra «0 usuarios» por fallo de API. A-17 |
@@ -121,7 +121,25 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
 - Persistencia SQLite durable mediante upsert transaccional `sqlInsertCompetitionMatch` e idempotencia por `requestId`.
 - Cuatro casos nuevos en `server/tests/competition-results.test.js`; **87 pruebas conjuntas aprobadas al 100%**.
 - Build de `apps/admin-web` aprobada (1886 módulos). Exportación de bundle móvil iOS/Hermes aprobada (773 módulos). Base personal sin modificaciones.
-- **Sigue MS-09-B:** Cálculo atómico de Glicko-2 / rating transaccional e interfaz de resolución de disputas para el SuperAdmin en el panel web.
+
+### Evidencia MS-09-B — 18 de noviembre de 2026
+
+- Cálculo de rating Glicko-2 atómico y consistente (`finalizeCompetitionMatch`) evaluado sobre la media de ratings/RD de cada equipo, actualizando perfiles de los 10 jugadores en una sola transacción SQL protegida e idempotente mediante `operation_receipts` (`competition-result:${matchId}`).
+- Soporte para victorias, derrotas y empates (`score: 0.5`), derivando `draws` y actualizando `matchesPlayed`, `wins`, `losses` de forma matemática y compatible en persistencia.
+- Comando SuperAdmin `resolveDispute` validado bajo especificación `competition.v1`, con autorización estricta (`403 FORBIDDEN` para jugadores no admin), registro formal de `resolvedBy`, motivo de dictamen arbitral `resolutionReason` y actualización inmediata de ratings.
+- Comando SuperAdmin `cancel` que anula partidos y convocatorias en cualquier estado sin alterar ratings de los participantes.
+- Integración en panel SuperAdmin (`apps/admin-web`):
+  - Endpoints `GET /api/competitions/admin/disputes` y `GET /api/admin/disputes` para monitorizar disputas activas.
+  - Endpoint `POST /api/admin/disputes/resolve` para resolver disputas de convocatorias asignando victoria a Equipo A, Equipo B o declarando Empate Oficial.
+  - Componente de dos columnas `DisputeResolutionView.jsx` actualizado con selector de empate y resolución en vivo.
+  - Métricas de SuperAdmin (`/api/admin/metrics`) contabilizando disputas activas de ambos flujos.
+- Interfaz en App móvil nativa (`apps/mobile`):
+  - Formulario en `CompetitionScreen.js` para capitanes con reporte de goles en juego, confirmación de marcadores y disputa motivada.
+  - Tarjetas en tiempo real para todos los participantes: estado en juego, reporte pendiente, disputa en revisión arbitral y resultado final oficial con goles, dictamen de SuperAdmin y variación neta de rating (+/- pts).
+  - Sincronización en vivo con eventos de socket: `competitionScoreReported`, `competitionScoreConfirmed`, `competitionScoreDisputed`, `competitionDisputeResolved`.
+- Cuatro casos de prueba automatizados en `server/tests/competition-rating-dispute.test.js`; **91 pruebas conjuntas aprobadas al 100%**.
+- Build de `apps/admin-web` aprobada (1886 módulos). Exportación de bundle móvil iOS/Hermes aprobada (773 módulos). Base personal sin modificaciones.
+- **Sigue MS-10:** Onboarding continuo y carta inicial de jugador (14 respuestas validadas por servidor, distrito y preservación de sesión).
 
 Después de implementar resultados/persistencia se integra el onboarding simplificado. El diseño puede definirse durante el desarrollo, pero no se declara listo antes de conectarlo al servidor.
 

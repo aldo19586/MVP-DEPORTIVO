@@ -10,7 +10,7 @@ import { competitionChatRouter } from './competitionChat.js';
 const supported = new Set([
   'create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost',
   'transferCaptain', 'setReady', 'updateDetails', 'start',
-  'reportScore', 'confirmScore', 'disputeScore'
+  'reportScore', 'confirmScore', 'disputeScore', 'resolveDispute'
 ]);
 const idOf = user => user.id;
 const members = competition => [...competition.teamA, ...competition.teamB];
@@ -65,17 +65,22 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
       value = command === 'join' ? [...db.competitions.values()].find(room => room.code === data.code.trim().toUpperCase()) : db.competitions.get(data.competitionId);
       if (!value) fail('NOT_FOUND', 'Convocatoria no encontrada', 404);
       if (value.revision !== data.expectedRevision) fail('REVISION_CONFLICT', 'La convocatoria cambió. Actualízala y vuelve a intentar');
-      if (['reportScore', 'confirmScore', 'disputeScore'].includes(command)) {
+      if (['reportScore', 'confirmScore', 'disputeScore', 'resolveDispute'].includes(command)) {
         if (command === 'reportScore' && !['IN_PROGRESS', 'RESULT_PENDING'].includes(value.status)) {
           fail('INVALID_STATE', 'El partido debe estar en juego o esperando confirmación');
         }
         if (['confirmScore', 'disputeScore'].includes(command) && value.status !== 'RESULT_PENDING') {
           fail('INVALID_STATE', 'No hay reporte pendiente');
         }
+        if (command === 'resolveDispute' && value.status !== 'DISPUTED') {
+          fail('INVALID_STATE', 'La convocatoria no está en disputa');
+        }
+      } else if (command === 'cancel' && actor.role === 'admin') {
+        // El administrador puede anular en cualquier estado del partido
       } else {
         if (!['OPEN', 'FULL'].includes(value.status)) fail('INVALID_STATE', 'La convocatoria está cerrada');
       }
-      if (command !== 'join' && !participant(value, actorId)) fail('FORBIDDEN', 'Debes pertenecer a esta convocatoria', 403);
+      if (command !== 'join' && actor.role !== 'admin' && !participant(value, actorId)) fail('FORBIDDEN', 'Debes pertenecer a esta convocatoria', 403);
       if (command === 'join') {
         if (Date.parse(value.scheduledAt) <= now) fail('INVALID_STATE', 'La hora de la convocatoria ya pasó');
         if (participant(value, actorId)) fail('ALREADY_JOINED', 'Ya formas parte de esta convocatoria');
@@ -145,13 +150,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
             value.confirmedAt = new Date(now).toISOString();
             value.finalScore = structuredClone(value.report.score);
             value.outcome = outcomeFromScore(value.finalScore);
-            match.status = 'FINISHED';
-            match.confirmedBy = actorId;
-            match.confirmedAt = value.confirmedAt;
-            match.finalScore = structuredClone(value.finalScore);
-            match.outcome = value.outcome;
-            match.revision++;
-            db._persistCompetitionMatch(match);
+            const fin = db.finalizeCompetitionMatch(match, value.outcome, value.finalScore, actorId, 'coincidence');
+            value.ratingUpdates = structuredClone(fin.ratingUpdates);
+            value.finishedAt = match.finishedAt;
           } else {
             const disputeId = randomUUID();
             value.status = 'DISPUTED';
@@ -190,13 +191,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         value.confirmedAt = new Date(now).toISOString();
         value.finalScore = structuredClone(value.report.score);
         value.outcome = outcomeFromScore(value.finalScore);
-        match.status = 'FINISHED';
-        match.confirmedBy = actorId;
-        match.confirmedAt = value.confirmedAt;
-        match.finalScore = structuredClone(value.finalScore);
-        match.outcome = value.outcome;
-        match.revision++;
-        db._persistCompetitionMatch(match);
+        const fin = db.finalizeCompetitionMatch(match, value.outcome, value.finalScore, actorId, 'confirmation');
+        value.ratingUpdates = structuredClone(fin.ratingUpdates);
+        value.finishedAt = match.finishedAt;
       } else if (command === 'disputeScore') {
         const match = db.competitionMatches.get(value.matchId);
         if (!match) fail('NOT_FOUND', 'Partido no encontrado', 404);
@@ -222,9 +219,51 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         match.dispute = structuredClone(value.dispute);
         match.revision++;
         db._persistCompetitionMatch(match);
+      } else if (command === 'resolveDispute') {
+        if (actor.role !== 'admin') fail('FORBIDDEN', 'Solo el SuperAdmin puede resolver disputas', 403);
+        const match = db.competitionMatches.get(value.matchId);
+        if (!match) fail('NOT_FOUND', 'Partido no encontrado', 404);
+        if (!value.dispute || value.dispute.disputeId !== data.disputeId) {
+          fail('NOT_FOUND', 'Disputa no encontrada o no coincide', 404);
+        }
+        if (!data.score || typeof data.score.teamA !== 'number' || typeof data.score.teamB !== 'number' ||
+            data.score.teamA < 0 || data.score.teamB < 0 ||
+            !Number.isInteger(data.score.teamA) || !Number.isInteger(data.score.teamB)) {
+          fail('INVALID_SCORE', 'Marcador inválido para resolver la disputa');
+        }
+        if (!data.reason || typeof data.reason !== 'string' || !data.reason.trim()) {
+          fail('INVALID_DATA', 'Debes incluir el motivo de resolución arbitral');
+        }
+        const outcome = outcomeFromScore(data.score);
+        const fin = db.finalizeCompetitionMatch(match, outcome, data.score, actorId, 'admin', data.reason.trim());
+        value.status = 'FINISHED';
+        value.finalScore = structuredClone(data.score);
+        value.outcome = outcome;
+        value.resolvedBy = actorId;
+        value.resolutionReason = data.reason.trim();
+        value.ratingUpdates = structuredClone(fin.ratingUpdates);
+        value.finishedAt = match.finishedAt;
       } else if (command === 'cancel') {
-        if (value.hostUserId !== actorId) fail('FORBIDDEN', 'Solo el anfitrión puede cancelar', 403);
-        value.status = 'CANCELLED'; value.cancelledBy = actorId; value.cancelReason = data.reason.trim();
+        if (actor.role === 'admin') {
+          value.status = 'CANCELLED';
+          value.cancelledBy = actorId;
+          value.cancelReason = (data.reason || 'Cancelado por SuperAdmin').trim();
+          if (value.matchId) {
+            const match = db.competitionMatches.get(value.matchId);
+            if (match) {
+              match.status = 'CANCELLED';
+              match.cancelledBy = actorId;
+              match.cancelReason = value.cancelReason;
+              match.revision++;
+              db._persistCompetitionMatch(match);
+            }
+          }
+        } else {
+          if (value.hostUserId !== actorId) fail('FORBIDDEN', 'Solo el anfitrión puede cancelar', 403);
+          value.status = 'CANCELLED';
+          value.cancelledBy = actorId;
+          value.cancelReason = data.reason.trim();
+        }
       } else if (['transferHost', 'transferCaptain'].includes(command)) {
         const team = value.teamA.some(user => user.id === actorId) ? 'teamA' : 'teamB';
         if (command === 'transferHost') {
@@ -270,7 +309,26 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
     if (result.data.status === 'RESULT_PENDING' && result.data.report) {
       competitionEvents.emit('scoreReported', { competitionId: result.competitionId, matchId: result.data.matchId, report: result.data.report, revision: result.revision });
     } else if (result.data.status === 'FINISHED' && result.data.finalScore) {
-      competitionEvents.emit('scoreConfirmed', { competitionId: result.competitionId, matchId: result.data.matchId, finalScore: result.data.finalScore, outcome: result.data.outcome, revision: result.revision });
+      competitionEvents.emit('scoreConfirmed', {
+        competitionId: result.competitionId,
+        matchId: result.data.matchId,
+        finalScore: result.data.finalScore,
+        outcome: result.data.outcome,
+        ratingUpdates: result.data.ratingUpdates,
+        revision: result.revision
+      });
+      if (result.data.resolvedBy) {
+        competitionEvents.emit('disputeResolved', {
+          competitionId: result.competitionId,
+          matchId: result.data.matchId,
+          resolvedBy: result.data.resolvedBy,
+          resolutionReason: result.data.resolutionReason,
+          finalScore: result.data.finalScore,
+          outcome: result.data.outcome,
+          ratingUpdates: result.data.ratingUpdates,
+          revision: result.revision
+        });
+      }
     } else if (result.data.status === 'DISPUTED' && result.data.dispute) {
       competitionEvents.emit('scoreDisputed', { competitionId: result.competitionId, matchId: result.data.matchId, dispute: result.data.dispute, revision: result.revision });
     }
@@ -280,6 +338,11 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
 
 export const competitionRouter = Router();
 competitionRouter.use(competitionChatRouter);
+competitionRouter.get('/admin/disputes', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso restringido al SuperAdmin' });
+  const disputed = [...db.competitions.values()].filter(c => c.status === 'DISPUTED');
+  res.json({ disputes: disputed.map(room => structuredClone(room)) });
+});
 competitionRouter.get('/', (req, res) => {
   let rooms = [...db.competitions.values()].filter(room => ['OPEN', 'FULL'].includes(room.status) && Date.parse(room.scheduledAt) > Date.now());
   if (req.query.districtId) rooms = rooms.filter(room => room.venue.districtId === req.query.districtId);
