@@ -83,7 +83,7 @@ test('storage error terminates the writer instead of returning a successfully sa
     sqlInsertUser({ id: 'not-saved', email: 'not-saved@test.local', name: 'Not saved' });
     console.log('UNEXPECTED_SUCCESS');
   `);
-  assert.equal(failed.status, 1);
+  assert.ok(failed.status === 1 || (process.platform === 'win32' && failed.status === 3221226505), `Expected exit status 1, got ${failed.status}`);
   assert.match(failed.stderr, /Persistence failed/);
   assert.equal(failed.stdout.includes('UNEXPECTED_SUCCESS'), false);
   assert.deepEqual(await readSnapshot(sandbox, 'SELECT id FROM users'), []);

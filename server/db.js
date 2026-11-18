@@ -466,7 +466,8 @@ class Database {
 
     // Limpieza periódica de vestuarios y salas obsoletas (Garbage Collector automático)
     this.purgeOldLobbies(6);
-    setInterval(() => this.purgeOldLobbies(6), 30 * 60 * 1000);
+    this._purgeInterval = setInterval(() => this.purgeOldLobbies(6), 30 * 60 * 1000);
+    if (this._purgeInterval.unref) this._purgeInterval.unref();
   }
 
   /**

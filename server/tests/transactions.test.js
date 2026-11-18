@@ -7,7 +7,7 @@ import { fixtures } from './access-fixture.js';
 import { PROJECT_ROOT } from '../config.js';
 
 function run(sandbox, code) {
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', `${code}\nprocess.exit(0);`], {
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
     cwd: PROJECT_ROOT, env: sandbox.env, encoding: 'utf8', timeout: 20000,
   });
   assert.equal(result.status, 0, result.stderr);

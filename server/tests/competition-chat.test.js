@@ -9,7 +9,7 @@ import { PROJECT_ROOT } from '../config.js';
 import { createSandbox, startTestServer, request, readSnapshot } from './helpers.js';
 
 function script(sandbox, source) {
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', source + '\nprocess.exit(0);'],
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', source],
     { cwd: PROJECT_ROOT, env: sandbox.env, encoding: 'utf8', timeout: 20000 });
   assert.equal(result.status, 0, result.stderr);
 }
