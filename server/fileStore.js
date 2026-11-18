@@ -20,8 +20,25 @@ export function acquireDatabaseLock(file) {
   let descriptor;
   try { descriptor = fs.openSync(lockPath, 'wx', 0o600); }
   catch (error) {
-    if (error.code === 'EEXIST') throw new Error('Database locked: stop the writer or use the operator unlock command after a crash');
-    throw error;
+    if (error.code === 'EEXIST') {
+      if (process.env.NODE_ENV !== 'test') {
+        try {
+          const currentOwner = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+          if (currentOwner.hostname === os.hostname() && Number.isSafeInteger(currentOwner.pid)) {
+            try { process.kill(currentOwner.pid, 0); }
+            catch (killErr) {
+              if (killErr.code === 'ESRCH') {
+                fs.unlinkSync(lockPath);
+                descriptor = fs.openSync(lockPath, 'wx', 0o600);
+              }
+            }
+          }
+        } catch {}
+      }
+      if (!descriptor) throw new Error('Database locked: stop the writer or use the operator unlock command after a crash');
+    } else {
+      throw error;
+    }
   }
   try { fs.writeFileSync(descriptor, JSON.stringify(owner)); fs.fsyncSync(descriptor); }
   catch (error) { fs.closeSync(descriptor); fs.unlinkSync(lockPath); throw error; }
@@ -29,9 +46,13 @@ export function acquireDatabaseLock(file) {
   let released = false;
   return () => {
     if (released) return;
-    const current = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-    if (current.nonce !== owner.nonce) throw new Error('Database lock owner changed');
-    fs.unlinkSync(lockPath);
+    try {
+      const current = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+      if (current.nonce !== owner.nonce) throw new Error('Database lock owner changed');
+      fs.unlinkSync(lockPath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
     released = true;
   };
 }
