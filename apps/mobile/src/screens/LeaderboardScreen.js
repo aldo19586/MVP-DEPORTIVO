@@ -13,11 +13,34 @@ import * as Haptics from 'expo-haptics';
 import { api } from '../services/api';
 import { THEME } from '../theme';
 
+function getPlayerName(item) {
+  return item?.name || item?.user?.name || 'Jugador';
+}
+
+function getPlayerFirstName(item) {
+  const name = getPlayerName(item);
+  return (name || '').trim().split(' ')[0] || 'Jugador';
+}
+
+function getPlayerAvatar(item) {
+  return item?.avatar || item?.user?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(getPlayerFirstName(item))}`;
+}
+
+function getPlayerElo(item) {
+  return Math.round(item?.elo || item?.rating || item?.user?.ratingOverall || 1500);
+}
+
+function getPlayerDistrict(item) {
+  return item?.district || item?.user?.district || 'Lima';
+}
+
 export default function LeaderboardScreen({ currentUser, onBack }) {
   const [selectedSport, setSelectedSport] = useState('futbol');
   const [selectedFormat, setSelectedFormat] = useState('5v5');
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const formats = ['5v5', '6v6', '7v7', '1v1'];
 
   useEffect(() => {
     let active = true;
@@ -66,21 +89,30 @@ export default function LeaderboardScreen({ currentUser, onBack }) {
           </View>
         </View>
         <View style={styles.seasonBadge}>
-          <Text style={styles.seasonText}>OFICIAL</Text>
+          <Text style={styles.seasonText}>GLICKO-2 OFICIAL</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Filter Pills */}
+        {/* Filter Pills por Formato */}
         <View style={styles.filterRow}>
-          <TouchableOpacity
-            style={[styles.filterChip, selectedSport === 'futbol' && styles.filterChipActive]}
-            onPress={() => setSelectedSport('futbol')}
-          >
-            <Text style={[styles.filterChipText, selectedSport === 'futbol' && styles.filterChipTextActive]}>
-              ⚽ Fútbol
-            </Text>
-          </TouchableOpacity>
+          {formats.map((fmt) => {
+            const isActive = selectedFormat === fmt;
+            return (
+              <TouchableOpacity
+                key={fmt}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                onPress={() => {
+                  try { Haptics.selectionAsync(); } catch (e) {}
+                  setSelectedFormat(fmt);
+                }}
+              >
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  ⚽ Fútbol {fmt}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {loading ? (
@@ -93,9 +125,9 @@ export default function LeaderboardScreen({ currentUser, onBack }) {
         ) : leaders.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🏆</Text>
-            <Text style={styles.emptyTitle}>Sin jugadores clasificados</Text>
+            <Text style={styles.emptyTitle}>Sin jugadores clasificados en {selectedFormat}</Text>
             <Text style={styles.emptyText}>
-              Aún no hay suficientes jugadores clasificados en esta modalidad. Completa partidos oficiales para liderar la tabla.
+              Aún no hay suficientes jugadores clasificados en la modalidad {selectedFormat}. Completa partidos oficiales para liderar la tabla de tu distrito.
             </Text>
             {onBack && (
               <TouchableOpacity style={styles.emptyBtn} onPress={onBack}>
@@ -113,11 +145,11 @@ export default function LeaderboardScreen({ currentUser, onBack }) {
                   <View style={styles.podiumCol2}>
                     <View style={styles.avatarCrownWrap}>
                       <Text style={styles.silverCrown}>🥈</Text>
-                      <Image source={{ uri: top2.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(top2.name)}` }} style={styles.podiumAvatar} />
+                      <Image source={{ uri: getPlayerAvatar(top2) }} style={styles.podiumAvatar} />
                       <View style={styles.silverBadge}><Text style={styles.badgeRankNum}>2</Text></View>
                     </View>
-                    <Text style={styles.podiumName} numberOfLines={1}>{top2.name.split(' ')[0]}</Text>
-                    <Text style={styles.podiumElo}>{top2.elo || top2.rating || 1500} Elo</Text>
+                    <Text style={styles.podiumName} numberOfLines={1}>{getPlayerFirstName(top2)}</Text>
+                    <Text style={styles.podiumElo}>{getPlayerElo(top2)} Elo</Text>
                     <View style={styles.podiumStep2} />
                   </View>
                 )}
@@ -126,11 +158,11 @@ export default function LeaderboardScreen({ currentUser, onBack }) {
                 <View style={styles.podiumCol1}>
                   <View style={styles.avatarCrownWrap}>
                     <Text style={styles.goldCrown}>👑</Text>
-                    <Image source={{ uri: top1.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(top1.name)}` }} style={[styles.podiumAvatar, styles.avatarGold]} />
+                    <Image source={{ uri: getPlayerAvatar(top1) }} style={[styles.podiumAvatar, styles.avatarGold]} />
                     <View style={styles.goldBadge}><Text style={styles.badgeRankNum}>1</Text></View>
                   </View>
-                  <Text style={styles.podiumNameGold} numberOfLines={1}>{top1.name.split(' ')[0]}</Text>
-                  <Text style={styles.podiumEloGold}>{top1.elo || top1.rating || 1600} Elo</Text>
+                  <Text style={styles.podiumNameGold} numberOfLines={1}>{getPlayerFirstName(top1)}</Text>
+                  <Text style={styles.podiumEloGold}>{getPlayerElo(top1)} Elo</Text>
                   <View style={styles.podiumStep1} />
                 </View>
 
@@ -139,11 +171,11 @@ export default function LeaderboardScreen({ currentUser, onBack }) {
                   <View style={styles.podiumCol3}>
                     <View style={styles.avatarCrownWrap}>
                       <Text style={styles.bronzeCrown}>🥉</Text>
-                      <Image source={{ uri: top3.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(top3.name)}` }} style={styles.podiumAvatar} />
+                      <Image source={{ uri: getPlayerAvatar(top3) }} style={styles.podiumAvatar} />
                       <View style={styles.bronzeBadge}><Text style={styles.badgeRankNum}>3</Text></View>
                     </View>
-                    <Text style={styles.podiumName} numberOfLines={1}>{top3.name.split(' ')[0]}</Text>
-                    <Text style={styles.podiumElo}>{top3.elo || top3.rating || 1450} Elo</Text>
+                    <Text style={styles.podiumName} numberOfLines={1}>{getPlayerFirstName(top3)}</Text>
+                    <Text style={styles.podiumElo}>{getPlayerElo(top3)} Elo</Text>
                     <View style={styles.podiumStep3} />
                   </View>
                 )}
@@ -152,19 +184,27 @@ export default function LeaderboardScreen({ currentUser, onBack }) {
 
             {/* Full Table List */}
             <View style={styles.tableCard}>
-              <Text style={styles.tableHeader}>CLASIFICACIÓN GENERAL</Text>
+              <Text style={styles.tableHeader}>CLASIFICACIÓN GENERAL ({selectedFormat})</Text>
               {leaders.map((item, index) => {
-                const isUser = currentUser?.id === item.id;
+                const itemId = item.id || item.user?.id;
+                const isUser = currentUser && (currentUser.id === itemId);
+                const name = getPlayerName(item);
+                const avatar = getPlayerAvatar(item);
+                const district = getPlayerDistrict(item);
+                const elo = getPlayerElo(item);
+                const rankNum = item.rank || index + 1;
+                const wins = item.wins || 0;
+
                 return (
-                  <View key={item.id || index} style={[styles.tableRow, isUser && styles.tableRowMe]}>
-                    <Text style={styles.rankCol}>#{item.rank || index + 1}</Text>
-                    <Image source={{ uri: item.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.name)}` }} style={styles.tableAvatar} />
+                  <View key={itemId || index} style={[styles.tableRow, isUser && styles.tableRowMe]}>
+                    <Text style={styles.rankCol}>#{rankNum}</Text>
+                    <Image source={{ uri: avatar }} style={styles.tableAvatar} />
                     <View style={styles.nameCol}>
-                      <Text style={[styles.tableName, isUser && styles.tableNameMe]}>{item.name}</Text>
-                      <Text style={styles.tableSub}>{item.district || 'Lima'} • {item.wins || 0}W</Text>
+                      <Text style={[styles.tableName, isUser && styles.tableNameMe]}>{name}</Text>
+                      <Text style={styles.tableSub}>{district} • {wins}W</Text>
                     </View>
                     <View style={styles.eloCol}>
-                      <Text style={styles.tableElo}>{item.elo || item.rating || 1500}</Text>
+                      <Text style={styles.tableElo}>{elo}</Text>
                       {item.streak ? <Text style={styles.tableStreak}>{item.streak}</Text> : null}
                     </View>
                   </View>

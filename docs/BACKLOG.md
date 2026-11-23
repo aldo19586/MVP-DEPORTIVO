@@ -291,6 +291,24 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Compilación de `apps/admin-web` (`npm run build:admin`) y exportación nativa de Hermes aprobada para iOS (`npm run build:mobile`) y Android (`npm run build:mobile:android`).
 - **Siguiente tarea prioritaria en el Backlog: MS-16** (Ensayo y piloto privado).
 
+### Evidencia Corrección Móvil: Notificaciones, Ranking y BottomBar 4 Pestañas — 22 de noviembre de 2026
+
+- **Problema corregido:**
+  1. En `LeaderboardScreen.js`, acceso sin validar `top1.name.split(' ')` provocaba `TypeError: Cannot read property 'split' of undefined` al abrir el trofeo o la tabla de posiciones.
+  2. En `NotificationsScreen.js`, `new Date(item.time).toLocaleTimeString('es-PE')` causaba `RangeError: Invalid time value` al procesar formatos de texto o fechas sin parsear. Adicionalmente, faltaba manejo de rechazo en `notificationService.getLastNotificationResponseAsync()`.
+  3. La barra de navegación inferior (`BottomNavBar`) solo tenía 3 pestañas (`JUGAR`, `MIS PARTIDOS`, `PERFIL`).
+- **Cambios realizados:**
+  1. `apps/mobile/src/components/BottomNavBar.js`: reestructurado a 4 pestañas con iconos e indicadores activos: **JUGAR (⚽)**, **SALAS (🏟️)**, **RANKING (🏆)** y **PERFIL (👤)**.
+  2. `apps/mobile/App.js`: soporte de 4 pestañas en `activeTab`, renderizado de `LeaderboardScreen` en la pestaña `RANKING`, vinculación del trofeo del header y del enlace de perfil a la pestaña de ranking, y acceso directo a convocatorias del jugador en `SALAS`.
+  3. `apps/mobile/src/screens/LeaderboardScreen.js`: normalización defensiva con helpers `getPlayerName`, `getPlayerFirstName`, `getPlayerAvatar`, `getPlayerElo` y `getPlayerDistrict`, selector de modalidades (5v5, 6v6, 7v7, 1v1), y botón volver contextual.
+  4. `server/server.js`: enriquecimiento de `/api/leaderboard/:sportId/:formatId` aplanando `id`, `name`, `avatar`, `district`, `elo` y `rank` junto al DTO público de usuario.
+  5. `apps/mobile/src/screens/NotificationsScreen.js` y `notificationService.js`: formateo seguro de fechas `formatNotificationTime`, captura de promesas asíncronas en listeners y botón interactivo para disparar notificaciones locales de prueba en el dispositivo.
+- **Pruebas ejecutadas:**
+  - Suite de servidor: 105 pruebas pasadas (0 fallos).
+  - Admin Web: `vite build` completado con éxito en 4.42s (código 0).
+  - Mobile Android: `expo export --platform android` empaquetado con éxito (Hermes bytecode 2.2MB, código 0).
+  - Mobile iOS: `expo export --platform ios` empaquetado con éxito (Hermes bytecode 2.2MB, código 0).
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.

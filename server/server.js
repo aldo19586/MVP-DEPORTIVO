@@ -411,7 +411,27 @@ app.get('/api/admin/matches', (req, res) => {
 app.get('/api/leaderboard/:sportId/:formatId', (req, res) => {
   const { sportId, formatId } = req.params;
   const leaderboard = db.getLeaderboard(sportId, formatId);
-  res.json({ leaderboard: leaderboard.map(entry => ({ ...entry, user: toPublicUser(entry.user) })) });
+  res.json({
+    leaderboard: leaderboard.map((entry, index) => {
+      const pubUser = toPublicUser(entry.user);
+      return {
+        id: pubUser?.id || entry.user?.id,
+        rank: index + 1,
+        name: pubUser?.name || entry.user?.name || 'Jugador',
+        avatar: pubUser?.avatar || entry.user?.avatar,
+        district: pubUser?.district || entry.user?.district || 'Lima',
+        position: pubUser?.position || entry.user?.position || 'DEL',
+        elo: Math.round(entry.rating || entry.user?.ratingOverall || 1500),
+        rating: Math.round(entry.rating || entry.user?.ratingOverall || 1500),
+        wins: entry.wins || 0,
+        losses: entry.losses || 0,
+        matchesPlayed: entry.matchesPlayed || 0,
+        ovr: entry.ovr || entry.user?.futStats?.ovr || 75,
+        futStats: entry.futStats || entry.user?.futStats,
+        user: pubUser
+      };
+    })
+  });
 });
 
 // Cuestionarios por Deporte

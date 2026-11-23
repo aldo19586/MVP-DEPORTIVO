@@ -78,6 +78,7 @@ export const notificationService = {
       if (Platform.OS === 'android') {
         await this.setupAndroidChannel();
       }
+      if (!Notifications || !Notifications.scheduleNotificationAsync) return false;
       await Notifications.scheduleNotificationAsync({
         content: {
           title,
@@ -88,14 +89,17 @@ export const notificationService = {
         },
         trigger: null, // Entrega inmediata
       });
+      return true;
     } catch (e) {
       console.log('[NOTIFICATIONS] No se pudo programar notificación local:', e.message);
+      return false;
     }
   },
 
   addNotificationResponseReceivedListener(listener) {
     try {
-      return Notifications.addNotificationResponseReceivedListener(listener);
+      if (!Notifications || !Notifications.addNotificationResponseReceivedListener) return { remove: () => {} };
+      return Notifications.addNotificationResponseReceivedListener(listener) || { remove: () => {} };
     } catch (e) {
       console.log('[NOTIFICATIONS] Listener de respuesta no disponible:', e.message);
       return { remove: () => {} };
@@ -104,7 +108,8 @@ export const notificationService = {
 
   async getLastNotificationResponseAsync() {
     try {
-      return await Notifications.getLastNotificationResponseAsync();
+      if (!Notifications || !Notifications.getLastNotificationResponseAsync) return null;
+      return await Notifications.getLastNotificationResponseAsync().catch(() => null);
     } catch (e) {
       console.log('[NOTIFICATIONS] Error leyendo última respuesta de notificación:', e.message);
       return null;

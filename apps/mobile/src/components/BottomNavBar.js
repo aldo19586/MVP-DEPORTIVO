@@ -13,11 +13,12 @@ export default function BottomNavBar({ activeTab, onSelectTab, openRoomsCount = 
     onSelectTab(tabKey);
   };
 
-  const normalizedActiveTab = activeTab === 'SALAS' ? 'MIS_PARTIDOS' : activeTab;
+  const normalizedActiveTab = (activeTab === 'MIS_PARTIDOS') ? 'SALAS' : activeTab;
 
   const tabs = [
     { key: 'JUGAR', label: 'JUGAR', icon: '⚽' },
-    { key: 'MIS_PARTIDOS', label: 'MIS PARTIDOS', icon: '🏟️', badge: openRoomsCount > 0 ? openRoomsCount : null },
+    { key: 'SALAS', label: 'SALAS', icon: '🏟️', badge: openRoomsCount > 0 ? openRoomsCount : null },
+    { key: 'RANKING', label: 'RANKING', icon: '🏆' },
     { key: 'PERFIL', label: 'PERFIL', icon: '👤' },
   ];
 

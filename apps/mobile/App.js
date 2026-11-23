@@ -38,8 +38,8 @@ export default function App() {
   // Flujo Auth
   const [authScreen, setAuthScreen] = useState('SPLASH'); // 'SPLASH' | 'LOGIN' | 'REGISTER'
   
-  // Pestañas Principales (3 Destinos: Jugar · Mis partidos · Perfil - MS-11)
-  const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'MIS_PARTIDOS' | 'PERFIL'
+  // Pestañas Principales (4 Destinos: Jugar · Salas · Ranking · Perfil)
+  const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'SALAS' | 'RANKING' | 'PERFIL'
   
   // Sub-pantallas Nativas (Navegación Stack sin modales, con accesos secundarios)
   const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'LEADERBOARD' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE' | 'BIOMETRICS' | 'FOOTBALL_TEST'
@@ -619,7 +619,10 @@ export default function App() {
             accessibilityRole="button"
             accessibilityLabel="Ver Tabla de Posiciones y Ranking"
             style={styles.headerIconButton}
-            onPress={() => setActiveSubScreen('LEADERBOARD')}
+            onPress={() => {
+              setActiveSubScreen(null);
+              setActiveTab('RANKING');
+            }}
           >
             <Text style={styles.headerIconText}>🏆</Text>
           </Pressable>
@@ -651,9 +654,9 @@ export default function App() {
           />
         )}
 
-        {(activeTab === 'MIS_PARTIDOS' || activeTab === 'SALAS') && (
+        {(activeTab === 'SALAS' || activeTab === 'MIS_PARTIDOS') && (
           <CompetitionScreen
-            key="MIS_PARTIDOS"
+            key="SALAS"
             user={currentUser}
             mine={true}
             initialCompetitionId={targetCompetitionId}
@@ -666,20 +669,33 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'RANKING' && (
+          <LeaderboardScreen
+            key="RANKING"
+            currentUser={currentUser}
+          />
+        )}
+
         {activeTab === 'PERFIL' && (
           <ProfileScreen
             user={currentUser}
             onLogout={handleLogout}
-            onOpenLeaderboard={() => setActiveSubScreen('LEADERBOARD')}
+            onOpenLeaderboard={() => {
+              setActiveSubScreen(null);
+              setActiveTab('RANKING');
+            }}
             onNavigateToPlay={() => setActiveTab('JUGAR')}
           />
         )}
       </View>
 
-      {/* Persistent Bottom Bar (3 Destinos Principales) */}
+      {/* Persistent Bottom Bar (4 Destinos: Jugar · Salas · Ranking · Perfil) */}
       <BottomNavBar
-        activeTab={activeTab === 'SALAS' ? 'MIS_PARTIDOS' : activeTab}
-        onSelectTab={setActiveTab}
+        activeTab={activeTab}
+        onSelectTab={(tab) => {
+          setActiveSubScreen(null);
+          setActiveTab(tab);
+        }}
         openRoomsCount={0}
       />
     </SafeAreaView>

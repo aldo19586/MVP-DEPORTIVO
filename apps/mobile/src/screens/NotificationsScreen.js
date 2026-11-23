@@ -11,7 +11,24 @@ import {
 import * as Haptics from 'expo-haptics';
 import { socketService } from '../services/socket';
 import { storage } from '../services/storage';
+import { notificationService } from '../services/notificationService';
 import { THEME } from '../theme';
+
+function formatNotificationTime(time) {
+  if (!time) return '';
+  if (typeof time === 'string' && (time.includes('AM') || time.includes('PM') || (time.includes(':') && !time.includes('T')))) {
+    return time;
+  }
+  try {
+    const d = new Date(time);
+    if (isNaN(d.getTime())) return String(time);
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  } catch (e) {
+    return String(time || '');
+  }
+}
 
 export default function NotificationsScreen({
   user,
@@ -56,7 +73,7 @@ export default function NotificationsScreen({
               onOpenCompetition({ competitionId: item.data.competitionId, code: item.code });
             } else if (onEnterLobby) {
               onEnterLobby({ code: item.code });
-            } else {
+            } else if (onBack) {
               onBack();
             }
           }
@@ -71,6 +88,38 @@ export default function NotificationsScreen({
     } catch (e) {}
     const updated = await storage.markAllNotificationsRead();
     setNotifications(updated || []);
+  };
+
+  const handleClearAll = async () => {
+    try {
+      Haptics.selectionAsync();
+    } catch (e) {}
+    await storage.saveNotifications([]);
+    setNotifications([]);
+  };
+
+  const handleSendTestNotification = async () => {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {}
+
+    await notificationService.scheduleLocalNotification({
+      title: '¡Aviso MatchSport! ⚽',
+      body: 'Tus notificaciones están funcionando perfectamente en este celular.',
+      data: { type: 'TEST' }
+    });
+
+    const newNotif = {
+      id: `test_${Date.now()}`,
+      type: 'SYSTEM',
+      title: '¡Notificación de Prueba Recibida! 🔔',
+      body: 'Tu celular está configurado para recibir avisos de partidos, convocatorias y bolsa de suplentes.',
+      time: new Date().toISOString(),
+      unread: true
+    };
+    const updated = await storage.addNotification(newNotif);
+    setNotifications(updated || []);
+    Alert.alert('¡Alerta enviada!', 'Se ha programado la notificación de prueba local. Revisa el centro de notificaciones de tu teléfono.');
   };
 
   const handlePressNotification = (item) => {
@@ -96,23 +145,31 @@ export default function NotificationsScreen({
     <SafeAreaView style={styles.container}>
       {/* Top Header con botón volver nativo */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
+        {onBack ? (
+          <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7} accessibilityLabel="Volver">
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 38 }} />
+        )}
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>NOTIFICACIONES</Text>
           <Text style={styles.headerSubtitle}>Avisos y Bolsa de Suplentes</Text>
         </View>
 
-        <TouchableOpacity style={styles.readAllBtn} onPress={markAllRead} activeOpacity={0.7}>
-          <Text style={styles.readAllText}>Leídas</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {notifications.length > 0 && (
+            <TouchableOpacity style={styles.readAllBtn} onPress={markAllRead} activeOpacity={0.7}>
+              <Text style={styles.readAllText}>Leídas</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Banner de Estado de Permisos Denegados (V-15 / V-18) */}
-        {permissionStatus === 'denied' && (
+        {/* Banner de Estado de Permisos */}
+        {permissionStatus === 'denied' ? (
           <View style={styles.deniedBanner}>
             <View style={styles.deniedBannerContent}>
               <Text style={styles.deniedBannerTitle}>⚠️ Notificaciones Desactivadas</Text>
@@ -130,6 +187,20 @@ export default function NotificationsScreen({
               </TouchableOpacity>
             )}
           </View>
+        ) : (
+          <View style={styles.testBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.testBannerTitle}>🔔 Notificaciones Activas</Text>
+              <Text style={styles.testBannerText}>Presiona el botón para verificar el sonido y aviso en tu teléfono.</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.testActionBtn}
+              onPress={handleSendTestNotification}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.testActionText}>Probar</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {notifications.length === 0 ? (
@@ -139,9 +210,12 @@ export default function NotificationsScreen({
             <Text style={styles.emptyText}>
               Aquí recibirás avisos en tiempo real sobre confirmaciones de partido, reportes de marcador y convocatorias.
             </Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={handleSendTestNotification}>
+              <Text style={styles.emptyBtnText}>Enviar Notificación de Prueba</Text>
+            </TouchableOpacity>
             {onBack && (
-              <TouchableOpacity style={styles.emptyBtn} onPress={onBack}>
-                <Text style={styles.emptyBtnText}>Volver</Text>
+              <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: THEME.colors.cardElevated, marginTop: 4 }]} onPress={onBack}>
+                <Text style={[styles.emptyBtnText, { color: THEME.colors.textPrimary }]}>Volver</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -172,7 +246,7 @@ export default function NotificationsScreen({
                       </View>
 
                       {item.venue && <Text style={styles.suplenteVenue}>📍 {item.venue} • {item.sport || 'Fútbol'}</Text>}
-                      {item.time && <Text style={styles.suplenteTime}>⏰ {item.time}</Text>}
+                      {item.time && <Text style={styles.suplenteTime}>⏰ {formatNotificationTime(item.time)}</Text>}
 
                       <View style={styles.suplenteMissingBox}>
                         <Text style={styles.suplenteMissingText}>⚠️ {item.missing || 'Falta 1 jugador para completar la sala'}</Text>
@@ -194,7 +268,12 @@ export default function NotificationsScreen({
             {/* Sección de Avisos y Notificaciones del Sistema */}
             {notifications.some((n) => n.type !== 'SUPLENTE_URGENTE') && (
               <>
-                <Text style={[styles.sectionHeaderTitle, { marginTop: 14 }]}>AVISOS Y COMPETICIÓN</Text>
+                <View style={[styles.sectionHeaderRow, { marginTop: 14 }]}>
+                  <Text style={styles.sectionHeaderTitle}>AVISOS Y COMPETICIÓN</Text>
+                  <TouchableOpacity onPress={handleClearAll}>
+                    <Text style={{ fontSize: 10, color: THEME.colors.textMuted, fontWeight: '700' }}>Borrar todo</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {notifications
                   .filter((n) => n.type !== 'SUPLENTE_URGENTE')
@@ -213,7 +292,7 @@ export default function NotificationsScreen({
                             {item.title}
                           </Text>
                           <Text style={styles.notifTime}>
-                            {item.time ? new Date(item.time).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            {formatNotificationTime(item.time)}
                           </Text>
                         </View>
                         <Text style={styles.notifBody}>{item.body}</Text>
@@ -329,6 +408,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  testBanner: {
+    backgroundColor: 'rgba(0, 230, 118, 0.08)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+    borderRadius: THEME.radius.md,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 4,
+  },
+  testBannerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.primary,
+  },
+  testBannerText: {
+    fontSize: 11,
+    color: THEME.colors.textSecondary,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  testActionBtn: {
+    backgroundColor: THEME.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  testActionText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#00210B',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
