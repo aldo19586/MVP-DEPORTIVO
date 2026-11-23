@@ -309,6 +309,20 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Mobile Android: `expo export --platform android` empaquetado con éxito (Hermes bytecode 2.2MB, código 0).
   - Mobile iOS: `expo export --platform ios` empaquetado con éxito (Hermes bytecode 2.2MB, código 0).
 
+### Evidencia Algoritmo de Matchmaking en Jugar y Gestión de Convocatorias en Salas — 22 de noviembre de 2026
+
+- **Requerimiento cumplido:**
+  1. Integración del algoritmo de emparejamiento automático (`RadarScreen`) en la pestaña **JUGAR (⚽)**: radar con barrido animado de 360°, pulso concéntrico, detección de jugadores activos en tiempo real vía sockets, selección de modalidades (1v1 a 11v11), radio en km, distrito y disparo de cola (`startQueue`) conectado al motor `MatchmakingEngine` con prompt MOBA de 20 segundos (`matchPromptAcceptance`).
+  2. Traslado y potenciación de la gestión y creación de salas a la pestaña **SALAS (🏟️)**: `CompetitionScreen` aloja la vista completa de convocatorias públicas, creación de convocatorias con fecha/hora/cancha/distrito, ingreso con código de 8 caracteres, filtros y nuevo selector de sub-pestañas: `TODAS LAS SALAS` vs `MIS CONVOCATORIAS`.
+- **Cambios realizados:**
+  - `apps/mobile/App.js`: importación de `RadarScreen`, montaje en `activeTab === 'JUGAR'` y montaje de `CompetitionScreen` en `activeTab === 'SALAS'`.
+  - `apps/mobile/src/screens/RadarScreen.js`: subheader integrado `RADAR GLICKO-2 / EMPAREJAMIENTO AUTOMÁTICO` con píldora de jugadores activos, validación robusta de onboarding sin bloqueos espurios.
+  - `apps/mobile/src/screens/CompetitionScreen.js`: estado `filterMine` con selector de sub-pestañas `TODAS LAS SALAS` vs `MIS CONVOCATORIAS`, encabezados actualizados y retención de filtros.
+- **Pruebas ejecutadas:**
+  - Suite de servidor: 105 pruebas aprobadas al 100% (0 fallos).
+  - Mobile Android: `expo export --platform android` empaquetado exitoso (código 0).
+  - Mobile iOS: `expo export --platform ios` empaquetado exitoso (código 0).
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.

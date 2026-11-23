@@ -94,6 +94,7 @@ export default function CompetitionScreen({
   const [showFilters, setShowFilters] = useState(false);
   const [filterFormat, setFilterFormat] = useState('all');
   const [filterDistrict, setFilterDistrict] = useState(null);
+  const [filterMine, setFilterMine] = useState(mine);
 
   // Reporte de resultados / disputa
   const [scoreA, setScoreA] = useState('');
@@ -109,7 +110,7 @@ export default function CompetitionScreen({
     setError('');
     setLoading(true);
     try {
-      const result = mine
+      const result = filterMine
         ? await api.myCompetitions()
         : await api.competitions(filterDistrict ? { districtId: String(filterDistrict.id) } : {});
       if (mounted.current && version === loadVersion.current) {
@@ -135,7 +136,7 @@ export default function CompetitionScreen({
 
   useEffect(() => {
     refresh();
-  }, [mine, filterDistrict]);
+  }, [filterMine, filterDistrict]);
 
   useEffect(() => {
     if (!initialCompetitionId && !initialCode) return;
@@ -310,7 +311,7 @@ export default function CompetitionScreen({
       socket?.off('connect', changed);
       subscription.remove();
     };
-  }, [page, mine, filterDistrict]);
+  }, [page, filterMine, filterDistrict]);
 
   useEffect(() => {
     if (!room?.id) return;
@@ -459,9 +460,9 @@ export default function CompetitionScreen({
               ? 'Unirme por código'
               : page === 'filter'
               ? 'Elegir ubicación'
-              : mine
-              ? 'Mis Partidos'
-              : 'Partidos en Cancha'}
+              : filterMine
+              ? 'Mis Convocatorias'
+              : 'Salas de Convocatoria'}
           </Text>
         </View>
 
@@ -484,20 +485,42 @@ export default function CompetitionScreen({
         {busy && <ActivityIndicator color="#10b981" size="small" />}
 
         {/* ========================================================
-            VISTA LISTA: Jugar (Exploración) o Mis Partidos
+            VISTA LISTA: Todas las Salas o Mis Convocatorias
             ======================================================== */}
         {page === 'list' && (
           <>
-            {mine ? (
-              /* Header de Mis Partidos */
+            {/* Sub-tabs: Todas las Salas vs Mis Convocatorias */}
+            <View style={styles.salasTabRow}>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.salasTabBtn, !filterMine && styles.salasTabBtnActive]}
+                onPress={() => setFilterMine(false)}
+              >
+                <Text style={[styles.salasTabText, !filterMine && styles.salasTabTextActive]}>
+                  TODAS LAS SALAS
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.salasTabBtn, filterMine && styles.salasTabBtnActive]}
+                onPress={() => setFilterMine(true)}
+              >
+                <Text style={[styles.salasTabText, filterMine && styles.salasTabTextActive]}>
+                  MIS CONVOCATORIAS
+                </Text>
+              </Pressable>
+            </View>
+
+            {filterMine && (
               <View style={styles.mineHeaderBox}>
                 <Text style={styles.muted}>
                   Tus convocatorias e inscripciones activas se conservan aunque cierres la app.
                 </Text>
               </View>
-            ) : (
-              /* Barra de Control de Jugar */
-              <View style={styles.playControlBox}>
+            )}
+
+            {/* Barra de Control de Convocatorias (Crear, Código, Filtros) */}
+            <View style={styles.playControlBox}>
                 <View style={styles.districtStatusRow}>
                   <Text style={[styles.muted, { flex: 1 }]} numberOfLines={1}>
                     📍 {filterDistrict?.label || 'Todo Perú (Todas las canchas)'}
@@ -1472,6 +1495,34 @@ const styles = StyleSheet.create({
   },
   fieldContainer: {
     gap: 4
+  },
+  salasTabRow: {
+    flexDirection: 'row',
+    backgroundColor: '#161b22',
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)'
+  },
+  salasTabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9
+  },
+  salasTabBtnActive: {
+    backgroundColor: '#00E676'
+  },
+  salasTabText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#8292a8',
+    letterSpacing: 0.6
+  },
+  salasTabTextActive: {
+    color: '#00210B'
   },
   input: {
     color: '#fff',

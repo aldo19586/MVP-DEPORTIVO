@@ -237,7 +237,7 @@ export default function RadarScreen({
     } catch (e) {}
 
     // Gating obligatorio: Ficha biométrica y Test de Nivel completados
-    if (!user?.hasCompletedProfile || !user?.hasCompletedTest) {
+    if ((!user?.hasCompletedProfile && !(user?.district && user?.position)) || !user?.hasCompletedTest) {
       if (onRequireProfileSetup) {
         onRequireProfileSetup();
       } else if (onStartFootballTest) {
@@ -280,7 +280,7 @@ export default function RadarScreen({
     } catch (e) {}
 
     // Gating obligatorio: Ficha biométrica y Test de Nivel completados
-    if (!user?.hasCompletedProfile || !user?.hasCompletedTest) {
+    if ((!user?.hasCompletedProfile && !(user?.district && user?.position)) || !user?.hasCompletedTest) {
       if (onRequireProfileSetup) {
         onRequireProfileSetup();
       } else if (onStartFootballTest) {
@@ -316,8 +316,8 @@ export default function RadarScreen({
             <Text style={styles.shieldIcon}>⚽</Text>
           </View>
           <View>
-            <Text style={styles.topBrandSmall}>MATCHSPORT</Text>
-            <Text style={styles.topBrandTitle}>RADAR MATCH</Text>
+            <Text style={styles.topBrandSmall}>EMPAREJAMIENTO AUTOMÁTICO</Text>
+            <Text style={styles.topBrandTitle}>RADAR GLICKO-2</Text>
           </View>
         </View>
 

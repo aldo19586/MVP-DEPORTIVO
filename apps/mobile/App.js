@@ -11,6 +11,7 @@ import { THEME } from './src/theme';
 // Pantallas
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import RadarScreen from './src/screens/RadarScreen';
 import CompetitionScreen from './src/screens/CompetitionScreen';
 import LobbyRoomScreen from './src/screens/LobbyRoomScreen';
 import MatchAcceptanceScreen from './src/screens/MatchAcceptanceScreen';
@@ -640,17 +641,18 @@ export default function App() {
 
       <View style={styles.tabContent}>
         {activeTab === 'JUGAR' && (
-          <CompetitionScreen
-            key="JUGAR"
+          <RadarScreen
             user={currentUser}
-            mine={false}
-            initialCompetitionId={targetCompetitionId}
-            initialCode={targetCompetitionCode}
-            onClearInitialTarget={() => {
-              setTargetCompetitionId(null);
-              setTargetCompetitionCode(null);
-            }}
-            onNavigateToPlay={() => setActiveTab('JUGAR')}
+            radiusKm={currentRadius}
+            districtName={currentDistrict}
+            userLevel={userDeclaredLevel}
+            onNavigateToLobbies={() => setActiveTab('SALAS')}
+            onOpenNotifications={() => setActiveSubScreen('NOTIFICATIONS')}
+            onOpenCalibration={() => setActiveSubScreen('CALIBRATION')}
+            onOpenLocationSettings={() => setActiveSubScreen('LOCATION_SETTINGS')}
+            onOpenJoinCode={() => setActiveSubScreen('JOIN_CODE')}
+            onStartFootballTest={() => setActiveSubScreen('FOOTBALL_TEST')}
+            onRequireProfileSetup={() => setActiveSubScreen('BIOMETRICS')}
           />
         )}
 
@@ -658,7 +660,7 @@ export default function App() {
           <CompetitionScreen
             key="SALAS"
             user={currentUser}
-            mine={true}
+            mine={false}
             initialCompetitionId={targetCompetitionId}
             initialCode={targetCompetitionCode}
             onClearInitialTarget={() => {
