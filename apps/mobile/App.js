@@ -35,6 +35,7 @@ export default function App() {
   const [sessionError, setSessionError] = useState('');
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
+  const [skippedTest, setSkippedTest] = useState(false);
   
   // Flujo Auth
   const [authScreen, setAuthScreen] = useState('SPLASH'); // 'SPLASH' | 'LOGIN' | 'REGISTER'
@@ -59,6 +60,36 @@ export default function App() {
   const [targetCompetitionId, setTargetCompetitionId] = useState(null);
   const [targetCompetitionCode, setTargetCompetitionCode] = useState(null);
   const [pushPermissionStatus, setPushPermissionStatus] = useState('undetermined');
+
+  // Estado Global de Búsqueda de Partida (Situación en Cola Glicko-2)
+  const [queueState, setQueueState] = useState({
+    isSearching: false,
+    sportId: 'futbol',
+    formatId: '5v5',
+    district: 'SURCO, LIMA',
+    seconds: 0,
+  });
+
+  useEffect(() => {
+    let interval = null;
+    if (queueState.isSearching) {
+      interval = setInterval(() => {
+        setQueueState((prev) => (prev.isSearching ? { ...prev, seconds: prev.seconds + 1 } : prev));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [queueState.isSearching]);
+
+  const handleCancelGlobalQueue = () => {
+    const socket = socketService.getSocket();
+    if (socket && currentUser) {
+      socket.emit('cancelQueue', { userId: currentUser.id });
+    }
+    setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+    notificationService.dismissOngoingSearchNotification();
+  };
 
   const handleNotificationIntent = (data) => {
     if (!data) return;
@@ -153,9 +184,31 @@ export default function App() {
   const initSocketSession = (user) => {
     const socket = socketService.connect(user.id, user);
 
+    // Eventos de cola y emparejamiento (Situación en Vivo)
+    socket.on('queueStarted', (data) => {
+      setQueueState({
+        isSearching: true,
+        sportId: data?.challenge?.sportId || 'futbol',
+        formatId: data?.challenge?.formatId || '5v5',
+        district: data?.challenge?.district || currentDistrict,
+        seconds: 0,
+      });
+      notificationService.startOngoingSearchNotification({
+        format: data?.challenge?.formatId || '5v5',
+        district: data?.challenge?.district || currentDistrict,
+      });
+    });
+
+    socket.on('queueCancelled', () => {
+      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+      notificationService.dismissOngoingSearchNotification();
+    });
+
     // Pantalla de confirmación de 20s estilo MOBA
     socket.on('matchPromptAcceptance', async (data) => {
       console.log('[APP] ⚡ Desafío encontrado - Abriendo pantalla de 20s:', data);
+      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+      notificationService.dismissOngoingSearchNotification();
       setAcceptanceData(data);
 
       await notificationService.scheduleLocalNotification({
@@ -168,6 +221,8 @@ export default function App() {
     // Partido oficial iniciado
     socket.on('matchFound', (data) => {
       console.log('[APP] 🏟️ Partido iniciado oficial:', data.matchId);
+      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+      notificationService.dismissOngoingSearchNotification();
       setAcceptanceData(null);
       setSelectedLobby(null);
       setActiveMatch(data.match);
@@ -353,6 +408,7 @@ export default function App() {
         <SplashScreen
           onLoginPress={() => setAuthScreen('LOGIN')}
           onRegisterPress={() => setAuthScreen('REGISTER')}
+          onGuestPress={() => setAuthScreen('LOGIN')}
         />
       );
     }
@@ -366,25 +422,25 @@ export default function App() {
   }
 
   // ==========================================
-  // ONBOARDING CONTINUO OBLIGATORIO (MS-10 / D-02 / D-06 / V-05 / V-06)
-  // Cuenta -> Datos mínimos (distrito y posición) -> Test (14 preguntas) -> Carta Inicial
+  // ONBOARDING INICIAL: Ficha Biométrica obligatoria, Test de Nivel opcional (con botón X)
   // ==========================================
-  if (currentUser && !currentUser.hasCompletedTest) {
-    if (!currentUser.hasCompletedProfile || !currentUser.district || !currentUser.position) {
-      return (
-        <PlayerBiometricsScreen
-          user={currentUser}
-          onCompleteProfile={(updatedUser) => {
-            setCurrentUser(updatedUser);
-          }}
-          onCancel={handleLogout}
-        />
-      );
-    }
+  if (currentUser && (!currentUser.hasCompletedProfile || !currentUser.district || !currentUser.position)) {
+    return (
+      <PlayerBiometricsScreen
+        user={currentUser}
+        onCompleteProfile={(updatedUser) => {
+          setCurrentUser(updatedUser);
+        }}
+        onCancel={handleLogout}
+      />
+    );
+  }
 
+  if (currentUser && !currentUser.hasCompletedTest && !skippedTest) {
     return (
       <FootballLevelTestScreen
         user={currentUser}
+        onCancel={() => setSkippedTest(true)}
         onFinishTest={async () => {
           const updatedUser = await storage.getUserSession();
           if (updatedUser) setCurrentUser(updatedUser);
@@ -668,6 +724,7 @@ export default function App() {
               setTargetCompetitionCode(null);
             }}
             onNavigateToPlay={() => setActiveTab('JUGAR')}
+            onStartFootballTest={() => setActiveSubScreen('FOOTBALL_TEST')}
           />
         )}
 
@@ -691,6 +748,34 @@ export default function App() {
         )}
       </View>
 
+      {/* Barra de Situación Global Flotante (Sticky Queue Bar) */}
+      {queueState.isSearching && (
+        <View style={styles.stickyQueueBar}>
+          <TouchableOpacity
+            style={styles.stickyQueueContent}
+            onPress={() => {
+              setActiveSubScreen(null);
+              setActiveTab('JUGAR');
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={styles.stickyQueueDot} />
+            <Text style={styles.stickyQueueText} numberOfLines={1}>
+              BUSCANDO {queueState.formatId?.toUpperCase()} EN {queueState.district?.split(',')[0]?.toUpperCase()} ({Math.floor(queueState.seconds / 60).toString().padStart(2, '0')}:{(queueState.seconds % 60).toString().padStart(2, '0')})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.stickyQueueCancelBtn}
+            onPress={handleCancelGlobalQueue}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Cancelar búsqueda"
+          >
+            <Text style={styles.stickyQueueCancelText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Persistent Bottom Bar (4 Destinos: Jugar · Salas · Ranking · Perfil) */}
       <BottomNavBar
         activeTab={activeTab}
@@ -708,6 +793,54 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bgCanvas,
+  },
+  stickyQueueBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.surfaceContainer,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    shadowColor: THEME.colors.neonPitch,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  stickyQueueContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stickyQueueDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: THEME.colors.neonPitch,
+  },
+  stickyQueueText: {
+    color: '#F1FFEF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  stickyQueueCancelBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: THEME.colors.surfaceHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  stickyQueueCancelText: {
+    color: THEME.colors.coralError,
+    fontSize: 12,
+    fontWeight: '900',
   },
   topHeader: {
     flexDirection: 'row',

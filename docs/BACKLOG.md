@@ -337,6 +337,22 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Mobile iOS: `expo export --platform ios` aprobado (770 módulos, Hermes bytecode 2.2MB, código 0).
   - Mobile Android: `expo export --platform android` aprobado (778 módulos, Hermes bytecode 2.2MB, código 0).
 
+### Evidencia Rediseño Obsidian Pitch (Stitch) — Entrega 2: Onboarding (Splash, Biometrics, Test) y Situación Global en Cola — 23 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Unificación visual completa de la fase de entrada del jugador (`SplashScreen`, `PlayerBiometricsScreen`, `FootballLevelTestScreen`) bajo las maquetas de Google Stitch.
+  - Implementación de la **Situación Global en Cola (Sticky Queue Bar)** y soporte para **Notificación Persistente (Ongoing Notification)** sin costo de CPU/servidor.
+- **Cambios realizados:**
+  1. `apps/mobile/src/screens/SplashScreen.js`: rediseñado con atmósfera de estadio Obsidian Pitch, insignias `AMATEUR PRO CIRCUIT` + `HUD LIVE`, rotación continua de radar holográfico con brackets HUD esquineros, haz de luz y barra calibrada de progreso (`Iniciando sistema...` ➔ `¡Listo para jugar!`).
+  2. `apps/mobile/src/screens/PlayerBiometricsScreen.js` (Paso 1: Calibración Física): mini-cancha táctica interactiva con nodos (`DEL`, `MED`, `DEF`, `POR`) y variantes (`Extremo Izq`, `Pivote`, etc.), módulo de foto deportiva con dorsal `#10` (conectado a `expo-image-picker`), selectores de altura, peso, edad, distrito en Lima y pierna hábil (`DIESTRO` vs `ZURDO`), validando límites contra `POST /api/user/complete-profile`.
+  3. `apps/mobile/src/screens/FootballLevelTestScreen.js` (Paso 2: Calibración Táctica): cuestionario oficial de 14 preguntas con tarjetas tácticas multinivel (Tier Bronce, Plata, Oro, Élite), medidor OVR en vivo (`Base: XX`), mini-tarjeta de telemetría HUD con barras de RIT, PAS, FIS sincronizadas dinámicamente y cálculo determinista sin datos inventados. Al finalizar, renderiza la Carta FUT estimada con desglose porcentual.
+  4. `apps/mobile/src/services/notificationService.js`: métodos `startOngoingSearchNotification` y `dismissOngoingSearchNotification` que activan la notificación persistente nativa en la barra de Android/iOS con cronómetro de hardware mientras la app está minimizada.
+  5. `apps/mobile/App.js`: barra global flotante (`Sticky Queue Bar`) visible al navegar en cualquier pestaña (`SALAS`, `RANKING`, `PERFIL`) mientras se busca partido (`🟢 BUSCANDO 5v5 EN SURCO (00:43) · [✕]`), con redirección a `JUGAR` o cancelación inmediata sincronizada con `cancelQueue`.
+- **Pruebas ejecutadas:**
+  - Suite de servidor: 105 de 105 pruebas aprobadas al 100% (0 fallos).
+  - Mobile iOS: `expo export --platform ios` aprobado (774 módulos, Hermes bytecode 2.2MB, código 0).
+  - Mobile Android: `expo export --platform android` aprobado (782 módulos, Hermes bytecode 2.3MB, código 0).
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.

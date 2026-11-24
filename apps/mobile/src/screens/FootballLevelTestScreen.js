@@ -14,119 +14,118 @@ import { api } from '../services/api';
 import { storage } from '../services/storage';
 import { THEME } from '../theme';
 
-// Banco Oficial de Preguntas extraído de test-nivel-futbol-amateur.md
 const COMMON_QUESTIONS = [
   // FÍSICO (20%)
   {
     category: 'FÍSICO',
-    title: 'P1. Velocidad',
-    context: 'Piensa en una carrera de unos 30 metros:',
+    title: 'P1. Velocidad en Carrera',
+    context: 'Piensa en una carrera de unos 30 metros en cancha:',
     options: [
-      { letter: 'A', text: 'Casi siempre me alcanzan o llego de los últimos' },
-      { letter: 'B', text: 'Soy más lento que la mayoría de mi grupo' },
-      { letter: 'C', text: 'Estoy en el promedio de mi grupo' },
-      { letter: 'D', text: 'Soy de los más rápidos de mi grupo' },
-      { letter: 'E', text: 'Rara vez alguien me gana en velocidad, incluso en ligas' }
+      { letter: 'A', text: 'Casi siempre me alcanzan o llego de los últimos', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '🏃' },
+      { letter: 'B', text: 'Soy más lento que la mayoría de mi grupo', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '⚡' },
+      { letter: 'C', text: 'Estoy en el promedio de mi grupo', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Soy de los más rápidos de mi grupo', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Rara vez alguien me gana en velocidad, incluso en ligas', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
   {
     category: 'FÍSICO',
-    title: 'P2. Resistencia',
-    context: '¿Cómo llegas al final de un partido de 60 minutos?',
+    title: 'P2. Resistencia Aeróbica',
+    context: '¿Cómo llegas físicamente al final de un partido de 60 minutos?',
     options: [
-      { letter: 'A', text: 'Me canso a los 15 o 20 minutos' },
-      { letter: 'B', text: 'Aguanto media hora y luego camino bastante' },
-      { letter: 'C', text: 'Llego bien, aunque bajo el ritmo al final' },
-      { letter: 'D', text: 'Llego bien y puedo repetir esfuerzos hasta el final' },
-      { letter: 'E', text: 'Corro todo el partido a intensidad alta sin problema' }
+      { letter: 'A', text: 'Me canso a los 15 o 20 minutos de juego', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '🏃' },
+      { letter: 'B', text: 'Aguanto media hora y luego camino bastante', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '⚡' },
+      { letter: 'C', text: 'Llego bien, aunque bajo el ritmo al final', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Llego bien y puedo repetir esfuerzos hasta el final', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Corro todo el partido a intensidad alta sin problema', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
   {
     category: 'FÍSICO',
-    title: 'P3. Duelos y contacto',
-    context: 'Hombro con hombro y balones divididos:',
+    title: 'P3. Duelos y Contacto Físico',
+    context: 'En choques hombro con hombro y balones divididos:',
     options: [
-      { letter: 'A', text: 'Evito los choques, me sacan del balón fácilmente' },
-      { letter: 'B', text: 'Pierdo casi todos los duelos físicos' },
-      { letter: 'C', text: 'Gano la mitad de los duelos' },
-      { letter: 'D', text: 'Protejo bien el balón y gano la mayoría' },
-      { letter: 'E', text: 'Domino los duelos, cuesta mucho que me muevan' }
+      { letter: 'A', text: 'Evito los choques, me sacan del balón fácilmente', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '🏃' },
+      { letter: 'B', text: 'Pierdo casi todos los duelos físicos', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '⚡' },
+      { letter: 'C', text: 'Gano la mitad de los duelos', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Protejo bien el balón y gano la mayoría', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Domino los duelos, cuesta mucho que me muevan', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
 
   // TÉCNICA (25%)
   {
     category: 'TÉCNICA',
-    title: 'P4. Control del balón',
+    title: 'P4. Control y Recepción',
     context: 'Te llega un pase fuerte y a media altura:',
     options: [
-      { letter: 'A', text: 'Se me escapa casi siempre' },
-      { letter: 'B', text: 'Lo paro, pero necesito varios toques' },
-      { letter: 'C', text: 'Lo controlo bien si no tengo rival cerca' },
-      { letter: 'D', text: 'Lo controlo y ya lo dejo orientado hacia donde voy' },
-      { letter: 'E', text: 'Lo controlo bien con cualquier superficie, incluso presionado' }
+      { letter: 'A', text: 'Se me escapa casi siempre', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '⚽' },
+      { letter: 'B', text: 'Lo paro, pero necesito varios toques', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '🎯' },
+      { letter: 'C', text: 'Lo controlo bien si no tengo rival cerca', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Lo controlo y ya lo dejo orientado hacia donde voy', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Lo controlo bien con cualquier superficie, incluso presionado', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
   {
     category: 'TÉCNICA',
-    title: 'P5. Pase',
+    title: 'P5. Precisión de Pase',
     context: 'Pases de unos 20 metros a un compañero:',
     options: [
-      { letter: 'A', text: 'Me cuesta que lleguen al destino' },
-      { letter: 'B', text: 'Llegan la mitad de las veces' },
-      { letter: 'C', text: 'Llegan casi siempre si no hay rivales' },
-      { letter: 'D', text: 'Llegan con precisión y a buen ritmo, también con rivales' },
-      { letter: 'E', text: 'Pongo el balón donde quiero, raso o por aire' }
+      { letter: 'A', text: 'Me cuesta que lleguen al destino', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '⚽' },
+      { letter: 'B', text: 'Llegan la mitad de las veces', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '🎯' },
+      { letter: 'C', text: 'Llegan casi siempre si no hay rivales', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Llegan con precisión y a buen ritmo, también con rivales', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Pongo el balón donde quiero, raso o por aire', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
   {
     category: 'TÉCNICA',
-    title: 'P6. Pierna menos hábil',
-    context: 'Pase y remate con la pierna no dominante:',
+    title: 'P6. Pierna Menos Hábil',
+    context: 'Pase y remate con tu pierna no dominante:',
     options: [
-      { letter: 'A', text: 'Prácticamente no la uso' },
-      { letter: 'B', text: 'Solo para tocar suave y cerca' },
-      { letter: 'C', text: 'Puedo pasar y controlar con ella' },
-      { letter: 'D', text: 'La uso con confianza durante el partido' },
-      { letter: 'E', text: 'Casi no se nota cuál es mi pierna buena' }
+      { letter: 'A', text: 'Prácticamente no la uso', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '⚽' },
+      { letter: 'B', text: 'Solo para tocar suave y cerca', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '🎯' },
+      { letter: 'C', text: 'Puedo pasar y controlar con ella', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'La uso con confianza durante el partido', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Casi no se nota cuál es mi pierna buena', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
 
   // LECTURA DE JUEGO (20%)
   {
     category: 'LECTURA DE JUEGO',
-    title: 'P7. Experiencia',
-    context: '¿Cuánto has jugado de forma regular?',
+    title: 'P7. Experiencia Competitiva',
+    context: '¿En qué nivel compites habitualmente?',
     options: [
-      { letter: 'A', text: 'Casi nada, juego de vez en cuando' },
-      { letter: 'B', text: 'Con amigos, sin mucha frecuencia' },
-      { letter: 'C', text: 'Con amigos cada semana desde hace años' },
-      { letter: 'D', text: 'En ligas amateur o torneos organizados' },
-      { letter: 'E', text: 'En academia, liga federada o semiprofesional' }
+      { letter: 'A', text: 'Casi nada, juego de vez en cuando con amigos', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '🏟️' },
+      { letter: 'B', text: 'Pichangas regulares de fin de semana', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '🏅' },
+      { letter: 'C', text: 'Ligas de barrio o torneos amateur organizados', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Divisiones menores, academia formativa o interfacultades', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Liga federada, Copa Perú o semiprofesional', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
   {
     category: 'LECTURA DE JUEGO',
-    title: 'P8. Sin el balón',
-    context: '¿Sabes dónde ubicarte cuando el balón no está contigo?',
+    title: 'P8. Posicionamiento Sin Balón',
+    context: '¿Dónde te ubicas cuando el balón no está en tus pies?',
     options: [
-      { letter: 'A', text: 'Voy detrás del balón, sin orden' },
-      { letter: 'B', text: 'A veces me ubico bien, a veces me pierdo' },
-      { letter: 'C', text: 'Mantengo mi zona y sigo indicaciones' },
-      { letter: 'D', text: 'Me ubico bien y ayudo a compañeros sin que me lo pidan' },
-      { letter: 'E', text: 'Leo la jugada antes y organizo a los demás' }
+      { letter: 'A', text: 'Voy detrás del balón, sin orden', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '🏟️' },
+      { letter: 'B', text: 'A veces me ubico bien, a veces me pierdo', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '🏅' },
+      { letter: 'C', text: 'Mantengo mi zona y sigo indicaciones del equipo', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Me ubico bien y ayudo a compañeros sin que me lo pidan', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Leo la jugada antes y organizo tácticamente a los demás', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   },
   {
     category: 'LECTURA DE JUEGO',
-    title: 'P9. Decisiones bajo presión',
+    title: 'P9. Decisiones Bajo Presión',
     context: 'Tienes un rival encima y poco tiempo para pensar:',
     options: [
-      { letter: 'A', text: 'Pateo el balón lejos o lo pierdo' },
-      { letter: 'B', text: 'Dudo y suelo perderlo' },
-      { letter: 'C', text: 'Elijo la opción segura casi siempre' },
-      { letter: 'D', text: 'Elijo bien entre pasar, regatear o proteger' },
-      { letter: 'E', text: 'Decido rápido y casi siempre acierto, incluso en espacios cortos' }
+      { letter: 'A', text: 'Pateo el balón lejos o lo pierdo', tier: 'Tier Bronce • OVR Est. 55 - 65', icon: '🏟️' },
+      { letter: 'B', text: 'Dudo y suelo perderlo', tier: 'Tier Plata • OVR Est. 66 - 74', icon: '🏅' },
+      { letter: 'C', text: 'Elijo la opción segura casi siempre', tier: 'Tier Oro • OVR Est. 75 - 84', icon: '⭐', recommended: true },
+      { letter: 'D', text: 'Elijo bien entre pasar, regatear o proteger', tier: 'Tier Oro Pro • OVR Est. 80 - 84', icon: '🔥' },
+      { letter: 'E', text: 'Decido rápido y casi siempre acierto en espacios reducidos', tier: 'Tier Élite • OVR Est. 85+', icon: '💎' }
     ]
   }
 ];
@@ -135,61 +134,61 @@ const POSITION_QUESTIONS = {
   Portero: [
     {
       category: 'POSICIÓN (PORTERO)',
-      title: 'P10. Reflejos',
-      context: 'Tiros cercanos y penales:',
+      title: 'P10. Reflejos Bajo Palos',
+      context: 'Tiros cercanos y disparos a quemarropa:',
       options: [
         { letter: 'A', text: 'Casi no llego a los tiros' },
         { letter: 'B', text: 'Atajo los que van directo a mis manos' },
-        { letter: 'C', text: 'Paro los tiros fuertes si van cerca de mí' },
-        { letter: 'D', text: 'Paro muchos tiros a las esquinas' },
-        { letter: 'E', text: 'Salvo balones muy difíciles con frecuencia' }
+        { letter: 'C', text: 'Paro los tiros fuertes si van cerca de mí', recommended: true },
+        { letter: 'D', text: 'Paro muchos tiros difíciles a las esquinas' },
+        { letter: 'E', text: 'Salvo balones imposibles con frecuencia' }
       ]
     },
     {
       category: 'POSICIÓN (PORTERO)',
-      title: 'P11. Juego aéreo',
+      title: 'P11. Juego Aéreo',
       context: 'Centros y balones colgados al área:',
       options: [
-        { letter: 'A', text: 'Prefiero no salir, me da miedo' },
-        { letter: 'B', text: 'Salgo poco y suelto el balón' },
-        { letter: 'C', text: 'Atrapo los centros fáciles' },
-        { letter: 'D', text: 'Salgo con decisión y atrapo o despejo bien' },
+        { letter: 'A', text: 'Prefiero no salir, me da inseguridad' },
+        { letter: 'B', text: 'Salgo poco y suelo soltar el balón' },
+        { letter: 'C', text: 'Atrapo los centros fáciles con solvencia', recommended: true },
+        { letter: 'D', text: 'Salgo con decisión y atrapo o despejo con puños' },
         { letter: 'E', text: 'Domino el área aérea y mis defensas confían en mí' }
       ]
     },
     {
       category: 'POSICIÓN (PORTERO)',
-      title: 'P12. Uno contra uno',
-      context: 'Delantero solo frente a ti:',
+      title: 'P12. Mano a Mano',
+      context: 'Delantero solo frente a tu arco:',
       options: [
         { letter: 'A', text: 'Me quedo en la línea y espero' },
         { letter: 'B', text: 'Salgo tarde casi siempre' },
-        { letter: 'C', text: 'Salgo, aunque no siempre acierto el momento' },
+        { letter: 'C', text: 'Salgo, aunque no siempre acierto el momento', recommended: true },
         { letter: 'D', text: 'Cierro bien el ángulo y me tiro en el momento justo' },
         { letter: 'E', text: 'Gano la mayoría de los uno contra uno' }
       ]
     },
     {
       category: 'POSICIÓN (PORTERO)',
-      title: 'P13. Juego con los pies',
-      context: 'Saques y pases desde la portería:',
+      title: 'P13. Saque y Juego con Pies',
+      context: 'Saques y distribución desde la portería:',
       options: [
         { letter: 'A', text: 'Despejo lejos sin dirección' },
         { letter: 'B', text: 'Solo puedo sacar con la mano' },
-        { letter: 'C', text: 'Saco bien de mano y paso corto' },
+        { letter: 'C', text: 'Saco bien de mano y paso corto', recommended: true },
         { letter: 'D', text: 'Saco con precisión de mano y pie' },
-        { letter: 'E', text: 'Inicio el juego y hasta pongo pases largos precisos' }
+        { letter: 'E', text: 'Inicio el juego y pongo pases largos precisos' }
       ]
     },
     {
       category: 'POSICIÓN (PORTERO)',
-      title: 'P14. Comunicación',
-      context: 'Dirigir y organizar a tu defensa:',
+      title: 'P14. Liderazgo y Voz de Mando',
+      context: 'Organizar la barrera y la defensa:',
       options: [
         { letter: 'A', text: 'No hablo durante el partido' },
-        { letter: 'B', text: 'Solo grito cuando hay peligro' },
-        { letter: 'C', text: 'Doy indicaciones básicas' },
-        { letter: 'D', text: 'Organizo la barrera y la línea defensiva' },
+        { letter: 'B', text: 'Solo grito cuando hay peligro inminente' },
+        { letter: 'C', text: 'Doy indicaciones básicas de marca', recommended: true },
+        { letter: 'D', text: 'Organizo la barrera y ordeno la línea defensiva' },
         { letter: 'E', text: 'Soy el líder del equipo en todo momento' }
       ]
     }
@@ -197,123 +196,123 @@ const POSITION_QUESTIONS = {
   Defensa: [
     {
       category: 'POSICIÓN (DEFENSA)',
-      title: 'P10. Uno contra uno defendiendo',
-      context: 'Un atacante rápido te encara:',
+      title: 'P10. Uno contra Uno Defensivo',
+      context: 'Un atacante veloz te encara de frente:',
       options: [
         { letter: 'A', text: 'Me pasan con facilidad' },
-        { letter: 'B', text: 'Me pasan casi siempre, pero corro para seguir' },
-        { letter: 'C', text: 'Los freno a veces, hago faltas para parar' },
-        { letter: 'D', text: 'Los freno la mayoría y sé cuándo entrar' },
+        { letter: 'B', text: 'Me pasan casi siempre, pero corro para recuperar' },
+        { letter: 'C', text: 'Los freno a menudo, hago faltas tácticas', recommended: true },
+        { letter: 'D', text: 'Los freno la mayoría de veces y sé cuándo entrar' },
         { letter: 'E', text: 'Casi nadie me supera y robo el balón limpio' }
       ]
     },
     {
       category: 'POSICIÓN (DEFENSA)',
-      title: 'P11. Juego aéreo',
+      title: 'P11. Juego Aéreo Defensivo',
       context: 'Despejes y disputas de cabeza:',
       options: [
         { letter: 'A', text: 'Evito cabecear' },
         { letter: 'B', text: 'Cabeceo, pero sin dirección ni fuerza' },
-        { letter: 'C', text: 'Despejo bien si no me presionan' },
+        { letter: 'C', text: 'Despejo bien si no me presionan en el salto', recommended: true },
         { letter: 'D', text: 'Gano la mayoría de los duelos aéreos' },
         { letter: 'E', text: 'Domino el juego aéreo en ambas áreas' }
       ]
     },
     {
       category: 'POSICIÓN (DEFENSA)',
-      title: 'P12. Anticipación',
-      context: 'Cortar pases antes de que lleguen:',
+      title: 'P12. Anticipación y Corte',
+      context: 'Cortar pases antes de que lleguen al delantero:',
       options: [
-        { letter: 'A', text: 'Reacciono cuando ya pasó' },
-        { letter: 'B', text: 'A veces intercepto por suerte' },
-        { letter: 'C', text: 'Intercepto pases predecibles' },
-        { letter: 'D', text: 'Leo bien y corto varios pases por partido' },
-        { letter: 'E', text: 'Me adelanto casi siempre y corto la jugada' }
+        { letter: 'A', text: 'Reacciono cuando el pase ya fue completado' },
+        { letter: 'B', text: 'A veces intercepto balones por suerte' },
+        { letter: 'C', text: 'Intercepto pases predecibles con solvencia', recommended: true },
+        { letter: 'D', text: 'Leo bien la jugada y corto varios pases por partido' },
+        { letter: 'E', text: 'Me adelanto casi siempre y corto el ataque rival' }
       ]
     },
     {
       category: 'POSICIÓN (DEFENSA)',
-      title: 'P13. Salida de balón',
+      title: 'P13. Salida Limpia de Balón',
       context: 'Sacar el balón jugado desde atrás:',
       options: [
         { letter: 'A', text: 'Despejo lo más lejos que puedo' },
-        { letter: 'B', text: 'Paso corto y sin riesgo' },
-        { letter: 'C', text: 'Paso bien a los medios si no me presionan' },
+        { letter: 'B', text: 'Paso corto y sin riesgo al arquero' },
+        { letter: 'C', text: 'Paso bien a los mediocampistas sin presión', recommended: true },
         { letter: 'D', text: 'Progreso con pase o conducción bajo presión' },
-        { letter: 'E', text: 'Doy pases largos precisos y rompo líneas' }
+        { letter: 'E', text: 'Doy pases largos precisos y rompo líneas rivales' }
       ]
     },
     {
       category: 'POSICIÓN (DEFENSA)',
-      title: 'P14. Posicionamiento',
-      context: 'Línea defensiva y coberturas:',
+      title: 'P14. Posicionamiento y Coberturas',
+      context: 'Mantener la línea defensiva y hacer relevos:',
       options: [
         { letter: 'A', text: 'Me pierdo la marca con frecuencia' },
-        { letter: 'B', text: 'Marco al hombre, pero dejo huecos' },
-        { letter: 'C', text: 'Cubro mi zona con orden' },
-        { letter: 'D', text: 'Cubro a compañeros y mantengo la línea' },
-        { letter: 'E', text: 'Dirijo la línea y controlo el fuera de juego' }
+        { letter: 'B', text: 'Marco al hombre, pero dejo huecos a mis espaldas' },
+        { letter: 'C', text: 'Cubro mi zona con orden táctico', recommended: true },
+        { letter: 'D', text: 'Cubro a compañeros y mantengo la línea ordenada' },
+        { letter: 'E', text: 'Dirijo la línea y controlo los fueras de juego' }
       ]
     }
   ],
   Mediocampista: [
     {
       category: 'POSICIÓN (MEDIOCAMPO)',
-      title: 'P10. Pase bajo presión',
-      context: 'Rondo o partido con muy poco espacio:',
+      title: 'P10. Pase Bajo Presión',
+      context: 'En espacios reducidos con presión rival:',
       options: [
         { letter: 'A', text: 'Pierdo el balón casi siempre' },
-        { letter: 'B', text: 'Lo entrego, pero me presionan y fallo' },
-        { letter: 'C', text: 'Mantengo la posesión con toques simples' },
-        { letter: 'D', text: 'Doy buenos pases con presión encima' },
-        { letter: 'E', text: 'Juego con calma y desmarco a los demás' }
+        { letter: 'B', text: 'Lo entrego apurado y suelo fallar' },
+        { letter: 'C', text: 'Mantengo la posesión con toques simples', recommended: true },
+        { letter: 'D', text: 'Doy buenos pases progresivos bajo presión' },
+        { letter: 'E', text: 'Juego con calma y desmarco a mis compañeros' }
       ]
     },
     {
       category: 'POSICIÓN (MEDIOCAMPO)',
-      title: 'P11. Visión de juego',
-      context: 'Cambios de orientación y pases entre líneas:',
+      title: 'P11. Visión y Distribución',
+      context: 'Cambios de frente y pases filtrados:',
       options: [
         { letter: 'A', text: 'Solo veo al compañero más cercano' },
-        { letter: 'B', text: 'A veces veo el pase largo' },
-        { letter: 'C', text: 'Cambio de orientación cuando hay espacio' },
-        { letter: 'D', text: 'Veo pases entre líneas con frecuencia' },
-        { letter: 'E', text: 'Encuentro el pase que rompe al equipo rival' }
+        { letter: 'B', text: 'A veces intento el pase largo' },
+        { letter: 'C', text: 'Cambio de frente cuando tengo espacio', recommended: true },
+        { letter: 'D', text: 'Filtro pases entre líneas con frecuencia' },
+        { letter: 'E', text: 'Encuentro el pase quirúrgico que rompe defensas' }
       ]
     },
     {
       category: 'POSICIÓN (MEDIOCAMPO)',
-      title: 'P12. Tiro de media distancia',
+      title: 'P12. Tiro de Media Distancia',
       context: 'Remates desde fuera del área:',
       options: [
-        { letter: 'A', text: 'Casi no remato de lejos' },
-        { letter: 'B', text: 'Remato, pero raramente entra o va al arco' },
-        { letter: 'C', text: 'Tiro al arco, con potencia moderada' },
-        { letter: 'D', text: 'Meto goles de lejos de vez en cuando' },
-        { letter: 'E', text: 'Es un arma constante, con potencia y colocación' }
+        { letter: 'A', text: 'Casi nunca remato de lejos' },
+        { letter: 'B', text: 'Remato, pero raramente va a portería' },
+        { letter: 'C', text: 'Tiro al arco con potencia moderada', recommended: true },
+        { letter: 'D', text: 'Meto goles de media distancia con cierta frecuencia' },
+        { letter: 'E', text: 'Es un arma constante con potencia y colocación' }
       ]
     },
     {
       category: 'POSICIÓN (MEDIOCAMPO)',
-      title: 'P13. Recuperación',
-      context: 'Robar el balón y presionar:',
+      title: 'P13. Recuperación y Presión',
+      context: 'Robar el balón en el centro del campo:',
       options: [
-        { letter: 'A', text: 'Me cuesta recuperar' },
-        { letter: 'B', text: 'Recupero cuando el rival se equivoca' },
-        { letter: 'C', text: 'Recupero por esfuerzo y ganas' },
-        { letter: 'D', text: 'Robo bien y presiono con criterio' },
-        { letter: 'E', text: 'Soy el motor de la recuperación en mi equipo' }
+        { letter: 'A', text: 'Me cuesta recuperar la pelota' },
+        { letter: 'B', text: 'Recupero cuando el rival comete errores' },
+        { letter: 'C', text: 'Recupero por esfuerzo y recorrido', recommended: true },
+        { letter: 'D', text: 'Robo balones y presiono con criterio táctico' },
+        { letter: 'E', text: 'Soy el motor de recuperación de mi equipo' }
       ]
     },
     {
       category: 'POSICIÓN (MEDIOCAMPO)',
-      title: 'P14. Ida y vuelta',
-      context: 'Llegar al ataque y regresar a defender:',
+      title: 'P14. Ida y Vuelta (Box-to-Box)',
+      context: 'Acompañar el ataque y regresar a defender:',
       options: [
-        { letter: 'A', text: 'Me quedo en una sola zona' },
-        { letter: 'B', text: 'Ataco o defiendo, pero no ambas' },
-        { letter: 'C', text: 'Subo y bajo con buena regularidad' },
-        { letter: 'D', text: 'Llego al área y regreso a tiempo' },
+        { letter: 'A', text: 'Me quedo estático en una sola zona' },
+        { letter: 'B', text: 'Solo ataco o solo defiendo, no ambas' },
+        { letter: 'C', text: 'Subo y bajo con regularidad durante el partido', recommended: true },
+        { letter: 'D', text: 'Llego al área rival y repliego a tiempo' },
         { letter: 'E', text: 'Aparezco en toda la cancha, arriba y abajo' }
       ]
     }
@@ -321,62 +320,62 @@ const POSITION_QUESTIONS = {
   Delantero: [
     {
       category: 'POSICIÓN (DELANTERO)',
-      title: 'P10. Definición',
-      context: 'Remates dentro del área:',
+      title: 'P10. Definición en el Área',
+      context: 'Mano a mano y remates dentro del área:',
       options: [
-        { letter: 'A', text: 'Casi no llego al arco' },
-        { letter: 'B', text: 'Llego al arco, pero pocas veces entra' },
-        { letter: 'C', text: 'Meto los fáciles' },
-        { letter: 'D', text: 'Meto oportunidades claras y algunas difíciles' },
-        { letter: 'E', text: 'Defino con ambos pies y de cabeza, casi siempre entra' }
+        { letter: 'A', text: 'Casi no llego a disparar al arco' },
+        { letter: 'B', text: 'Llego al arco, pero pocas veces es gol' },
+        { letter: 'C', text: 'Convierto las oportunidades fáciles', recommended: true },
+        { letter: 'D', text: 'Meto opciones claras y algunas difíciles' },
+        { letter: 'E', text: 'Defino con ambos pies y cabeza, casi siempre entra' }
       ]
     },
     {
       category: 'POSICIÓN (DELANTERO)',
-      title: 'P11. Desmarque',
+      title: 'P11. Desmarque y Movilidad',
       context: 'Movimientos sin balón en zona ofensiva:',
       options: [
-        { letter: 'A', text: 'Espero el balón parado' },
-        { letter: 'B', text: 'Me muevo cuando me lo piden' },
-        { letter: 'C', text: 'Me desmarco cuando el balón está cerca' },
-        { letter: 'D', text: 'Ataco espacios libres y busco recibir' },
+        { letter: 'A', text: 'Espero el balón parado sin moverme' },
+        { letter: 'B', text: 'Me muevo cuando mis compañeros me lo piden' },
+        { letter: 'C', text: 'Me desmarco cuando el balón está cerca', recommended: true },
+        { letter: 'D', text: 'Ataco espacios libres y me ofrezco como opción' },
         { letter: 'E', text: 'Leo a la defensa y aparezco en el punto exacto' }
       ]
     },
     {
       category: 'POSICIÓN (DELANTERO)',
-      title: 'P12. Regate',
-      context: 'Uno contra uno frente a un defensa:',
+      title: 'P12. Regate y Duelo 1v1',
+      context: 'Encarar mano a mano a un defensa rival:',
       options: [
-        { letter: 'A', text: 'Pierdo el balón al intentar' },
+        { letter: 'A', text: 'Pierdo el balón al intentar driblar' },
         { letter: 'B', text: 'Lo intento y casi siempre me lo quitan' },
-        { letter: 'C', text: 'Gano la mitad de los regates' },
-        { letter: 'D', text: 'Gano la mayoría con cambios de ritmo' },
-        { letter: 'E', text: 'Desequilibro con facilidad, incluso con dos rivales' }
+        { letter: 'C', text: 'Gano la mitad de mis regates', recommended: true },
+        { letter: 'D', text: 'Gano la mayoría con velocidad y quiebre' },
+        { letter: 'E', text: 'Desequilibro con facilidad incluso ante dos rivales' }
       ]
     },
     {
       category: 'POSICIÓN (DELANTERO)',
-      title: 'P13. Juego de espaldas',
-      context: 'Recibir con un defensa pegado a la espalda:',
+      title: 'P13. Juego de Espaldas al Arco',
+      context: 'Recibir aguantando la marca de espaldas:',
       options: [
-        { letter: 'A', text: 'Me presionan y pierdo el balón' },
-        { letter: 'B', text: 'Solo aguanto si tengo espacio' },
-        { letter: 'C', text: 'Protejo y descargo simple' },
-        { letter: 'D', text: 'Sostengo y hago jugar al equipo' },
-        { letter: 'E', text: 'Domino a mis marcadores y creo juego de espaldas' }
+        { letter: 'A', text: 'Me presionan y pierdo la pelota' },
+        { letter: 'B', text: 'Solo aguanto si me dan bastante espacio' },
+        { letter: 'C', text: 'Protejo y descargo simple con un toque', recommended: true },
+        { letter: 'D', text: 'Sostengo el balón y hago jugar a mi equipo' },
+        { letter: 'E', text: 'Domino a los centrales y creo juego de espaldas' }
       ]
     },
     {
       category: 'POSICIÓN (DELANTERO)',
-      title: 'P14. Presión tras pérdida',
-      context: 'Qué haces al perder el balón en ataque:',
+      title: 'P14. Presión Tras Pérdida',
+      context: 'Tu reacción al perder el balón en ataque:',
       options: [
-        { letter: 'A', text: 'Me detengo y espero' },
-        { letter: 'B', text: 'Presiono si el balón está muy cerca' },
-        { letter: 'C', text: 'Presiono a menudo' },
-        { letter: 'D', text: 'Presiono con orden y sin hacer falta' },
-        { letter: 'E', text: 'Soy el primer defensa del equipo' }
+        { letter: 'A', text: 'Me detengo y reclamo o descanso' },
+        { letter: 'B', text: 'Presiono solo si el balón quedó a un metro' },
+        { letter: 'C', text: 'Presiono para incomodar la salida', recommended: true },
+        { letter: 'D', text: 'Presiono con orden táctico y recupero arriba' },
+        { letter: 'E', text: 'Soy el primer defensa del equipo e inicio la presión' }
       ]
     }
   ]
@@ -413,34 +412,54 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
   }, []);
 
   const currentQ = allQuestions[currentIndex];
+  const answeredCount = answers.filter(a => a !== null).length;
   const progressPercent = Math.round(((currentIndex + 1) / 14) * 100);
 
+  // Estimador de OVR en vivo según las respuestas seleccionadas hasta ahora
+  const answeredPoints = answers.reduce((acc, letter) => {
+    if (!letter) return acc;
+    const pts = letter === 'E' ? 100 : letter === 'D' ? 75 : letter === 'C' ? 50 : letter === 'B' ? 25 : 0;
+    return acc + pts;
+  }, 0);
+  const liveAvg = answeredCount > 0 ? answeredPoints / answeredCount : 50;
+  const liveOvr = Math.round(50 + (liveAvg / 100) * 35);
+  const livePac = Math.min(85, Math.max(45, Math.round(liveOvr + 2)));
+  const livePas = Math.min(85, Math.max(45, Math.round(liveOvr - 1)));
+  const livePhy = Math.min(85, Math.max(45, Math.round(liveOvr + 1)));
+
   const handleSelectOption = (letter) => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     const updated = [...answers];
     updated[currentIndex] = letter;
     setAnswers(updated);
 
-    // Guardar progreso en almacenamiento local inmediatamente
+    // Guardar progreso local inmediatamente
     storage.savePartialTestAnswers(updated);
 
-    // Si aún faltan preguntas, pasar automáticamente a la siguiente tras breve delay
+    // Si aún quedan preguntas, avanzar automáticamente
     if (currentIndex < 13) {
       setTimeout(() => {
         setCurrentIndex(currentIndex + 1);
-      }, 150);
+      }, 160);
     }
   };
 
   const handlePrev = () => {
     if (currentIndex > 0) {
-      try { Haptics.selectionAsync(); } catch (e) {}
+      try { Haptics.selectionAsync(); } catch {}
       setCurrentIndex(currentIndex - 1);
     }
   };
 
+  const handleHelp = () => {
+    try { Haptics.selectionAsync(); } catch {}
+    Alert.alert(
+      'Test Táctico Oficial MatchSport',
+      'Este test de 14 preguntas calibrará tus 6 atributos FIFA (RIT, TIR, PAS, REG, DEF, FIS) y tu rating Glicko-2 inicial sin trampas ni números al azar. Responde con total honestidad: el sistema premiará tu juego limpio.'
+    );
+  };
+
   const handleSubmitTest = async () => {
-    // Validar que todas estén respondidas
     const unanswered = answers.findIndex(a => a === null);
     if (unanswered !== -1) {
       Alert.alert('Pregunta pendiente', `Por favor responde la pregunta ${unanswered + 1} antes de finalizar.`);
@@ -458,7 +477,7 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
         position: userPos
       });
 
-      // Limpiar progreso parcial una vez enviado satisfactoriamente
+      // Limpiar progreso parcial una vez completado satisfactoriamente
       await storage.clearPartialTestAnswers();
 
       const updatedUser = res.user || {
@@ -482,7 +501,7 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
   };
 
   // ==========================================
-  // PANTALLA DE RESULTADOS DEL TEST
+  // PANTALLA DE RESULTADOS DEL TEST (CARTA FUT ESTIMADA)
   // ==========================================
   if (testResult) {
     const { score, level, breakdown, futStats } = testResult;
@@ -490,9 +509,13 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.resultScroll} showsVerticalScrollIndicator={false}>
           <View style={styles.resultHeader}>
-            <Text style={styles.resultBadgeText}>🎯 NIVEL INICIAL ESTIMADO</Text>
-            <Text style={styles.resultTitle}>Carta Inicial de Jugador</Text>
-            <Text style={styles.resultSub}>Jugador: <Text style={{ color: '#FFF', fontWeight: '900' }}>{user?.name}</Text> • {userPos.toUpperCase()}</Text>
+            <View style={styles.resultBadgeWrap}>
+              <Text style={styles.resultBadgeText}>🎯 NIVEL INICIAL ESTIMADO</Text>
+            </View>
+            <Text style={styles.resultTitle}>Carta Oficial de Jugador</Text>
+            <Text style={styles.resultSub}>
+              {user?.name || 'Jugador'} • {userPos.toUpperCase()} • {user?.district || 'Lima'}
+            </Text>
           </View>
 
           {/* Tarjeta FIFA / OVR de Nivel */}
@@ -500,9 +523,13 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
             <View style={styles.scoreTop}>
               <View>
                 <Text style={styles.scoreLabel}>NIVEL ESTIMADO</Text>
-                <Text style={styles.scoreNum}>{futStats?.ovr || Math.round(50 + (score / 100) * 35)}<Text style={styles.scoreTotal}> OVR</Text></Text>
-                <Text style={{ color: THEME.colors.textMuted, fontSize: 12, marginTop: 2 }}>Test: {score}/100 pts</Text>
+                <Text style={styles.scoreNum}>
+                  {futStats?.ovr || Math.round(50 + (score / 100) * 35)}
+                  <Text style={styles.scoreTotal}> OVR</Text>
+                </Text>
+                <Text style={styles.scoreScoreText}>Test Oficial: {score}/100 pts</Text>
               </View>
+
               <View style={styles.levelBadge}>
                 <Text style={styles.levelBadgeText}>{level.toUpperCase()}</Text>
               </View>
@@ -510,35 +537,35 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
 
             {/* 6 Atributos Deterministas de la Carta */}
             {futStats && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: THEME.colors.cardElevated, padding: 12, borderRadius: 10, marginVertical: 12 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>RIT</Text>
-                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.rit}</Text>
+              <View style={styles.futStatsGrid}>
+                <View style={styles.futStatCol}>
+                  <Text style={styles.futStatLabel}>RIT</Text>
+                  <Text style={styles.futStatVal}>{futStats.rit}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>TIR</Text>
-                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.tir}</Text>
+                <View style={styles.futStatCol}>
+                  <Text style={styles.futStatLabel}>TIR</Text>
+                  <Text style={styles.futStatVal}>{futStats.tir}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>PAS</Text>
-                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.pas}</Text>
+                <View style={styles.futStatCol}>
+                  <Text style={styles.futStatLabel}>PAS</Text>
+                  <Text style={styles.futStatVal}>{futStats.pas}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>REG</Text>
-                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.reg}</Text>
+                <View style={styles.futStatCol}>
+                  <Text style={styles.futStatLabel}>REG</Text>
+                  <Text style={styles.futStatVal}>{futStats.reg}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>DEF</Text>
-                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.def}</Text>
+                <View style={styles.futStatCol}>
+                  <Text style={styles.futStatLabel}>DEF</Text>
+                  <Text style={styles.futStatVal}>{futStats.def}</Text>
                 </View>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: THEME.colors.textMuted, fontSize: 11, fontWeight: '800' }}>FIS</Text>
-                  <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>{futStats.fis}</Text>
+                <View style={styles.futStatCol}>
+                  <Text style={styles.futStatLabel}>FIS</Text>
+                  <Text style={styles.futStatVal}>{futStats.fis}</Text>
                 </View>
               </View>
             )}
 
-            {/* Desglose por Categorías */}
+            {/* Desglose por Categorías Oficiales */}
             <View style={styles.categoriesWrap}>
               <View style={styles.categoryRow}>
                 <Text style={styles.catName}>FÍSICO (20%)</Text>
@@ -576,7 +603,7 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
             {/* Análisis Cualitativo */}
             <View style={styles.analysisBox}>
               <Text style={styles.analysisText}>
-                💪 <Text style={{ fontWeight: '800', color: THEME.colors.primary }}>Fortaleza:</Text> {breakdown?.strongPoint || 'Juego en equipo'}
+                💪 <Text style={{ fontWeight: '800', color: THEME.colors.neonPitch }}>Fortaleza:</Text> {breakdown?.strongPoint || 'Juego en equipo'}
               </Text>
               <Text style={styles.analysisText}>
                 📈 <Text style={{ fontWeight: '800', color: THEME.colors.gold }}>Margen de mejora:</Text> {breakdown?.weakPoint || 'Resistencia'}
@@ -587,17 +614,17 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
           {/* Nota Oficial de Transparencia */}
           <View style={styles.infoBox}>
             <Text style={styles.infoBoxText}>
-              ℹ️ <Text style={{ fontWeight: '800', color: '#FFF' }}>Nivel inicial estimado:</Text> Este puntaje es tu punto de partida derivado de tus 14 respuestas. Calibrará de forma real y matemática conforme disputes partidos oficiales en MatchSport.
+              ℹ️ <Text style={{ fontWeight: '800', color: '#F1FFEF' }}>Nivel inicial estimado:</Text> Este puntaje es tu punto de partida derivado de tus 14 respuestas. Calibrará matemáticamente mediante Glicko-2 conforme disputes partidos oficiales en MatchSport.
             </Text>
           </View>
 
-          {/* Botón Ir a Jugar */}
+          {/* Botón Ir a la Cancha */}
           <TouchableOpacity
             style={styles.startPlayingBtn}
             onPress={() => {
               if (onFinishTest) onFinishTest();
             }}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             <Text style={styles.startPlayingText}>⚽ ¡ENTENDIDO, IR A LA CANCHA! ➔</Text>
           </TouchableOpacity>
@@ -607,86 +634,156 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
   }
 
   // ==========================================
-  // PANTALLA DEL CUESTIONARIO (14 PREGUNTAS)
+  // PANTALLA PRINCIPAL: CUESTIONARIO DE 14 PREGUNTAS (OBSIDIAN PITCH)
   // ==========================================
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top Header */}
+      <StatusBar barStyle="light-content" backgroundColor="#07090E" />
+
+      {/* 1. Header Superior Fijo con Navegación y Progreso Integrado */}
       <View style={styles.topHeader}>
-        {onCancel && (
-          <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelText}>✕</Text>
-          </TouchableOpacity>
-        )}
-        <View style={{ flex: 1 }}>
-          <View style={styles.progressRow}>
-            <Text style={styles.stepBadge}>PREGUNTA {currentIndex + 1} DE 14</Text>
-            <Text style={styles.stepPercent}>{progressPercent}%</Text>
+        <View style={styles.topHeaderNavRow}>
+          {onCancel ? (
+            <TouchableOpacity style={styles.circleBtn} onPress={onCancel} accessibilityLabel="Volver atrás">
+              <Text style={styles.circleBtnText}>←</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
+
+          <Text style={styles.headerCenterTitle}>TEST DE CALIBRACIÓN</Text>
+
+          {onCancel ? (
+            <TouchableOpacity style={styles.circleBtn} onPress={onCancel} accessibilityLabel="Cerrar test">
+              <Text style={[styles.circleBtnText, { fontSize: 15 }]}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.circleBtn} onPress={handleHelp} accessibilityLabel="Ayuda">
+              <Text style={styles.circleBtnText}>?</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Sub-fila: Contador de Pregunta y Categoría */}
+        <View style={styles.progressMetaRow}>
+          <Text style={styles.progressStepText}>Pregunta {currentIndex + 1} de 14</Text>
+          <View style={styles.categoryPill}>
+            <View style={styles.categoryPillDot} />
+            <Text style={styles.categoryPillText}>{currentQ.category || 'TÁCTICA'}</Text>
           </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
+        </View>
+
+        {/* Barra Segmentada de 14 Pasos */}
+        <View style={styles.segmentedBar}>
+          {Array.from({ length: 14 }).map((_, idx) => (
+            <View
+              key={`seg-${idx}`}
+              style={[
+                styles.segmentPiece,
+                idx <= currentIndex && styles.segmentPieceActive
+              ]}
+            />
+          ))}
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.questionScroll} showsVerticalScrollIndicator={false}>
-        {/* Categoría y Título */}
-        <View style={styles.questionCard}>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryBadgeText}>{currentQ.category}</Text>
-          </View>
-          <Text style={styles.qTitle}>{currentQ.title}</Text>
-          <Text style={styles.qContext}>{currentQ.context}</Text>
+      {/* 2. Cuerpo Scrolleable: Pregunta y Opciones */}
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Pregunta */}
+        <View style={styles.questionBlock}>
+          <Text style={styles.questionTitle}>{currentQ.title}</Text>
+          <Text style={styles.questionContext}>{currentQ.context}</Text>
         </View>
 
-        {/* Opciones A, B, C, D, E */}
-        <View style={styles.optionsWrap}>
+        {/* Opciones Interactivas */}
+        <View style={styles.optionsStack}>
           {currentQ.options.map((opt) => {
             const isSelected = answers[currentIndex] === opt.letter;
             return (
               <TouchableOpacity
                 key={opt.letter}
-                style={[styles.optionCard, isSelected && styles.optionCardSelected]}
+                style={[
+                  styles.optionCard,
+                  isSelected && styles.optionCardSelected,
+                ]}
                 onPress={() => handleSelectOption(opt.letter)}
-                activeOpacity={0.85}
+                activeOpacity={0.88}
               >
-                <View style={[styles.optionLetterBadge, isSelected && styles.optionLetterSelected]}>
-                  <Text style={[styles.optionLetterText, isSelected && styles.optionLetterTextSelected]}>
-                    {opt.letter}
-                  </Text>
+                {isSelected && <View style={styles.selectedGlowBar} />}
+
+                <View style={styles.optionHeaderRow}>
+                  <View style={[styles.optionIconBox, isSelected && styles.optionIconBoxSelected]}>
+                    <Text style={styles.optionIcon}>{opt.icon || '⚽'}</Text>
+                  </View>
+
+                  <View style={styles.optionTextContainer}>
+                    <Text style={[styles.optionDescText, isSelected && styles.optionDescTextSelected]}>
+                      {opt.text}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.radioIndicator, isSelected && styles.radioIndicatorSelected]}>
+                    {isSelected ? (
+                      <Text style={styles.radioCheckIcon}>✓</Text>
+                    ) : (
+                      <View style={styles.radioInnerUnselected} />
+                    )}
+                  </View>
                 </View>
-                <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                  {opt.text}
-                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
+      </ScrollView>
 
-        {/* Navegación y Envío */}
-        <View style={styles.actionsRow}>
+      {/* 3. Barra de Acciones Fija Inferior */}
+      <View style={styles.fixedBottomBar}>
+        <View style={styles.bottomActionsRow}>
           {currentIndex > 0 && (
-            <TouchableOpacity style={styles.prevBtn} onPress={handlePrev}>
-              <Text style={styles.prevBtnText}>← Anterior</Text>
+            <TouchableOpacity style={styles.prevBtn} onPress={handlePrev} activeOpacity={0.85}>
+              <Text style={styles.prevBtnText}>‹ Anterior</Text>
             </TouchableOpacity>
           )}
 
-          {currentIndex === 13 && (
+          {currentIndex === 13 ? (
             <TouchableOpacity
-              style={[styles.submitTestBtn, answers[13] === null && { opacity: 0.5 }]}
+              style={[styles.nextCtaBtn, answers[13] === null && { opacity: 0.5 }]}
               onPress={handleSubmitTest}
               disabled={loading || answers[13] === null}
-              activeOpacity={0.85}
+              activeOpacity={0.88}
             >
               {loading ? (
-                <ActivityIndicator color="#00210B" />
+                <ActivityIndicator color={THEME.colors.surfaceLowest} />
               ) : (
-                <Text style={styles.submitTestText}>OBTENER MI NIVEL Y PUNTAJE ➔</Text>
+                <Text style={styles.nextCtaBtnText}>CALCULAR MI CARTA FUT ➔</Text>
               )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.nextCtaBtn}
+              onPress={() => {
+                if (answers[currentIndex]) {
+                  setCurrentIndex(currentIndex + 1);
+                } else {
+                  Alert.alert('Selecciona una opción', 'Elige una de las alternativas antes de continuar.');
+                }
+              }}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.nextCtaBtnText}>SIGUIENTE ➔</Text>
             </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
+
+        {/* Barra Home Indicator estilo iOS */}
+        <View style={styles.homeIndicatorWrapper}>
+          <View style={styles.homeIndicator} />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -694,250 +791,381 @@ export default function FootballLevelTestScreen({ user, onFinishTest, onCancel }
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.colors.bgCanvas,
+    backgroundColor: '#07090E',
   },
   topHeader: {
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: '#07090E',
+    gap: 10,
+    zIndex: 10,
+  },
+  topHeaderNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.colors.border,
-    gap: 14,
+    justifyContent: 'space-between',
   },
-  cancelBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: THEME.colors.cardElevated,
+  circleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelText: {
-    color: THEME.colors.textSecondary,
+  circleBtnText: {
+    color: '#F1FFEF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  headerCenterTitle: {
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  stepBadge: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: THEME.colors.primary,
     letterSpacing: 0.8,
   },
-  stepPercent: {
+  progressMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 2,
+  },
+  progressStepText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 255, 135, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    gap: 5,
+  },
+  categoryPillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#00FF87',
+  },
+  categoryPillText: {
+    color: '#00FF87',
     fontSize: 10,
     fontWeight: '800',
-    color: THEME.colors.textMuted,
-  },
-  progressBar: {
-    height: 5,
-    backgroundColor: THEME.colors.cardElevated,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: THEME.colors.primary,
-    borderRadius: 3,
-  },
-  questionScroll: {
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    gap: 16,
-    paddingBottom: 40,
-  },
-  questionCard: {
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.lg,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    gap: 8,
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0, 230, 118, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: THEME.radius.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 230, 118, 0.3)',
-  },
-  categoryBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: THEME.colors.primary,
     letterSpacing: 0.8,
   },
-  qTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: THEME.colors.textPrimary,
+  segmentedBar: {
+    flexDirection: 'row',
+    gap: 4,
+    width: '100%',
+    height: 4.5,
   },
-  qContext: {
-    fontSize: 12.5,
-    color: THEME.colors.textSecondary,
-    lineHeight: 18,
+  segmentPiece: {
+    flex: 1,
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  optionsWrap: {
-    gap: 10,
+  segmentPieceActive: {
+    backgroundColor: '#00FF87',
+    shadowColor: '#00FF87',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 28,
+    gap: 16,
+  },
+  questionBlock: {
+    gap: 6,
+    paddingBottom: 2,
+  },
+  questionTitle: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    lineHeight: 27,
+  },
+  questionContext: {
+    color: '#94A3B8',
+    fontSize: 13.5,
+    lineHeight: 19,
+    fontWeight: '400',
+  },
+  optionsStack: {
+    gap: 11,
   },
   optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.md,
-    padding: 12,
+    backgroundColor: '#10141D',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: THEME.colors.border,
-    gap: 12,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    position: 'relative',
+    overflow: 'hidden',
   },
   optionCardSelected: {
-    borderColor: THEME.colors.primary,
-    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+    backgroundColor: '#151C28',
+    borderColor: '#00FF87',
+    shadowColor: '#00FF87',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  optionLetterBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: THEME.colors.cardElevated,
+  selectedGlowBar: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 4,
+    backgroundColor: '#00FF87',
+  },
+  optionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  optionIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionIconBoxSelected: {
+    backgroundColor: 'rgba(0, 255, 135, 0.15)',
+    borderColor: 'rgba(0, 255, 135, 0.4)',
+  },
+  optionIcon: {
+    fontSize: 19,
+  },
+  optionTextContainer: {
+    flex: 1,
+  },
+  optionDescText: {
+    color: '#F1FFEF',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  optionDescTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  radioIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioIndicatorSelected: {
+    borderColor: '#00FF87',
+    backgroundColor: '#00FF87',
+  },
+  radioCheckIcon: {
+    color: '#06080D',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  radioInnerUnselected: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'transparent',
+  },
+  fixedBottomBar: {
+    backgroundColor: '#07090E',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.07)',
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 8,
+    zIndex: 20,
+  },
+  bottomActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  prevBtn: {
+    width: 96,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  optionLetterSelected: {
-    backgroundColor: THEME.colors.primary,
-    borderColor: THEME.colors.primary,
-  },
-  optionLetterText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: THEME.colors.textSecondary,
-  },
-  optionLetterTextSelected: {
-    color: '#00210B',
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 12.5,
-    color: THEME.colors.textPrimary,
-    lineHeight: 17,
-  },
-  optionTextSelected: {
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 12,
-  },
-  prevBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: THEME.radius.md,
-    backgroundColor: THEME.colors.cardElevated,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   prevBtnText: {
-    color: THEME.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '800',
+    color: '#F1FFEF',
+    fontSize: 14,
+    fontWeight: '700',
   },
-  submitTestBtn: {
+  nextCtaBtn: {
     flex: 1,
-    backgroundColor: THEME.colors.primary,
-    borderRadius: THEME.radius.md,
-    height: 48,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#00FF87',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#00FF87',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  submitTestText: {
-    color: '#00210B',
-    fontSize: 12,
+  nextCtaBtnText: {
+    color: '#06080D',
+    fontSize: 14.5,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-  // Estilos de la Pantalla de Resultado
-  resultScroll: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 18,
+  homeIndicatorWrapper: {
     alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
+  homeIndicator: {
+    width: 130,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+
+  // Estilos de la vista de Resultados
+  resultScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    gap: 14,
+    paddingBottom: 40,
   },
   resultHeader: {
     alignItems: 'center',
     gap: 4,
   },
+  resultBadgeWrap: {
+    backgroundColor: 'rgba(0, 255, 135, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.3)',
+    marginBottom: 4,
+  },
   resultBadgeText: {
+    color: THEME.colors.neonPitch,
     fontSize: 10,
     fontWeight: '900',
-    color: THEME.colors.primary,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   resultTitle: {
-    fontSize: 22,
+    color: '#F1FFEF',
+    fontSize: 24,
     fontWeight: '900',
-    color: THEME.colors.textPrimary,
+    textAlign: 'center',
   },
   resultSub: {
+    color: THEME.colors.onSurfaceVariant,
     fontSize: 12,
-    color: THEME.colors.textSecondary,
+    textAlign: 'center',
   },
   scoreCard: {
-    width: '100%',
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.lg,
-    padding: 18,
-    borderWidth: 1.5,
-    borderColor: THEME.colors.gold,
-    gap: 16,
+    backgroundColor: THEME.colors.surfaceContainer,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    gap: 12,
   },
   scoreTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.colors.border,
-    paddingBottom: 14,
+    justifyContent: 'space-between',
   },
   scoreLabel: {
+    color: THEME.colors.outline,
     fontSize: 10,
     fontWeight: '800',
-    color: THEME.colors.textMuted,
+    letterSpacing: 0.8,
   },
   scoreNum: {
+    color: '#F1FFEF',
     fontSize: 34,
     fontWeight: '900',
-    color: THEME.colors.gold,
+    lineHeight: 38,
   },
   scoreTotal: {
+    color: THEME.colors.neonPitch,
     fontSize: 16,
-    color: THEME.colors.textSecondary,
+  },
+  scoreScoreText: {
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 11,
+    fontWeight: '600',
   },
   levelBadge: {
-    backgroundColor: THEME.colors.primary,
+    backgroundColor: THEME.colors.surfaceHigh,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: THEME.radius.pill,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.35)',
   },
   levelBadgeText: {
+    color: THEME.colors.neonPitch,
     fontSize: 11,
     fontWeight: '900',
-    color: '#00210B',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+  },
+  futStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.surfaceLow,
+    padding: 10,
+    borderRadius: 8,
+  },
+  futStatCol: {
+    alignItems: 'center',
+  },
+  futStatLabel: {
+    color: THEME.colors.outline,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  futStatVal: {
+    color: '#F1FFEF',
+    fontSize: 16,
+    fontWeight: '900',
   },
   categoriesWrap: {
-    gap: 10,
+    gap: 8,
   },
   categoryRow: {
     flexDirection: 'row',
@@ -945,66 +1173,69 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   catName: {
-    width: 105,
-    fontSize: 10,
-    fontWeight: '800',
-    color: THEME.colors.textSecondary,
+    width: 100,
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 9.5,
+    fontWeight: '700',
   },
   catTrack: {
     flex: 1,
-    height: 8,
-    backgroundColor: THEME.colors.cardElevated,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.surfaceLowest,
     overflow: 'hidden',
   },
   catFill: {
     height: '100%',
-    backgroundColor: THEME.colors.primary,
-    borderRadius: 4,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.neonPitch,
   },
   catVal: {
     width: 24,
-    fontSize: 11,
-    fontWeight: '900',
-    color: THEME.colors.textPrimary,
     textAlign: 'right',
+    color: '#F1FFEF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   analysisBox: {
-    backgroundColor: THEME.colors.cardElevated,
-    borderRadius: THEME.radius.md,
-    padding: 12,
-    gap: 6,
+    backgroundColor: THEME.colors.surfaceLow,
+    padding: 10,
+    borderRadius: 8,
+    gap: 4,
   },
   analysisText: {
+    color: THEME.colors.onSurfaceVariant,
     fontSize: 11.5,
-    color: THEME.colors.textSecondary,
     lineHeight: 16,
   },
   infoBox: {
-    backgroundColor: 'rgba(0, 230, 118, 0.08)',
-    borderRadius: THEME.radius.md,
-    padding: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    padding: 12,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0, 230, 118, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   infoBoxText: {
-    fontSize: 11,
-    color: THEME.colors.textSecondary,
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 11.5,
     lineHeight: 17,
   },
   startPlayingBtn: {
-    width: '100%',
-    backgroundColor: THEME.colors.primary,
-    height: 52,
-    borderRadius: THEME.radius.md,
+    height: 50,
+    borderRadius: 999,
+    backgroundColor: THEME.colors.neonPitch,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    shadowColor: THEME.colors.neonPitch,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 5,
   },
   startPlayingText: {
-    color: '#00210B',
+    color: THEME.colors.surfaceLowest,
     fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
 });

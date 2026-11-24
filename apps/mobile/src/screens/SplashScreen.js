@@ -7,143 +7,185 @@ import {
   SafeAreaView,
   Animated,
   Easing,
-  StatusBar
+  StatusBar,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { THEME } from '../theme';
 
-export default function SplashScreen({ onLoginPress, onRegisterPress }) {
+export default function SplashScreen({ onLoginPress, onRegisterPress, onGuestPress }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Animación continua de pulso y rotación sutil del pentágono
+    // 1. Pulso continuo del halo y logo central
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 1800,
+          toValue: 1.07,
+          duration: 1900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1.0,
-          duration: 1800,
+          duration: 1900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     ).start();
 
+    // 2. Rotación del radar táctico
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 25000,
+        duration: 24000,
         easing: Easing.linear,
         useNativeDriver: true,
       })
     ).start();
-  }, []);
+  }, [pulseAnim, rotateAnim]);
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
-  const handleLogin = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-    onLoginPress();
+  const handleRegister = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    if (onRegisterPress) onRegisterPress();
   };
 
-  const handleRegister = () => {
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-    onRegisterPress();
+  const handleLogin = () => {
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    if (onLoginPress) onLoginPress();
+  };
+
+  const handleGuest = () => {
+    try { Haptics.selectionAsync(); } catch {}
+    if (onGuestPress) onGuestPress();
+    else if (onLoginPress) onLoginPress();
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={THEME.colors.bgCanvas} />
+      <StatusBar barStyle="light-content" backgroundColor="#07090E" />
 
-      {/* Top Header Chips */}
-      <View style={styles.topChipsRow}>
-        <View style={styles.chipActivePlayers}>
-          <View style={styles.greenDot} />
-          <Text style={styles.chipActiveText}>FÚTBOL 5v5 · 7v7 · 11v11</Text>
+      {/* Halos de luz de fondo estilo Obsidian Pitch */}
+      <View style={styles.topAuraGlow} pointerEvents="none" />
+      <View style={styles.centerAuraGlow} pointerEvents="none" />
+
+      {/* 1. Header: Chip de Sistema + Título Bienvenido */}
+      <View style={styles.headerSection}>
+        <View style={styles.systemBadge}>
+          <View style={styles.systemBadgeDot} />
+          <Text style={styles.systemBadgeText}>MATCHSPORT OS</Text>
         </View>
-        <View style={styles.chipLocation}>
-          <Text style={styles.chipLocationIcon}>📍</Text>
-          <Text style={styles.chipLocationText}>LIMA METROPOLITANA</Text>
-        </View>
+
+        <Text style={styles.welcomeTitle}>Bienvenido</Text>
+        <Text style={styles.welcomeSubtitle}>
+          Inicia sesión o regístrate para comenzar a jugar
+        </Text>
       </View>
 
-      {/* Centerpiece Emblem */}
-      <View style={styles.emblemContainer}>
-        {/* Outer Ring */}
+      {/* 2. Sección Central: Logo de la app + Telemetría flotante (temporal mientras se define la imagen final) */}
+      <View style={styles.centerSection}>
+        {/* Anillo de radar exterior */}
         <Animated.View
           style={[
             styles.outerRadarRing,
             { transform: [{ scale: pulseAnim }] }
           ]}
         />
-        {/* Middle Dashed Ring */}
+
+        {/* Anillo de radar punteado giratorio */}
         <Animated.View
           style={[
             styles.middleRadarRing,
             { transform: [{ rotate: spin }] }
           ]}
         />
-        
-        {/* Tag */}
-        <View style={styles.seasonTag}>
-          <Text style={styles.seasonTagText}>⚽ PARTIDOS REALES</Text>
-        </View>
 
-        {/* Central Geometric Pentagon Icon */}
-        <View style={styles.pentagonCore}>
-          <View style={styles.pentagonInner}>
-            <View style={styles.coreDot} />
+        {/* Logo / Emblema central de MatchSport */}
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            { transform: [{ scale: pulseAnim }] }
+          ]}
+        >
+          <View style={styles.logoPentagon}>
+            <View style={styles.logoInner}>
+              <Text style={styles.logoBallIcon}>⚽</Text>
+            </View>
+          </View>
+          <View style={styles.logoTextRow}>
+            <Text style={styles.brandTitleWhite}>MATCH</Text>
+            <Text style={styles.brandTitleGreen}>SPORT</Text>
+          </View>
+        </Animated.View>
+
+        {/* Tarjeta flotante táctica de telemetría (fiel a la referencia de Stitch) */}
+        <View style={styles.telemetryCard}>
+          <View style={styles.telemetryHeader}>
+            <View style={styles.telemetryIconBox}>
+              <Text style={styles.telemetryMiniIcon}>⚡</Text>
+            </View>
+            <View style={styles.telemetryHeaderTextGroup}>
+              <Text style={styles.telemetryLabel}>TEST FÍSICO</Text>
+              <Text style={styles.telemetryScore}>IQ Táctico 94</Text>
+            </View>
+          </View>
+          <View style={styles.telemetryBody}>
+            <View style={styles.telemetryMetricRow}>
+              <Text style={styles.telemetryMetricName}>Ritmo Pro</Text>
+              <Text style={styles.telemetryMetricVal}>182 BPM</Text>
+            </View>
+            {/* Simulación gráfica de pulso EKG */}
+            <View style={styles.ekgPulseLine}>
+              <View style={styles.ekgBar1} />
+              <View style={styles.ekgBarPeak} />
+              <View style={styles.ekgBarLow} />
+              <View style={styles.ekgBarPeakHigh} />
+              <View style={styles.ekgBar2} />
+            </View>
           </View>
         </View>
       </View>
 
-      {/* Branding & Tagline */}
-      <View style={styles.brandSection}>
-        <View style={styles.brandTitleRow}>
-          <Text style={styles.brandTitleWhite}>MATCH</Text>
-          <Text style={styles.brandTitleGreen}>SPORT</Text>
-        </View>
-        <Text style={styles.brandTagline}>
-          Compite. Sube de Rango. Domina tu Cancha.
-        </Text>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.bottomActions}>
+      {/* 3. Acciones Inferiores: Crear cuenta, Ya tengo una cuenta, Continuar como invitado */}
+      <View style={styles.bottomSection}>
+        {/* Botón Principal: Crear cuenta */}
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={styles.btnCreateAccount}
+          onPress={handleRegister}
+          activeOpacity={0.88}
+        >
+          <Text style={styles.btnCreateAccountText}>Crear cuenta</Text>
+        </TouchableOpacity>
+
+        {/* Botón Secundario: Ya tengo una cuenta */}
+        <TouchableOpacity
+          style={styles.btnLogin}
           onPress={handleLogin}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryButtonText}>INICIAR SESIÓN</Text>
-          <Text style={styles.arrowIcon}>➔</Text>
+          <Text style={styles.btnLoginText}>Ya tengo una cuenta</Text>
         </TouchableOpacity>
 
+        {/* Enlace: ¿Continuar como invitado? */}
         <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={handleRegister}
-          activeOpacity={0.85}
+          style={styles.guestLink}
+          onPress={handleGuest}
+          activeOpacity={0.7}
         >
-          <Text style={styles.secondaryButtonText}>
-            CREAR CUENTA <Text style={styles.secondaryButtonGold}>NUEVA</Text>
+          <Text style={styles.guestLinkText}>
+            ¿Continuar como <Text style={styles.guestLinkHighlight}>invitado</Text>?
           </Text>
         </TouchableOpacity>
 
-        {/* Security badge */}
-        <View style={styles.securityBadge}>
-          <Text style={styles.shieldIcon}>🛡️</Text>
-          <Text style={styles.securityText}>
-            Emparejamiento Justo por Habilidad Glicko-2 & Acceso Seguro
-          </Text>
+        {/* iOS Home Indicator Bar */}
+        <View style={styles.homeIndicatorWrapper}>
+          <View style={styles.homeIndicator} />
         </View>
       </View>
     </SafeAreaView>
@@ -153,230 +195,324 @@ export default function SplashScreen({ onLoginPress, onRegisterPress }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.colors.bgCanvas,
+    backgroundColor: '#07090E',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  topChipsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  chipActivePlayers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 230, 118, 0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 230, 118, 0.3)',
-  },
-  greenDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: THEME.colors.primary,
-    marginRight: 6,
-  },
-  chipActiveText: {
-    color: THEME.colors.primary,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  chipLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.colors.cardElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  chipLocationIcon: {
-    fontSize: 10,
-    marginRight: 4,
-  },
-  chipLocationText: {
-    color: THEME.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  emblemContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 280,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 8,
     position: 'relative',
+    overflow: 'hidden',
   },
-  outerRadarRing: {
+  topAuraGlow: {
     position: 'absolute',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 230, 118, 0.25)',
+    top: -50,
+    alignSelf: 'center',
+    width: 320,
+    height: 220,
+    borderRadius: 160,
+    backgroundColor: 'rgba(0, 255, 135, 0.08)',
   },
-  middleRadarRing: {
+  centerAuraGlow: {
     position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
+    top: '28%',
+    alignSelf: 'center',
+    width: 290,
+    height: 290,
+    borderRadius: 145,
+    backgroundColor: 'rgba(0, 255, 135, 0.12)',
+  },
+  headerSection: {
+    marginTop: 8,
+    zIndex: 20,
+  },
+  systemBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(0, 230, 118, 0.4)',
-    borderStyle: 'dashed',
-  },
-  seasonTag: {
-    position: 'absolute',
-    top: 30,
-    right: 50,
-    backgroundColor: THEME.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: THEME.colors.borderGold,
-    zIndex: 10,
-  },
-  seasonTagText: {
-    color: THEME.colors.goldLight,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  pentagonCore: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(0, 230, 118, 0.08)',
-    borderWidth: 2,
-    borderColor: THEME.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: THEME.colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  pentagonInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: THEME.colors.cardBg,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 230, 118, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coreDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-  },
-  brandSection: {
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  brandTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandTitleWhite: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: THEME.colors.textPrimary,
-    letterSpacing: 1.5,
-  },
-  brandTitleGreen: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: THEME.colors.primary,
-    letterSpacing: 1.5,
-  },
-  brandTagline: {
-    marginTop: 8,
-    fontSize: 13,
-    color: THEME.colors.textSecondary,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textAlign: 'center',
-  },
-  bottomActions: {
-    gap: 12,
     marginBottom: 10,
   },
-  primaryButton: {
-    flexDirection: 'row',
-    backgroundColor: THEME.colors.primary,
-    height: 56,
-    borderRadius: THEME.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: THEME.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  primaryButtonText: {
-    color: '#00210B',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginRight: 8,
-  },
-  arrowIcon: {
-    color: '#00210B',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  secondaryButton: {
-    backgroundColor: THEME.colors.cardBg,
-    height: 56,
-    borderRadius: THEME.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  secondaryButtonText: {
-    color: THEME.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  secondaryButtonGold: {
-    color: THEME.colors.gold,
-  },
-  securityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(22, 27, 34, 0.6)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  shieldIcon: {
-    fontSize: 13,
+  systemBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00FF87',
     marginRight: 6,
   },
-  securityText: {
-    color: THEME.colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
+  systemBadgeText: {
+    color: '#00FF87',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  welcomeTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  welcomeSubtitle: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '400',
+    marginTop: 4,
+    letterSpacing: 0.1,
+  },
+  centerSection: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    minHeight: 310,
+  },
+  outerRadarRing: {
+    position: 'absolute',
+    width: 270,
+    height: 270,
+    borderRadius: 135,
+    borderWidth: 1.2,
+    borderColor: 'rgba(0, 255, 135, 0.2)',
+  },
+  middleRadarRing: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.35)',
+    borderStyle: 'dashed',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  logoPentagon: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(0, 255, 135, 0.08)',
+    borderWidth: 2,
+    borderColor: '#00FF87',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00FF87',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 22,
+    elevation: 10,
+  },
+  logoInner: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#0D141F',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 255, 135, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoBallIcon: {
+    fontSize: 32,
+  },
+  logoTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  brandTitleWhite: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 1.2,
+  },
+  brandTitleGreen: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#00FF87',
+    letterSpacing: 1.2,
+  },
+  telemetryCard: {
+    position: 'absolute',
+    top: 14,
+    right: 2,
+    width: 140,
+    backgroundColor: 'rgba(11, 14, 20, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 16,
+    padding: 10,
+    zIndex: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+  },
+  telemetryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingBottom: 6,
+  },
+  telemetryIconBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 255, 135, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  telemetryMiniIcon: {
+    fontSize: 10,
+  },
+  telemetryHeaderTextGroup: {
+    flex: 1,
+  },
+  telemetryLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+  },
+  telemetryScore: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 1,
+  },
+  telemetryBody: {
+    paddingTop: 6,
+  },
+  telemetryMetricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  telemetryMetricName: {
+    fontSize: 8.5,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  telemetryMetricVal: {
+    fontSize: 9,
+    color: '#00FF87',
+    fontWeight: '800',
+  },
+  ekgPulseLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 14,
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  ekgBar1: {
+    width: 22,
+    height: 1.5,
+    backgroundColor: '#FF3B56',
+  },
+  ekgBarPeak: {
+    width: 6,
+    height: 9,
+    borderTopWidth: 2,
+    borderRightWidth: 1.5,
+    borderColor: '#FF3B56',
+    transform: [{ rotate: '45deg' }],
+  },
+  ekgBarLow: {
+    width: 6,
+    height: 9,
+    borderBottomWidth: 2,
+    borderLeftWidth: 1.5,
+    borderColor: '#FF3B56',
+    transform: [{ rotate: '45deg' }],
+  },
+  ekgBarPeakHigh: {
+    width: 8,
+    height: 13,
+    borderTopWidth: 2,
+    borderColor: '#00FF87',
+    transform: [{ rotate: '-45deg' }],
+  },
+  ekgBar2: {
+    width: 24,
+    height: 1.5,
+    backgroundColor: '#FF3B56',
+  },
+  bottomSection: {
+    width: '100%',
+    gap: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+    zIndex: 30,
+  },
+  btnCreateAccount: {
+    width: '100%',
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#00FF87',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00FF87',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  btnCreateAccountText: {
+    color: '#06080D',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  btnLogin: {
+    width: '100%',
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(16, 20, 29, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnLoginText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  guestLink: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  guestLinkText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  guestLinkHighlight: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  homeIndicatorWrapper: {
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
+  homeIndicator: {
+    width: 140,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
 });

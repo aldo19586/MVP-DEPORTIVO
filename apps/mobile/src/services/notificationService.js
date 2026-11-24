@@ -96,6 +96,39 @@ export const notificationService = {
     }
   },
 
+  async startOngoingSearchNotification({ format = '5v5', district = 'Surco' }) {
+    try {
+      if (Platform.OS === 'android') {
+        await this.setupAndroidChannel();
+      }
+      if (!Notifications || !Notifications.scheduleNotificationAsync) return;
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'matchsport-ongoing-search',
+        content: {
+          title: `Buscando partido de Fútbol ${format.toUpperCase()} ⚽`,
+          body: `Buscando 10 rivales en ${district} (Glicko-2 activo)...`,
+          data: { type: 'SEARCHING_QUEUE' },
+          sticky: true,
+          autoDismiss: false,
+          channelId: CHANNEL_ID,
+        },
+        trigger: null,
+      });
+    } catch (e) {
+      console.log('[NOTIFICATIONS] Ongoing notification error:', e.message);
+    }
+  },
+
+  async dismissOngoingSearchNotification() {
+    try {
+      if (Notifications && Notifications.dismissNotificationAsync) {
+        await Notifications.dismissNotificationAsync('matchsport-ongoing-search');
+      }
+    } catch (e) {
+      console.log('[NOTIFICATIONS] Error cerrando notificación persistente:', e.message);
+    }
+  },
+
   addNotificationResponseReceivedListener(listener) {
     try {
       if (!Notifications || !Notifications.addNotificationResponseReceivedListener) return { remove: () => {} };
