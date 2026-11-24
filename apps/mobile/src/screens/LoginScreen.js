@@ -1,798 +1,1198 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ScrollView,
-  Image
+  SafeAreaView,
+  StatusBar,
+  Animated,
+  Easing,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { api } from '../services/api';
 import { storage } from '../services/storage';
 import { THEME } from '../theme';
 
-const QUICK_DISTRICTS = [
-  'Surco, Lima (Polo Turf / Jockey)',
-  'Miraflores, Lima (Bonilla / Club)',
-  'San Borja, Lima (Polideportivo)',
-  'San Isidro, Lima (Complejo)',
-  'La Molina, Lima (Rinconada)'
+const PIN_LENGTH = 4;
+
+const KEYPAD_ROWS = [
+  [
+    { key: '1', sub: '' },
+    { key: '2', sub: 'ABC' },
+    { key: '3', sub: 'DEF' },
+  ],
+  [
+    { key: '4', sub: 'GHI' },
+    { key: '5', sub: 'JKL' },
+    { key: '6', sub: 'MNO' },
+  ],
+  [
+    { key: '7', sub: 'PQRS' },
+    { key: '8', sub: 'TUV' },
+    { key: '9', sub: 'WXYZ' },
+  ],
 ];
 
-const POSITIONS = [
-  { key: 'DEL', label: 'DEL', sub: 'ATAQUE' },
-  { key: 'MED', label: 'MED', sub: 'CREACIÓN' },
-  { key: 'DEF', label: 'DEF', sub: 'MURO' },
-  { key: 'POR', label: 'POR', sub: 'GUANTE' }
-];
-
-export default function LoginScreen({ onLoginSuccess, initialIsRegistering = false, onBackToSplash }) {
+export default function LoginScreen({
+  onLoginSuccess,
+  initialIsRegistering = false,
+  onBackToSplash,
+}) {
   const [isRegistering, setIsRegistering] = useState(initialIsRegistering);
+  const [authChannel, setAuthChannel] = useState('PIN'); // 'PIN' | 'EMAIL'
+
+  // Credenciales PIN
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
-  const [district, setDistrict] = useState(QUICK_DISTRICTS[0]);
-  const [position, setPosition] = useState('DEL');
-  const [avatarUri, setAvatarUri] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150');
+  const [showPin, setShowPin] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
+
+  // Verificación de apodo en tiempo real (/api/auth/check-name/:name)
+  const [nameCheck, setNameCheck] = useState({ status: 'idle', exists: false });
+
+  // Credenciales Email
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Sliders/Selecciones del Cuestionario de Elo Inicial
-  const [freqIndex, setFreqIndex] = useState(2); // 0: Ocasional, 1: Interdiario, 2: 3-4 veces, 3: Pro Turf
-  const [expIndex, setExpIndex] = useState(1);  // 0: Pichangas, 1: Ligas/Torneos, 2: Federado
-  const [staminaIndex, setStaminaIndex] = useState(2); // 0: 45 min, 1: 60 min, 2: 90 min intenso
+  const pulseAnim = useRef(new Animated.Value(0.45)).current;
+  const nameInputRef = useRef(null);
 
-  const FREQ_LABELS = ['1 vez/semana', 'Interdiario', '3 a 4 veces', 'Pro Turf Diario'];
-  const EXP_LABELS = ['Pichangas de amigos', 'Ligas / Torneos', 'Federado'];
-  const STAMINA_LABELS = ['45 min', '60 min', '90 min intenso'];
+  useEffect(() => {
+    setIsRegistering(initialIsRegistering);
+  }, [initialIsRegistering]);
 
-  // Calcular rating base simulado
-  const calculatedElo = 1400 + (freqIndex * 40) + (expIndex * 60) + (staminaIndex * 30);
-  const calculatedOvr = Math.min(92, Math.floor(65 + (calculatedElo - 1200) / 40));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.35,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
 
-  const handlePickAvatar = async () => {
+  // Verificación asíncrona de apodo contra el servidor real
+  useEffect(() => {
+    if (authChannel !== 'PIN') return undefined;
+    const clean = name.trim();
+    if (clean.length < 2) {
+      setNameCheck({ status: 'idle', exists: false });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setNameCheck((prev) => ({ ...prev, status: 'checking' }));
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.checkName(clean);
+        if (!cancelled) {
+          setNameCheck({ status: 'done', exists: !!res?.exists });
+        }
+      } catch {
+        if (!cancelled) {
+          setNameCheck({ status: 'idle', exists: false });
+        }
+      }
+    }, 320);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [name, authChannel]);
+
+  const triggerHaptic = (type = 'light') => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permiso necesario', 'Se requiere acceso a la galería para cambiar tu foto de perfil.');
-        return;
-      }
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-      if (!res.canceled && res.assets && res.assets[0].uri) {
-        setAvatarUri(res.assets[0].uri);
-      }
-    } catch (e) {
-      console.warn('Error picker:', e);
+      if (type === 'selection') Haptics.selectionAsync();
+      else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      else if (type === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+  };
+
+  const handleDigitPress = (digit) => {
+    if (loading) return;
+    Keyboard.dismiss();
+    setErrorMessage('');
+    if (pin.length < PIN_LENGTH) {
+      triggerHaptic('light');
+      setPin((prev) => prev + digit);
     }
   };
 
+  const handleBackspace = () => {
+    if (loading) return;
+    Keyboard.dismiss();
+    setErrorMessage('');
+    if (pin.length > 0) {
+      triggerHaptic('selection');
+      setPin((prev) => prev.slice(0, -1));
+    }
+  };
+
+  const handleClearPin = () => {
+    if (loading) return;
+    Keyboard.dismiss();
+    setErrorMessage('');
+    if (pin.length > 0) {
+      triggerHaptic('medium');
+      setPin('');
+    }
+  };
+
+  const handleHelpPress = () => {
+    triggerHaptic('selection');
+    Alert.alert(
+      'Acceso Oficial MatchSport',
+      '• Ingresa con tu apodo de jugador y tu PIN secreto de 4 dígitos.\n\n• Si eres nuevo, toca "Registrarme" para crear tu cuenta y pasar a la calibración física y test táctico.\n\n• Si olvidaste tu PIN, solicita un reseteo verificado al SuperAdmin de tu liga.'
+    );
+  };
+
+  const toggleRegisterMode = () => {
+    triggerHaptic('selection');
+    setErrorMessage('');
+    setPin('');
+    setIsRegistering((prev) => !prev);
+  };
+
+  const toggleAuthChannel = () => {
+    triggerHaptic('selection');
+    setErrorMessage('');
+    Keyboard.dismiss();
+    setAuthChannel((prev) => (prev === 'PIN' ? 'EMAIL' : 'PIN'));
+  };
+
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      Alert.alert('Datos requeridos', 'Ingresa tu nombre o apodo para la carta.');
+    Keyboard.dismiss();
+    setErrorMessage('');
+
+    if (authChannel === 'PIN') {
+      const cleanName = name.trim();
+      if (cleanName.length < 2) {
+        triggerHaptic('error');
+        setErrorMessage('Ingresa tu apodo o nombre en cancha (mínimo 2 caracteres).');
+        return;
+      }
+      if (!/^\d{4}$/.test(pin)) {
+        triggerHaptic('error');
+        setErrorMessage('Completa los 4 dígitos numéricos de tu PIN en el teclado táctico.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const result = isRegistering
+          ? await api.pinRegister({
+              name: cleanName,
+              pin,
+              primarySport: 'futbol',
+            })
+          : await api.pinLogin(cleanName, pin);
+
+        triggerHaptic('success');
+        await storage.saveUserSession(result.user, result.token);
+        onLoginSuccess(result.user);
+      } catch (err) {
+        triggerHaptic('error');
+        setErrorMessage(err.message || 'No pudimos autenticar tu cuenta. Verifica tus datos.');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
-    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      Alert.alert('PIN inválido', 'El PIN de seguridad debe tener exactamente 4 dígitos numéricos.');
+    // Autenticación secundaria vía Email real (/api/auth/login y /api/auth/register)
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      triggerHaptic('error');
+      setErrorMessage('Ingresa un correo electrónico válido.');
+      return;
+    }
+    if (!password || password.length < 4) {
+      triggerHaptic('error');
+      setErrorMessage('La contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+    if (isRegistering && name.trim().length < 2) {
+      triggerHaptic('error');
+      setErrorMessage('Ingresa tu apodo de jugador (mínimo 2 caracteres).');
       return;
     }
 
     setLoading(true);
     try {
-      let result;
-      if (isRegistering) {
-        result = await api.pinRegister({
-          name: name.trim(),
-          pin: pin.trim(),
-          district,
-          position,
-          avatar: avatarUri,
-          primarySport: 'futbol',
-          declaredLevel: 'Calibrando'
-        });
-      } else {
-        result = await api.pinLogin(name.trim(), pin.trim());
-      }
+      const result = isRegistering
+        ? await api.emailRegister({
+            email: cleanEmail,
+            password,
+            name: name.trim(),
+            primarySport: 'futbol',
+          })
+        : await api.emailLogin(cleanEmail, password);
 
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      triggerHaptic('success');
       await storage.saveUserSession(result.user, result.token);
       onLoginSuccess(result.user);
     } catch (err) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', err.message || 'Error al autenticar.');
+      triggerHaptic('error');
+      setErrorMessage(err.message || 'Error al autenticar con correo electrónico.');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        
-        {/* Top Header Switcher */}
-        <View style={styles.topTabs}>
-          <TouchableOpacity
-            style={[styles.topTabBtn, !isRegistering && styles.topTabBtnActive]}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setIsRegistering(false);
-            }}
-          >
-            <Text style={[styles.topTabText, !isRegistering && styles.topTabTextActive]}>
-              INICIAR SESIÓN
-            </Text>
-          </TouchableOpacity>
+  const renderNameStatusBadge = () => {
+    if (nameCheck.status === 'checking') {
+      return <Text style={styles.fieldStatusChecking}>Verificando...</Text>;
+    }
+    if (nameCheck.status !== 'done') {
+      return (
+        <Text style={styles.fieldStatusActive}>
+          ✓ Ficha Oficial
+        </Text>
+      );
+    }
+    if (!isRegistering) {
+      if (nameCheck.exists) {
+        return <Text style={styles.fieldStatusActive}>✓ Jugador activo</Text>;
+      }
+      return (
+        <TouchableOpacity onPress={toggleRegisterMode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.fieldStatusWarn}>Nuevo · Registrarme ➔</Text>
+        </TouchableOpacity>
+      );
+    }
+    if (!nameCheck.exists) {
+      return <Text style={styles.fieldStatusActive}>✓ Apodo disponible</Text>;
+    }
+    return (
+      <TouchableOpacity onPress={toggleRegisterMode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={styles.fieldStatusWarn}>Ya existe · Ingresar ➔</Text>
+      </TouchableOpacity>
+    );
+  };
 
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={THEME.colors.surfaceLowest} />
+
+      {/* Halos de Iluminación Nocturna de Estadio (Obsidian Pitch) */}
+      <View pointerEvents="none" style={styles.topFloodlightGlow} />
+      <View pointerEvents="none" style={styles.sideAmbientGlow} />
+
+      {/* 1. HEADER FIJO SUPERIOR */}
+      <View style={styles.header}>
+        {onBackToSplash ? (
           <TouchableOpacity
-            style={[styles.topTabBtn, isRegistering && styles.topTabBtnActive]}
+            accessibilityRole="button"
+            accessibilityLabel="Volver atrás"
+            style={styles.iconCircleBtn}
             onPress={() => {
-              Haptics.selectionAsync();
-              setIsRegistering(true);
+              triggerHaptic('light');
+              onBackToSplash();
             }}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.topTabText, isRegistering && styles.topTabTextActive]}>
-              ★ NUEVO JUGADOR
-            </Text>
+            <Text style={styles.iconCircleText}>←</Text>
           </TouchableOpacity>
+        ) : (
+          <View style={styles.iconCirclePlaceholder} />
+        )}
+
+        <View style={styles.brandPill}>
+          <Text style={styles.brandBallIcon}>⚽</Text>
+          <Text style={styles.brandPillText}>MATCHSPORT</Text>
         </View>
 
-        {isRegistering ? (
-          /* ========================================================
-             MODO REGISTRO: Registro de Cuenta Real
-             ======================================================== */
-          <View style={styles.registerSection}>
-            <Text style={styles.mainTitle}>
-              Crea tu <Text style={styles.titleGreen}>Cuenta de Jugador</Text>
-            </Text>
-            <Text style={styles.subtitle}>
-              Regístrate con tu apodo y PIN seguro. Completarás tu test de nivel para obtener tu carta oficial y jugar en cancha.
-            </Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Ayuda de acceso"
+          style={styles.helpBtn}
+          onPress={handleHelpPress}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.helpBtnText}>?</Text>
+        </TouchableOpacity>
+      </View>
 
-            {/* Formulario */}
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>⚽ APODO O NOMBRE EN CANCHA</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Ej. Mateo Ramos"
-                placeholderTextColor={THEME.colors.textMuted}
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
+      {/* 2. CUERPO SCROLLEABLE */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flexOne}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Título Atlético */}
+          <View style={styles.heroBlock}>
+            <View style={styles.tunnelBadge}>
+              <Animated.View style={[styles.tunnelDot, { opacity: pulseAnim }]} />
+              <Text style={styles.tunnelBadgeText}>
+                {isRegistering ? 'NUEVA FICHA OFICIAL' : 'TÚNEL DE ACCESO'}
+              </Text>
             </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>🔒 CREA TU PIN DE 4 DÍGITOS</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Ej. 1234"
-                placeholderTextColor={THEME.colors.textMuted}
-                value={pin}
-                onChangeText={setPin}
-                keyboardType="numeric"
-                maxLength={4}
-                secureTextEntry
-              />
-              <Text style={styles.inputHelper}>Este PIN te servirá para ingresar siempre desde cualquier dispositivo.</Text>
-            </View>
+            <Text style={styles.heroTitle}>
+              {isRegistering ? 'Crea tu Ficha en Cancha' : 'Bienvenido a la Cancha'}
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              {authChannel === 'PIN'
+                ? isRegistering
+                  ? 'Registra tu apodo y un PIN de 4 dígitos para calibrar tu perfil y carta inicial.'
+                  : 'Ingresa tu apodo y PIN de 4 dígitos para verificar tu ficha oficial de jugador.'
+                : isRegistering
+                  ? 'Crea tu cuenta con correo electrónico para continuar a tu calibración deportiva.'
+                  : 'Ingresa con tu correo electrónico y contraseña registrada.'}
+            </Text>
+          </View>
 
-            {/* Selector de Posición Preferida */}
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>🏃 POSICIÓN EN CANCHA</Text>
-              <View style={styles.positionsRow}>
-                {POSITIONS.map((p) => (
-                  <TouchableOpacity
-                    key={p.key}
-                    style={[styles.posBtn, position === p.key && styles.posBtnActive]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setPosition(p.key);
+          {authChannel === 'PIN' ? (
+            <View style={styles.formStack}>
+              {/* Campo de Apodo Oficial */}
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.fieldLabel}>APODO DE JUGADOR</Text>
+                  {renderNameStatusBadge()}
+                </View>
+
+                <View style={[styles.playerInputCard, nameFocused && styles.playerInputCardFocused]}>
+                  <View style={styles.countryBadge}>
+                    <Text style={styles.countryFlag}>🇵🇪</Text>
+                    <Text style={styles.countryCode}>PER</Text>
+                  </View>
+
+                  <View style={styles.verticalDivider} />
+
+                  <TextInput
+                    ref={nameInputRef}
+                    style={styles.playerTextInput}
+                    placeholder="Ej. Mateo Ramos"
+                    placeholderTextColor={THEME.colors.outline}
+                    value={name}
+                    onChangeText={(val) => {
+                      setErrorMessage('');
+                      setName(val);
                     }}
+                    onFocus={() => setNameFocused(true)}
+                    onBlur={() => setNameFocused(false)}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={() => Keyboard.dismiss()}
+                  />
+
+                  {name.length > 0 && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Limpiar apodo"
+                      style={styles.clearFieldBtn}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setName('');
+                        setErrorMessage('');
+                      }}
+                    >
+                      <Text style={styles.clearFieldIcon}>✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Casillas Cinéticas de PIN (4 dígitos reales del backend) */}
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.fieldLabel}>
+                    {isRegistering
+                      ? 'CREA TU PIN SECRETO (4 DÍGITOS)'
+                      : 'CÓDIGO DE ACCESO / PIN (4 DÍGITOS)'}
+                  </Text>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setShowPin((prev) => !prev);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={[styles.posBtnText, position === p.key && styles.posBtnTextActive]}>
-                      {p.label}
-                    </Text>
-                    <Text style={[styles.posSubText, position === p.key && styles.posSubTextActive]}>
-                      {p.sub}
+                    <Text style={styles.togglePinVisibilityText}>
+                      {showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
                     </Text>
                   </TouchableOpacity>
-                ))}
+                </View>
+
+                <Pressable
+                  style={styles.pinSlotsRow}
+                  onPress={() => Keyboard.dismiss()}
+                >
+                  {Array.from({ length: PIN_LENGTH }).map((_, index) => {
+                    const isFilled = index < pin.length;
+                    const isActive = index === pin.length;
+
+                    return (
+                      <View
+                        key={`pin-slot-${index}`}
+                        style={[
+                          styles.pinSlot,
+                          isActive && styles.pinSlotActive,
+                          isFilled && styles.pinSlotFilled,
+                        ]}
+                      >
+                        {isFilled ? (
+                          <>
+                            <Text style={styles.pinDigitText}>
+                              {showPin ? pin[index] : '•'}
+                            </Text>
+                            <View style={styles.pinSlotUnderline} />
+                          </>
+                        ) : isActive ? (
+                          <Animated.View
+                            style={[styles.pinActiveDot, { opacity: pulseAnim }]}
+                          />
+                        ) : (
+                          <View style={styles.pinInactiveDot} />
+                        )}
+                      </View>
+                    );
+                  })}
+                </Pressable>
               </View>
             </View>
+          ) : (
+            /* Modo Secundario Vía Email Conectado al Backend Real */
+            <View style={styles.formStack}>
+              {isRegistering && (
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>APODO DE JUGADOR</Text>
+                  <View style={styles.emailInputWrapper}>
+                    <TextInput
+                      style={styles.playerTextInput}
+                      placeholder="Ej. Mateo Ramos"
+                      placeholderTextColor={THEME.colors.outline}
+                      value={name}
+                      onChangeText={(v) => {
+                        setErrorMessage('');
+                        setName(v);
+                      }}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+              )}
 
-            {/* Selector de Ubicación */}
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>📍 TU DISTRITO EN LIMA</Text>
-              <View style={styles.districtChipsScroll}>
-                {QUICK_DISTRICTS.map((d) => (
-                  <TouchableOpacity
-                    key={d}
-                    style={[styles.districtChip, district === d && styles.districtChipActive]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setDistrict(d);
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>CORREO ELECTRÓNICO</Text>
+                <View style={styles.emailInputWrapper}>
+                  <TextInput
+                    style={styles.playerTextInput}
+                    placeholder="jugador@correo.com"
+                    placeholderTextColor={THEME.colors.outline}
+                    value={email}
+                    onChangeText={(v) => {
+                      setErrorMessage('');
+                      setEmail(v);
                     }}
-                  >
-                    <Text style={[styles.districtChipText, district === d && styles.districtChipTextActive]}>
-                      {d.split(',')[0]}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.fieldLabel}>CONTRASEÑA</Text>
+                  <TouchableOpacity onPress={() => setShowPassword((p) => !p)}>
+                    <Text style={styles.togglePinVisibilityText}>
+                      {showPassword ? 'Ocultar' : 'Mostrar'}
                     </Text>
                   </TouchableOpacity>
-                ))}
+                </View>
+                <View style={styles.emailInputWrapper}>
+                  <TextInput
+                    style={styles.playerTextInput}
+                    placeholder="Mínimo 4 caracteres"
+                    placeholderTextColor={THEME.colors.outline}
+                    value={password}
+                    onChangeText={(v) => {
+                      setErrorMessage('');
+                      setPassword(v);
+                    }}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                </View>
               </View>
             </View>
+          )}
 
-            {/* Botón Principal de Registro Directo */}
-            <TouchableOpacity
-              style={styles.mainSubmitBtn}
-              onPress={handleSubmit}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <ActivityIndicator color="#00210B" />
-              ) : (
-                <Text style={styles.mainSubmitText}>⚡ CREAR CUENTA Y CONTINUAR</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : (
-          /* ========================================================
-             MODO LOGIN: Acceso rápido con PIN
-             ======================================================== */
-          <View style={styles.loginSection}>
-            <Text style={styles.mainTitle}>
-              Bienvenido de <Text style={styles.titleGreen}>Vuelta</Text>
-            </Text>
-            <Text style={styles.subtitle}>
-              Ingresa tu apodo y PIN para acceder a tus convocatorias y partidos.
-            </Text>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>👤 APODO O NOMBRE REGISTRADO</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Ej. Mateo Ramos"
-                placeholderTextColor={THEME.colors.textMuted}
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="none"
-              />
+          {/* Banner de Error Accesible */}
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>⚠️ {errorMessage}</Text>
             </View>
+          ) : null}
 
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>🔒 PIN DE 4 DÍGITOS</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="1234"
-                placeholderTextColor={THEME.colors.textMuted}
-                value={pin}
-                onChangeText={setPin}
-                keyboardType="numeric"
-                maxLength={4}
-                secureTextEntry
-              />
-            </View>
-
-            <TouchableOpacity
-              style={styles.mainSubmitBtn}
-              onPress={handleSubmit}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <ActivityIndicator color="#00210B" />
-              ) : (
-                <Text style={styles.mainSubmitText}>INGRESAR A LA CANCHA ➔</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {onBackToSplash && (
-          <TouchableOpacity style={styles.backSplashBtn} onPress={onBackToSplash}>
-            <Text style={styles.backSplashText}>← Volver a la pantalla de bienvenida</Text>
+          {/* CTA Primario Neon Pitch Green */}
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[styles.primaryCtaBtn, loading && styles.primaryCtaBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.86}
+          >
+            {loading ? (
+              <ActivityIndicator color={THEME.colors.surfaceLowest} />
+            ) : (
+              <View style={styles.primaryCtaInner}>
+                <Text style={styles.primaryCtaText}>
+                  {isRegistering ? 'CREAR CUENTA Y CALIBRAR' : 'INGRESAR A JUGAR'}
+                </Text>
+                <Text style={styles.primaryCtaArrow}>➔</Text>
+              </View>
+            )}
           </TouchableOpacity>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+          {/* Divisor Táctico + Accesos Secundarios */}
+          <View style={styles.tacticalDividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerLabel}>O CONTINÚA CON</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.secondaryActionsRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.secondaryActionBtn}
+              onPress={toggleAuthChannel}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryActionIcon}>
+                {authChannel === 'PIN' ? '✉️' : '🔢'}
+              </Text>
+              <Text style={styles.secondaryActionText}>
+                {authChannel === 'PIN' ? 'Vía Email' : 'Vía PIN'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={[styles.secondaryActionBtn, styles.secondaryActionBtnAccent]}
+              onPress={toggleRegisterMode}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryActionIcon}>
+                {isRegistering ? '🔑' : '👤+'}
+              </Text>
+              <Text style={styles.secondaryActionTextAccent}>
+                {isRegistering ? 'Iniciar Sesión' : 'Registrarme'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Teclado Numérico Táctico Integrado (3x4) */}
+          {authChannel === 'PIN' && (
+            <View style={styles.keypadContainer}>
+              {KEYPAD_ROWS.map((row, rowIdx) => (
+                <View key={`krow-${rowIdx}`} style={styles.keypadRow}>
+                  {row.map((item) => (
+                    <Pressable
+                      key={item.key}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Dígito ${item.key}`}
+                      style={({ pressed }) => [
+                        styles.keypadKey,
+                        pressed && styles.keypadKeyPressed,
+                      ]}
+                      onPress={() => handleDigitPress(item.key)}
+                    >
+                      {({ pressed }) => (
+                        <>
+                          <Text
+                            style={[
+                              styles.keypadDigit,
+                              pressed && styles.keypadDigitPressed,
+                            ]}
+                          >
+                            {item.key}
+                          </Text>
+                          {item.sub ? (
+                            <Text
+                              style={[
+                                styles.keypadSub,
+                                pressed && styles.keypadDigitPressed,
+                              ]}
+                            >
+                              {item.sub}
+                            </Text>
+                          ) : null}
+                        </>
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+
+              {/* Última fila: Limpiar · 0 · Borrar */}
+              <View style={styles.keypadRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Limpiar PIN"
+                  style={({ pressed }) => [
+                    styles.keypadUtilityKey,
+                    pressed && styles.keypadUtilityKeyPressed,
+                  ]}
+                  onPress={handleClearPin}
+                >
+                  <Text style={styles.keypadClearText}>LIMPIAR</Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Dígito 0"
+                  style={({ pressed }) => [
+                    styles.keypadKey,
+                    pressed && styles.keypadKeyPressed,
+                  ]}
+                  onPress={() => handleDigitPress('0')}
+                >
+                  {({ pressed }) => (
+                    <>
+                      <Text
+                        style={[
+                          styles.keypadDigit,
+                          pressed && styles.keypadDigitPressed,
+                        ]}
+                      >
+                        0
+                      </Text>
+                      <Text
+                        style={[
+                          styles.keypadSub,
+                          pressed && styles.keypadDigitPressed,
+                        ]}
+                      >
+                        +
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Borrar último dígito"
+                  style={({ pressed }) => [
+                    styles.keypadUtilityKey,
+                    pressed && styles.keypadUtilityKeyPressed,
+                  ]}
+                  onPress={handleBackspace}
+                >
+                  <Text style={styles.keypadBackspaceText}>⌫</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Footer de Seguridad */}
+          <View style={styles.securityFooter}>
+            <Text style={styles.securityShield}>🛡️</Text>
+            <Text style={styles.securityFooterText}>
+              Sesión protegida con PIN encriptado & Verificación Arbitral
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: THEME.colors.bgCanvas,
+    backgroundColor: THEME.colors.surfaceLowest,
+  },
+  flexOne: {
+    flex: 1,
+  },
+  topFloodlightGlow: {
+    position: 'absolute',
+    top: -90,
+    alignSelf: 'center',
+    width: 300,
+    height: 240,
+    borderRadius: 150,
+    backgroundColor: 'rgba(0, 255, 135, 0.07)',
+  },
+  sideAmbientGlow: {
+    position: 'absolute',
+    top: '42%',
+    left: -80,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(0, 255, 135, 0.04)',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  iconCircleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: THEME.colors.surfaceLow,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconCirclePlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  iconCircleText: {
+    color: THEME.colors.onSurface,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  brandPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.surfaceContainer,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.14)',
+    gap: 6,
+  },
+  brandBallIcon: {
+    fontSize: 13,
+  },
+  brandPillText: {
+    color: THEME.colors.neonPitch,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
+  helpBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpBtnText: {
+    color: THEME.colors.outline,
+    fontSize: 15,
+    fontWeight: '800',
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 45,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 24,
   },
-  topTabs: {
-    flexDirection: 'row',
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.lg,
-    padding: 4,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
+  heroBlock: {
+    marginBottom: 14,
   },
-  topTabBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: THEME.radius.md,
-    alignItems: 'center',
-  },
-  topTabBtnActive: {
-    backgroundColor: THEME.colors.primary,
-  },
-  topTabText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: THEME.colors.textSecondary,
-    letterSpacing: 0.5,
-  },
-  topTabTextActive: {
-    color: '#00210B',
-  },
-  registerSection: {
-    gap: 16,
-  },
-  loginSection: {
-    gap: 18,
-    marginTop: 10,
-  },
-  draftBadge: {
+  tunnelBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0, 230, 118, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 230, 118, 0.3)',
+    alignSelf: 'flex-start',
+    backgroundColor: THEME.colors.surfaceHigh,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginBottom: 6,
+    gap: 6,
   },
-  draftGreenDot: {
+  tunnelDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: THEME.colors.primary,
-    marginRight: 6,
+    backgroundColor: THEME.colors.neonPitch,
   },
-  draftBadgeText: {
-    color: THEME.colors.primary,
+  tunnelBadgeText: {
+    color: THEME.colors.neonPitch,
     fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  mainTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: THEME.colors.textPrimary,
-    textAlign: 'center',
-  },
-  titleGreen: {
-    color: THEME.colors.primary,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: THEME.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginTop: -8,
-  },
-  futCardPreview: {
-    alignSelf: 'center',
-    width: 200,
-    backgroundColor: '#1E232D',
-    borderRadius: THEME.radius.lg,
-    padding: 14,
-    borderWidth: 2,
-    borderColor: THEME.colors.gold,
-    alignItems: 'center',
-    marginVertical: 8,
-    shadowColor: THEME.colors.gold,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    alignItems: 'flex-start',
-  },
-  cardOvr: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: THEME.colors.gold,
-    lineHeight: 30,
-  },
-  cardPos: {
-    fontSize: 12,
     fontWeight: '800',
-    color: THEME.colors.primary,
+    letterSpacing: 0.9,
   },
-  cardCountry: {
-    alignItems: 'center',
-  },
-  cardFlag: {
-    fontSize: 14,
-  },
-  cardCountryCode: {
-    fontSize: 9,
+  heroTitle: {
+    color: '#F1FFEF',
+    fontSize: 24,
     fontWeight: '800',
-    color: THEME.colors.gold,
-  },
-  avatarWrapper: {
-    position: 'relative',
-    marginVertical: 6,
-  },
-  cardAvatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 2,
-    borderColor: THEME.colors.gold,
-  },
-  editPencil: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: THEME.colors.gold,
-    borderRadius: 12,
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pencilIcon: {
-    fontSize: 10,
-  },
-  cardPlayerName: {
-    color: THEME.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  cardStatsPill: {
-    color: THEME.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  statVal: {
-    color: THEME.colors.gold,
-    fontWeight: '900',
-  },
-  formGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: THEME.colors.textSecondary,
-    letterSpacing: 0.5,
-  },
-  textInput: {
-    backgroundColor: THEME.colors.cardBg,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    borderRadius: THEME.radius.md,
-    height: 48,
-    paddingHorizontal: 14,
-    color: THEME.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  positionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  posBtn: {
-    flex: 1,
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  posBtnActive: {
-    borderColor: THEME.colors.primary,
-    backgroundColor: 'rgba(0, 230, 118, 0.12)',
-  },
-  posBtnText: {
-    color: THEME.colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  posBtnTextActive: {
-    color: THEME.colors.primary,
-    fontWeight: '900',
-  },
-  posSubText: {
-    color: THEME.colors.textMuted,
-    fontSize: 9,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  posSubTextActive: {
-    color: THEME.colors.primary,
-  },
-  districtChipsScroll: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  districtChip: {
-    backgroundColor: THEME.colors.cardBg,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  districtChipActive: {
-    borderColor: THEME.colors.primary,
-    backgroundColor: 'rgba(0, 230, 118, 0.12)',
-  },
-  districtChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textSecondary,
-  },
-  districtChipTextActive: {
-    color: THEME.colors.primary,
-  },
-  locationTagsRow: {
-    flexDirection: 'row',
-    gap: 8,
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
-  locationTag: {
-    backgroundColor: THEME.colors.cardElevated,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: THEME.radius.sm,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  locationTagText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: THEME.colors.textPrimary,
-  },
-  inputHelper: {
-    fontSize: 10,
-    color: THEME.colors.textMuted,
-    marginTop: 3,
-  },
-  positionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  posButton: {
-    flex: 1,
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.md,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  posButtonActive: {
-    backgroundColor: THEME.colors.primary,
-    borderColor: THEME.colors.primary,
-  },
-  posButtonTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: THEME.colors.textPrimary,
-  },
-  posButtonTitleActive: {
-    color: '#00210B',
-  },
-  posButtonSub: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: THEME.colors.textMuted,
-    marginTop: 2,
-  },
-  posButtonSubActive: {
-    color: '#00210B',
-  },
-  calculatorCard: {
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: THEME.radius.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    gap: 12,
-    marginTop: 6,
-  },
-  calcHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  calcTitle: {
+  heroSubtitle: {
+    color: THEME.colors.onSurfaceVariant,
     fontSize: 13,
-    fontWeight: '800',
-    color: THEME.colors.textPrimary,
+    lineHeight: 18,
   },
-  calcSubtitle: {
-    fontSize: 10,
-    color: THEME.colors.textSecondary,
+  formStack: {
+    gap: 14,
   },
-  eaBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: THEME.colors.borderGold,
-  },
-  eaBadgeText: {
-    color: THEME.colors.goldLight,
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  calcItem: {
+  fieldGroup: {
     gap: 6,
   },
-  calcItemHeader: {
+  labelRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  calcItemLabel: {
+  fieldLabel: {
+    color: THEME.colors.onSurfaceVariant,
     fontSize: 11,
-    color: THEME.colors.textSecondary,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+  },
+  fieldStatusActive: {
+    color: THEME.colors.neonPitch,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  fieldStatusChecking: {
+    color: THEME.colors.outline,
+    fontSize: 11,
     fontWeight: '600',
   },
-  calcItemValue: {
+  fieldStatusWarn: {
+    color: THEME.colors.goldLight,
     fontSize: 11,
     fontWeight: '800',
-    color: THEME.colors.primary,
   },
-  selectorRow: {
+  playerInputCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.surfaceContainer,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    height: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  playerInputCardFocused: {
+    borderColor: THEME.colors.neonPitch,
+  },
+  countryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.surfaceHigh,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 5,
+  },
+  countryFlag: {
+    fontSize: 13,
+  },
+  countryCode: {
+    color: '#F1FFEF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: THEME.colors.surfaceHighest,
+    marginHorizontal: 10,
+  },
+  playerTextInput: {
+    flex: 1,
+    color: '#F1FFEF',
+    fontSize: 16,
+    fontWeight: '700',
+    paddingVertical: 0,
+  },
+  clearFieldBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: THEME.colors.surfaceHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  clearFieldIcon: {
+    color: THEME.colors.outline,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  togglePinVisibilityText: {
+    color: THEME.colors.neonPitch,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  pinSlotsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 2,
+  },
+  pinSlot: {
+    flex: 1,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: THEME.colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  pinSlotFilled: {
+    borderColor: 'rgba(0, 255, 135, 0.22)',
+  },
+  pinSlotActive: {
+    backgroundColor: THEME.colors.surfaceHigh,
+    borderColor: 'rgba(0, 255, 135, 0.55)',
+    shadowColor: THEME.colors.neonPitch,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  pinDigitText: {
+    color: '#F1FFEF',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  pinSlotUnderline: {
+    position: 'absolute',
+    bottom: 6,
+    width: 16,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: THEME.colors.neonPitch,
+  },
+  pinActiveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: THEME.colors.neonPitch,
+  },
+  pinInactiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.surfaceBright,
+  },
+  emailInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.surfaceContainer,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  errorBanner: {
+    marginTop: 12,
+    backgroundColor: THEME.colors.coralErrorBg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 171, 0.35)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  errorBannerText: {
+    color: THEME.colors.coralError,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  primaryCtaBtn: {
+    marginTop: 16,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: THEME.colors.neonPitch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: THEME.colors.neonPitch,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  primaryCtaBtnDisabled: {
+    opacity: 0.7,
+  },
+  primaryCtaInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  primaryCtaText: {
+    color: THEME.colors.surfaceLowest,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  primaryCtaArrow: {
+    color: THEME.colors.surfaceLowest,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  tacticalDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: THEME.colors.surfaceHighest,
+  },
+  dividerLabel: {
+    color: THEME.colors.outline,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.0,
+  },
+  secondaryActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: THEME.colors.surfaceLow,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  secondaryActionBtnAccent: {
+    borderColor: 'rgba(0, 255, 135, 0.24)',
+  },
+  secondaryActionIcon: {
+    fontSize: 13,
+    color: THEME.colors.neonPitch,
+  },
+  secondaryActionText: {
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  secondaryActionTextAccent: {
+    color: THEME.colors.neonPitch,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  keypadContainer: {
+    marginTop: 14,
+    backgroundColor: THEME.colors.surfaceLow,
+    borderRadius: 12,
+    padding: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  keypadRow: {
     flexDirection: 'row',
     gap: 6,
   },
-  stepDot: {
+  keypadKey: {
     flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: THEME.colors.cardElevated,
-  },
-  stepDotActive: {
-    backgroundColor: THEME.colors.primary,
-  },
-  calcResultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(11, 14, 20, 0.6)',
-    padding: 10,
-    borderRadius: THEME.radius.md,
-    marginTop: 4,
-  },
-  calcResultLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: THEME.colors.textMuted,
-  },
-  calcResultValue: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: THEME.colors.textPrimary,
-  },
-  bracketLabel: {
-    fontSize: 11,
-    color: THEME.colors.gold,
-    fontWeight: '800',
-  },
-  calibratedBadge: {
-    backgroundColor: 'rgba(0, 230, 118, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: THEME.radius.pill,
-  },
-  calibratedText: {
-    color: THEME.colors.primary,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  mainSubmitBtn: {
-    backgroundColor: THEME.colors.primary,
-    height: 52,
-    borderRadius: THEME.radius.md,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: THEME.colors.surfaceContainer,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: THEME.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  mainSubmitText: {
-    color: '#00210B',
-    fontSize: 14,
-    fontWeight: '900',
+  keypadKeyPressed: {
+    backgroundColor: THEME.colors.neonPitch,
+  },
+  keypadDigit: {
+    color: '#F1FFEF',
+    fontSize: 19,
+    fontWeight: '800',
+    lineHeight: 22,
+  },
+  keypadDigitPressed: {
+    color: THEME.colors.surfaceLowest,
+  },
+  keypadSub: {
+    color: THEME.colors.outline,
+    fontSize: 8.5,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: 1,
+  },
+  keypadUtilityKey: {
+    flex: 1,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: THEME.colors.surfaceLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keypadUtilityKeyPressed: {
+    backgroundColor: THEME.colors.surfaceHigh,
+  },
+  keypadClearText: {
+    color: THEME.colors.neonPitch,
+    fontSize: 10,
+    fontWeight: '800',
     letterSpacing: 0.8,
   },
-  demoSection: {
-    marginTop: 24,
-    gap: 8,
-  },
-  demoSectionTitle: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: THEME.colors.textMuted,
-    textAlign: 'center',
-    letterSpacing: 1,
-  },
-  demoButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  demoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.colors.cardBg,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: THEME.radius.pill,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  orangeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: THEME.colors.gold,
-    marginRight: 6,
-  },
-  greenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: THEME.colors.primary,
-    marginRight: 6,
-  },
-  demoBtnText: {
-    fontSize: 11,
+  keypadBackspaceText: {
+    color: THEME.colors.coralError,
+    fontSize: 20,
     fontWeight: '700',
-    color: THEME.colors.textSecondary,
   },
-  backSplashBtn: {
+  securityFooter: {
+    marginTop: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 18,
+    justifyContent: 'center',
+    gap: 6,
   },
-  backSplashText: {
-    color: THEME.colors.textMuted,
+  securityShield: {
     fontSize: 12,
+  },
+  securityFooterText: {
+    color: THEME.colors.outline,
+    fontSize: 11,
     fontWeight: '600',
   },
 });

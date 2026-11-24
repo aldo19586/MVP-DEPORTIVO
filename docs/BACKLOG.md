@@ -323,6 +323,20 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Mobile Android: `expo export --platform android` empaquetado exitoso (código 0).
   - Mobile iOS: `expo export --platform ios` empaquetado exitoso (código 0).
 
+### Evidencia Rediseño Obsidian Pitch (Stitch) — Entrega 1: LoginScreen / Túnel de Acceso — 23 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Renovación completa de `apps/mobile/src/screens/LoginScreen.js` bajo el sistema de diseño **Obsidian Pitch** (`stitch_designs/stitch_matchsport_mobile_app/matchsport_loginscreen`) aplicando el filtro de correspondencia con el backend real.
+- **Cambios realizados:**
+  1. `apps/mobile/src/theme.js`: incorporación de tokens oficiales Obsidian Pitch (`surfaceLowest`, `surfaceLow`, `surfaceContainer`, `surfaceHigh`, `surfaceHighest`, `neonPitch`, `onSurface`, `onSurfaceVariant`, `outline`, `coralError`) preservando retrocompatibilidad total.
+  2. `apps/mobile/src/screens/LoginScreen.js`: estructura nativa vertical (header fijo con retorno a bienvenida, píldora de marca y ayuda arbitral + cuerpo scrolleable con título atlético, selector de apodo con verificación en vivo `GET /api/auth/check-name/:name`, 4 casillas cinéticas luminosas para el PIN de 4 dígitos, teclado numérico táctico integrado 3x4 con respuesta háptica `expo-haptics`, acceso alternativo real vía Email y conmutación limpia Login/Registro). Se descartaron SMS OTP de 6 dígitos y biometría Face ID simulada para mantener 0 recorridos ficticios.
+  3. `apps/mobile/src/services/api.js`: conexión de métodos públicos reales `emailLogin` (`POST /api/auth/login`) y `emailRegister` (`POST /api/auth/register`).
+  4. `apps/mobile/App.js`: encadenamiento directo tras el registro hacia `PlayerBiometricsScreen` cuando `!currentUser.hasCompletedProfile`, conectando con el flujo de calibración física y test de 14 preguntas (MS-10).
+- **Pruebas ejecutadas:**
+  - Suite de servidor: 105 de 105 pruebas aprobadas al 100% (0 fallos).
+  - Mobile iOS: `expo export --platform ios` aprobado (770 módulos, Hermes bytecode 2.2MB, código 0).
+  - Mobile Android: `expo export --platform android` aprobado (778 módulos, Hermes bytecode 2.2MB, código 0).
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.

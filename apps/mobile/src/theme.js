@@ -36,6 +36,22 @@ export const THEME = {
     
     overlay: 'rgba(11, 14, 20, 0.85)',
     tabBarBg: '#10141D',
+
+    // Tokens oficiales Obsidian Pitch (Google Stitch Design System)
+    surfaceLowest: '#0B0E14',
+    surfaceLow: '#191C22',
+    surfaceContainer: '#1D2026',
+    surfaceHigh: '#272A31',
+    surfaceHighest: '#32353C',
+    surfaceBright: '#363940',
+    neonPitch: '#00FF87',
+    neonSecondary: '#7DFFA2',
+    onSurface: '#E1E2EB',
+    onSurfaceVariant: '#B9CBB9',
+    outline: '#849585',
+    outlineVariant: '#3B4B3D',
+    coralError: '#FFB4AB',
+    coralErrorBg: 'rgba(147, 0, 10, 0.35)',
   },
   
   fonts: {

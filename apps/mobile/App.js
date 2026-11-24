@@ -370,7 +370,7 @@ export default function App() {
   // Cuenta -> Datos mínimos (distrito y posición) -> Test (14 preguntas) -> Carta Inicial
   // ==========================================
   if (currentUser && !currentUser.hasCompletedTest) {
-    if (!currentUser.district || !currentUser.position) {
+    if (!currentUser.hasCompletedProfile || !currentUser.district || !currentUser.position) {
       return (
         <PlayerBiometricsScreen
           user={currentUser}
