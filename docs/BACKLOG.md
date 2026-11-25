@@ -378,6 +378,28 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Suite de servidor (`npm run test:server`): 105 de 105 pruebas aprobadas al 100% (0 fallos).
   - Mobile iOS (`npm run build:mobile`): exportación Hermes aprobada sin errores.
   - Mobile Android (`npm run build:mobile:android`): exportación Hermes aprobada sin errores.
+- **Commit:** `b5cd8aa` publicado en `origin/codex/mvp-base`.
+
+### Evidencia Rediseño Obsidian Pitch (Stitch) — Entrega 4: Pestaña Salas / Convocatorias (`CompetitionScreen.js`) y Sala de Convocatoria Activa (`LobbyRoomScreen.js`) — 24 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Rediseño nativo en React Native / Expo de `CompetitionScreen.js` (`matchsport_tab_2_salas_lobbies_convocatorias`) y `LobbyRoomScreen.js` (`matchsport_lobbyroomscreen_sala_de_convocatoria_activa`) bajo el sistema de diseño **Obsidian Pitch**, manteniendo intacto todo el contrato transaccional `competition.v1` y los eventos Socket.IO reales.
+- **Cambios realizados:**
+  1. `apps/mobile/src/screens/CompetitionScreen.js`:
+     - HUD Header con indicador luminoso `SALAS DE JUEGO`, píldora satelital de región activa, selector segmentado `TODAS LAS SALAS` vs `MIS CONVOCATORIAS` y Quick Action Launchpad (`⊕ CREAR SALA` + `🔑 CÓDIGO`).
+     - Telemetry Live Ticker Strip con conteo real de salas registradas, salas abiertas y partidos en juego + botón de actualización reactiva.
+     - Buscador táctico en tiempo real (por cancha, distrito o código) y carrusel de píldoras de filtro (`Todas`, `Abiertas`, `Hoy`, `Fútbol 5`, `Fútbol 6`, `Fútbol 7`, `Fútbol 9`, `Fútbol 11`) + filtro nacional de distritos (`GET /api/districts`).
+     - Tarjetas de convocatorias Obsidian Pitch con acento lateral neón/coral (`🔥 URGENTE: FALTA 1` cuando queda 1 cupo), barra visual de progreso de cupos confirmados y botón CTA por estado (`UNIRSE`, `MI SALA`, `REPORTAR GOLES`, `VALIDAR MARCADOR`, `REVISAR DISPUTA`, `RESULTADO`).
+     - Vista de Detalle de Sala (`page === 'detail'`) rediseñada con **Tactical Pitch Split View** (`Equipo A · Esmeralda` vs `Equipo B · Furia Coral`, módulo central `VS`, dorsales `01..11`, insignias `CAP`, estados `✓ LISTO` / `⭮ EQUIPANDO`, acceso directo al `Canal Táctico / Chat en Vivo`, reporte/confirmación/disputa de marcador y panel inferior de control de anfitrión/capitán).
+  2. `apps/mobile/src/screens/LobbyRoomScreen.js`:
+     - Header de `SALA DE ESPERA / Match Lobby` con chip `#CÓDIGO` y botón nativo de compartir invitación (`Share.share`).
+     - Tarjeta de atmósfera de convocatoria con copia al portapapeles (`expo-clipboard`), estado de quórum y cambio rápido de equipo (`switchLobbyTeam`).
+     - Cancha táctica dividida (`Tactical Pitch Split View`) con líneas de campo nativas, promedio de OVR real por escuadra (`Escuadra A · Esmeralda` vs `Escuadra B · Furia Sur`), módulo divisor `VS` y slots interactivos.
+     - Mini-chat táctico integrado en vivo (`sendLobbyChatMessage` / `newLobbyChatMessage`) con píldoras de mensajes rápidos (`¡Ya estoy listo!`, `Falta 1 defensa`, `Salgo rápido por las bandas`) y dock inferior con botón `ESTOY LISTO (CONFIRMADO)` e `INICIAR MATCHMAKING`.
+- **Pruebas ejecutadas:**
+  - Suite de servidor (`npm run test:server`): 105 de 105 pruebas aprobadas al 100% (0 fallos).
+  - Mobile iOS (`npm run build:mobile`): exportación Hermes aprobada sin errores.
+  - Mobile Android (`npm run build:mobile:android`): exportación Hermes aprobada sin errores.
 
 ## Trabajo pospuesto
 
