@@ -7,7 +7,9 @@ const KEYS = {
   PARTIAL_TEST: '@matchsport:partial_test_answers',
   PENDING_INVITE: '@matchsport:pending_invite_code',
   PENDING_NOTIFICATION_INTENT: '@matchsport:pending_notification_intent',
-  NOTIFICATIONS: '@matchsport:notifications'
+  NOTIFICATIONS: '@matchsport:notifications',
+  RADAR_PREFERENCES: '@matchsport:radar_preferences',
+  LOCATION_PREFERENCES: '@matchsport:location_preferences'
 };
 
 export const storage = {
@@ -170,6 +172,42 @@ export const storage = {
       await AsyncStorage.removeItem(KEYS.NOTIFICATIONS);
     } catch (e) {
       console.error('[STORAGE] Error limpiando notificaciones:', e);
+    }
+  },
+
+  async getRadarPreferences() {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.RADAR_PREFERENCES);
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      console.error('[STORAGE] Error leyendo preferencias de radar:', e);
+      return null;
+    }
+  },
+
+  async saveRadarPreferences(prefs) {
+    try {
+      await AsyncStorage.setItem(KEYS.RADAR_PREFERENCES, JSON.stringify(prefs || {}));
+    } catch (e) {
+      console.error('[STORAGE] Error guardando preferencias de radar:', e);
+    }
+  },
+
+  async getLocationPreferences() {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.LOCATION_PREFERENCES);
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      console.error('[STORAGE] Error leyendo preferencias de ubicación:', e);
+      return null;
+    }
+  },
+
+  async saveLocationPreferences(prefs) {
+    try {
+      await AsyncStorage.setItem(KEYS.LOCATION_PREFERENCES, JSON.stringify(prefs || {}));
+    } catch (e) {
+      console.error('[STORAGE] Error guardando preferencias de ubicación:', e);
     }
   }
 };

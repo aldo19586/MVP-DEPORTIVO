@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, SafeAreaView, ActivityIndicator, Text, Pressable } from 'react-native';
+import { StyleSheet, View, SafeAreaView, ActivityIndicator, Text, Pressable, TouchableOpacity } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
 import { api, onSessionExpired } from './src/services/api';
@@ -462,7 +462,6 @@ export default function App() {
           setActiveSubScreen(null);
           setActiveTab('JUGAR');
         }}
-        onCancel={handleLogout}
       />
     );
   }
@@ -592,6 +591,11 @@ export default function App() {
     return (
       <CalibrationScreen
         user={currentUser}
+        currentRadius={currentRadius}
+        currentDistrict={currentDistrict}
+        onSavePreferences={(prefs) => {
+          if (prefs?.radiusKm) setCurrentRadius(prefs.radiusKm);
+        }}
         onBack={() => setActiveSubScreen(null)}
       />
     );
@@ -703,6 +707,11 @@ export default function App() {
             districtName={currentDistrict}
             userLevel={userDeclaredLevel}
             onNavigateToLobbies={() => setActiveTab('SALAS')}
+            onSelectCompetitionTarget={({ competitionId, code }) => {
+              setTargetCompetitionId(competitionId || null);
+              setTargetCompetitionCode(code || null);
+              setActiveTab('SALAS');
+            }}
             onOpenNotifications={() => setActiveSubScreen('NOTIFICATIONS')}
             onOpenCalibration={() => setActiveSubScreen('CALIBRATION')}
             onOpenLocationSettings={() => setActiveSubScreen('LOCATION_SETTINGS')}

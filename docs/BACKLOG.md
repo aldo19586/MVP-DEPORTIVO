@@ -353,6 +353,32 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Mobile iOS: `expo export --platform ios` aprobado (774 módulos, Hermes bytecode 2.2MB, código 0).
   - Mobile Android: `expo export --platform android` aprobado (782 módulos, Hermes bytecode 2.3MB, código 0).
 
+### Evidencia Rediseño Obsidian Pitch (Stitch) — Entrega 3: Radar Jugar, Calibración de Radar, Ubicación GPS y BottomNavBar — 24 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Renovación nativa en React Native / Expo de la pestaña principal **Jugar (`RadarScreen.js`)**, **Calibración de Radar (`CalibrationScreen.js`)**, **Ubicación & GPS (`LocationSettingsScreen.js`)** y la barra inferior **`BottomNavBar.js`** siguiendo las maquetas oficiales de Google Stitch (`matchsport_tab_1_radar_jugar`, `matchsport_calibrationscreen_calibraci_n_de_radar`, `matchsport_locationsettingsscreen_ubicaci_n_gps`) bajo el sistema de diseño **Obsidian Pitch**.
+- **Cambios realizados:**
+  1. `apps/mobile/src/screens/RadarScreen.js`:
+     - Sub-header Hub Identity con avatar del jugador, píldora OVR real, insignia de posición/nivel, puntos ELO Glicko-2 y botón táctico `⚙️` hacia `CalibrationScreen`.
+     - Píldora de distrito y radio activo (`Surco, Lima · 8 km`) conectada a `LocationSettingsScreen` + indicador en vivo `GPS Preciso` (`expo-location`).
+     - Selector horizontal de modalidades con conteo de salas reales y tira de telemetría en vivo (`EN JUEGO`, `ACTIVOS` vía socket `onlineUsersCount`, `CONVOCATORIAS`).
+     - Radar táctico circular con anillos dinámicos en km, marcas cardinales (`N`, `S`, `E`, `O`), barrido rotatorio 360°, blips interactivos alimentados por convocatorias reales (`GET /api/competitions`) y tarjeta inspectora (`Inspector Card`) con acción directa `POSTULAR ➔` o estado vacío honesto.
+     - Tarjeta Hero `MATCH RÁPIDO SMART — Auto-Emparejamiento Inmediato` conectada a `startQueue` / `cancelQueue` y creación de sala de escuadra (`createLobby`).
+  2. `apps/mobile/src/screens/CalibrationScreen.js`:
+     - Selector de radio con chips rápidos (`3 km`, `8 km (Recomendado)`, `15 km`, `25 km Max`), control continuo 1–25 km y mini-radar táctico animado con vista previa en vivo.
+     - Tarjetas de tolerancia de nivel y ELO Glicko-2 (`Equilibrado ±50 ELO`, `Competitivo Estricto +100 ELO`, `Cualquier Nivel Rápido`) con cálculo dinámico de la ventana ELO permitida sobre el rating real del jugador.
+     - Selector multi-formato, chips de superficie preferida (`Sintético Pro 60mm`, `Césped Natural`, `Losa Pulida`), switches de Fair Play/validación de capitanes/hápticos y persistencia local en `@matchsport:radar_preferences`.
+  3. `apps/mobile/src/screens/LocationSettingsScreen.js`:
+     - Switch de GPS en Tiempo Real y botón `Recalibrar Posición` integrado con `expo-location`.
+     - Mapa vectorial táctico de distritos de Lima con pin radar pulsante, conmutador `Táctico / Satélite` y controles de zoom.
+     - Buscador de distritos con autocompletado conectado a `GET /api/districts`, píldoras de zonas frecuentes guardadas (`Casa`, `Oficina`, `+ Añadir Zona`), selector de radio de traslado (`5 km`, `10 km`, `20 km`), modo de desplazamiento (`Auto/Taxi`, `Bicicleta/Scooter`, `Caminando`) y switches de privacidad.
+  4. `apps/mobile/src/components/BottomNavBar.js` y `apps/mobile/src/services/storage.js`:
+     - Estética Obsidian Pitch con icono diana concéntrica nativa para `JUGAR` e indicador luminoso `#00FF87` con sombra neón; métodos de persistencia `getRadarPreferences`/`saveRadarPreferences` y `getLocationPreferences`/`saveLocationPreferences`.
+- **Pruebas ejecutadas:**
+  - Suite de servidor (`npm run test:server`): 105 de 105 pruebas aprobadas al 100% (0 fallos).
+  - Mobile iOS (`npm run build:mobile`): exportación Hermes aprobada sin errores.
+  - Mobile Android (`npm run build:mobile:android`): exportación Hermes aprobada sin errores.
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.
