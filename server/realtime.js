@@ -1,7 +1,7 @@
 import { authenticate } from './auth.js';
 import { db } from './db.js';
 import { isParticipant } from './access.js';
-import { toPublicUser, toResource } from './userDto.js';
+import { toClientUser, toPublicUser, toResource } from './userDto.js';
 import { sessionEvents } from './sessionEvents.js';
 import { competitionEvents } from './competitionEvents.js';
 import { pushService } from './pushService.js';
@@ -16,7 +16,7 @@ const adminEvents = new Set(['onlineUsersUpdate', 'adminDisputeResolved']);
 const personalEvents = new Set(['queueStatus', 'queueStarted', 'queueCancelled', 'matchPromptAcceptance',
   'pendingMatchUpdated', 'matchPromptUpdated', 'matchAcceptanceFailed', 'session_replaced',
   'userBannedNotification', 'userUnbannedNotification', 'lobbyError', 'peerReviewError', 'attendanceCancelledSuccess', 'reviewSubmitted',
-  'peerReviewAssigned', 'peerReviewReceived', 'peerReviewSubmitted']);
+  'peerReviewAssigned', 'peerReviewReceived', 'peerReviewSubmitted', 'matchmakingStatusUpdated', 'matchmakingRoomAssigned']);
 const resourceEvents = new Set(['activeMatch', 'matchData', 'matchFound', 'matchFinished', 'matchCancelled',
   'matchCancelledAndConverted', 'matchPlayerLeft', 'matchTimerStarted', 'matchTimerStopped', 'matchDisputed',
   'newChatMessage', 'newLobbyChatMessage', 'lobbyCreated', 'lobbyRestored', 'lobbyUpdated',
@@ -67,7 +67,7 @@ export function createRealtime(io) {
     if (!SERVER_EVENTS.has(event)) return;
     if ((adminEvents.has(event) || target === ADMIN_ROOM) && user.role !== 'admin') return;
     const data = { ...payload };
-    if (competitionEventNames.has(event)) {
+    if (competitionEventNames.has(event) || event === 'matchmakingRoomAssigned') {
       const room = db.competitions.get(data.competitionId);
       if (!room || (user.role !== 'admin' && ![...room.teamA, ...room.teamB].some(member => member.id === user.id))) return;
     } else if (publicEvents.has(event)) {
@@ -156,12 +156,51 @@ export function createRealtime(io) {
       reason: payload.reason
     }).catch(() => {});
   };
+  const matchmakingRoomAssigned = payload => {
+    const userIdSet = new Set(Array.isArray(payload.userIds) ? payload.userIds : [payload.userIds].filter(Boolean));
+    const room = payload.competition || db.competitions.get(payload.competitionId);
+    if (!room) return;
+    for (const socket of io.sockets.sockets.values()) {
+      if (userIdSet.has(socket.data.userId)) {
+        const updatedUser = db.getUser(socket.data.userId);
+        if (updatedUser) {
+          const clientUser = toClientUser(updatedUser);
+          send(socket, 'matchmakingStatusUpdated', {
+            user: clientUser,
+            matchmakingStatus: clientUser.matchmakingStatus,
+            searchingFormat: clientUser.searchingFormat,
+            searchingDistrict: clientUser.searchingDistrict,
+            searchingRadiusKm: clientUser.searchingRadiusKm,
+            searchingSince: clientUser.searchingSince,
+            searchingExpiresAt: clientUser.searchingExpiresAt,
+            activeCompetitionId: clientUser.activeCompetitionId
+          }, socket.id);
+        }
+        send(socket, 'matchmakingRoomAssigned', {
+          competitionId: room.id,
+          code: room.code,
+          competition: structuredClone(room)
+        }, socket.id);
+      }
+    }
+    broadcast(null, 'competitionUpdated', {
+      competitionId: room.id,
+      revision: room.revision,
+      competition: structuredClone(room)
+    });
+    broadcast(null, 'competitionListUpdated', {});
+    pushService.notifyMatchmakingRoomAssigned({
+      userIds: Array.from(userIdSet),
+      competition: room
+    }).catch(() => {});
+  };
   competitionEvents.on('changed', changed);
   competitionEvents.on('message', message);
   competitionEvents.on('scoreReported', scoreReported);
   competitionEvents.on('scoreConfirmed', scoreConfirmed);
   competitionEvents.on('scoreDisputed', scoreDisputed);
   competitionEvents.on('disputeResolved', disputeResolved);
+  competitionEvents.on('matchmakingRoomAssigned', matchmakingRoomAssigned);
   io.httpServer.once('close', () => {
     competitionEvents.off('changed', changed);
     competitionEvents.off('message', message);
@@ -169,6 +208,7 @@ export function createRealtime(io) {
     competitionEvents.off('scoreConfirmed', scoreConfirmed);
     competitionEvents.off('scoreDisputed', scoreDisputed);
     competitionEvents.off('disputeResolved', disputeResolved);
+    competitionEvents.off('matchmakingRoomAssigned', matchmakingRoomAssigned);
   });
   return { send, to: target => ({ emit: (event, payload) => broadcast(target, event, payload) }),
     emit: (event, payload) => broadcast(null, event, payload) };

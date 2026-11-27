@@ -8,6 +8,8 @@ const CLIENT_FIELDS = [
   'declaredLevel', 'createdAt', 'matchesPlayed', 'isBanned', 'bannedUntil', 'banReason',
   'bannedBy', 'bannedAt', 'bannedHours', 'unbannedBy', 'unbannedAt', 'unbanReason',
   'pinResetBy', 'pinResetAt', 'pinResetReason',
+  'matchmakingStatus', 'searchingFormat', 'searchingDistrict', 'searchingRadiusKm',
+  'searchingSince', 'searchingExpiresAt', 'activeCompetitionId',
 ];
 
 export function toClientUser(user) {

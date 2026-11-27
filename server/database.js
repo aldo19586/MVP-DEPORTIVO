@@ -168,7 +168,14 @@ function createTables() {
       favorite_sports_json TEXT DEFAULT '["futbol"]',
       primary_sport TEXT DEFAULT 'futbol',
       declared_level TEXT DEFAULT 'Intermedio',
-      created_at TEXT
+      created_at TEXT,
+      matchmaking_status TEXT DEFAULT 'IDLE',
+      searching_format TEXT DEFAULT '7v7',
+      searching_district TEXT,
+      searching_radius_km INTEGER DEFAULT 8,
+      searching_since TEXT,
+      searching_expires_at TEXT,
+      active_competition_id TEXT
     )
   `);
 
@@ -202,7 +209,14 @@ function createTables() {
       { name: 'pin_reset_by', type: 'TEXT' },
       { name: 'pin_reset_at', type: 'TEXT' },
       { name: 'pin_reset_reason', type: 'TEXT' },
-      { name: 'push_token', type: 'TEXT' }
+      { name: 'push_token', type: 'TEXT' },
+      { name: 'matchmaking_status', type: "TEXT DEFAULT 'IDLE'" },
+      { name: 'searching_format', type: "TEXT DEFAULT '7v7'" },
+      { name: 'searching_district', type: 'TEXT' },
+      { name: 'searching_radius_km', type: 'INTEGER DEFAULT 8' },
+      { name: 'searching_since', type: 'TEXT' },
+      { name: 'searching_expires_at', type: 'TEXT' },
+      { name: 'active_competition_id', type: 'TEXT' }
     ];
 
     for (const c of newCols) {
@@ -380,8 +394,10 @@ export function sqlInsertUser(user) {
      rating_overall, likes_count, fut_stats_json, favorite_sports_json, primary_sport, declared_level, created_at,
      session_version, is_banned, banned_until, ban_reason,
      banned_by, banned_at, banned_hours, unbanned_by, unbanned_at, unban_reason,
-     pin_reset_by, pin_reset_at, pin_reset_reason, push_token)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     pin_reset_by, pin_reset_at, pin_reset_reason, push_token,
+     matchmaking_status, searching_format, searching_district, searching_radius_km,
+     searching_since, searching_expires_at, active_competition_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     user.id,
     user.email,
@@ -425,7 +441,14 @@ export function sqlInsertUser(user) {
     user.pinResetBy || null,
     user.pinResetAt || null,
     user.pinResetReason || null,
-    user.pushToken || user.push_token || null
+    user.pushToken || user.push_token || null,
+    user.matchmakingStatus || user.matchmaking_status || 'IDLE',
+    user.searchingFormat || user.searching_format || '7v7',
+    user.searchingDistrict !== undefined ? user.searchingDistrict : (user.searching_district || null),
+    user.searchingRadiusKm !== undefined && user.searchingRadiusKm !== null ? user.searchingRadiusKm : (user.searching_radius_km !== undefined && user.searching_radius_km !== null ? user.searching_radius_km : 8),
+    user.searchingSince !== undefined ? user.searchingSince : (user.searching_since || null),
+    user.searchingExpiresAt !== undefined ? user.searchingExpiresAt : (user.searching_expires_at || null),
+    user.activeCompetitionId !== undefined ? user.activeCompetitionId : (user.active_competition_id || null)
   ]);
   scheduleSave();
 }
@@ -700,7 +723,14 @@ function rowToUser(resultSet, rowIndex = 0) {
     favoriteSports: obj.favorite_sports_json ? JSON.parse(obj.favorite_sports_json) : ['futbol'],
     primarySport: obj.primary_sport || 'futbol',
     declaredLevel: obj.declared_level || 'Intermedio',
-    createdAt: obj.created_at
+    createdAt: obj.created_at,
+    matchmakingStatus: obj.matchmaking_status || 'IDLE',
+    searchingFormat: obj.searching_format || '7v7',
+    searchingDistrict: obj.searching_district || null,
+    searchingRadiusKm: obj.searching_radius_km !== null && obj.searching_radius_km !== undefined ? obj.searching_radius_km : 8,
+    searchingSince: obj.searching_since || null,
+    searchingExpiresAt: obj.searching_expires_at || null,
+    activeCompetitionId: obj.active_competition_id || null
   };
 }
 

@@ -11,7 +11,7 @@ import { issueToken, authRateLimiter } from './auth.js';
 import { apiAccess, ownParam, ownRead, ownBody, matchAccess, isParticipant } from './access.js';
 import { VENUES, getVenueSlots } from './venues.js';
 import { runtimeConfig } from './config.js';
-import { competitionRouter, competitionCommand } from './competitions.js';
+import { competitionRouter, competitionCommand, runPersistentMatchmaking } from './competitions.js';
 import { createRealtime, ADMIN_ROOM } from './realtime.js';
 import { sessionEvents } from './sessionEvents.js';
 import { installSocketAccess } from './socketAccess.js';
@@ -257,6 +257,88 @@ app.get('/api/user/onboarding-status', (req, res) => {
     futStats: user.futStats || null
   });
 });
+
+// Actualizar Estado Persistente de Disponibilidad / Buscando Partida (Fase 1 & Fase 2 Auto-Matchmaking)
+function syncConnectedUserMatchmakingState(targetUserId, { emitSocket = true } = {}) {
+  const targetUser = db.getUser(targetUserId);
+  if (!targetUser) return null;
+  const clientUser = toClientUser(targetUser);
+  if (emitSocket) {
+    const socketId = userSocketMap.get(targetUserId);
+    if (socketId) {
+      realtime.to(socketId).emit('matchmakingStatusUpdated', {
+        user: clientUser,
+        matchmakingStatus: clientUser.matchmakingStatus,
+        searchingFormat: clientUser.searchingFormat,
+        searchingDistrict: clientUser.searchingDistrict,
+        searchingRadiusKm: clientUser.searchingRadiusKm,
+        searchingSince: clientUser.searchingSince,
+        searchingExpiresAt: clientUser.searchingExpiresAt,
+        activeCompetitionId: clientUser.activeCompetitionId
+      });
+    }
+  }
+  const entry = connectedUsers.get(targetUserId);
+  if (entry) {
+    if (clientUser.matchmakingStatus === 'SEARCHING') {
+      entry.status = 'searching';
+      entry.details = `Buscando FUTBOL ${clientUser.searchingFormat} (${clientUser.searchingRadiusKm}km en ${clientUser.searchingDistrict || 'Lima'})`;
+    } else if (clientUser.matchmakingStatus === 'IN_ROOM') {
+      entry.status = 'in_chat';
+      entry.details = `En sala de convocatoria`;
+    } else {
+      entry.status = 'idle';
+      entry.details = 'En Radar principal';
+    }
+  }
+  return clientUser;
+}
+
+function handleUpdateMatchmakingStatus(req, res) {
+  const userId = req.user.userId;
+  const { status, formatId, district, radiusKm, ttlHours, activeCompetitionId } = req.body || {};
+  const result = db.updateUserMatchmakingStatus(userId, {
+    status,
+    formatId,
+    district,
+    radiusKm,
+    ttlHours,
+    activeCompetitionId
+  });
+  if (result.error) {
+    return res.status(result.status || 400).json({ error: result.error, code: result.code });
+  }
+
+  let assignments = [];
+  if (result.user.matchmakingStatus === 'SEARCHING') {
+    const mmResult = runPersistentMatchmaking();
+    assignments = mmResult.assignments || [];
+  }
+
+  const assignedSet = new Set();
+  for (const item of assignments) {
+    for (const assignedId of item.assignedUserIds || []) {
+      assignedSet.add(assignedId);
+    }
+  }
+
+  const affectedUserIds = new Set([userId, ...assignedSet]);
+  let clientUser = null;
+  for (const affectedId of affectedUserIds) {
+    const updatedClientUser = syncConnectedUserMatchmakingState(affectedId, {
+      emitSocket: !assignedSet.has(affectedId)
+    });
+    if (affectedId === userId) {
+      clientUser = updatedClientUser;
+    }
+  }
+
+  broadcastOnlineUsers();
+  res.json({ success: true, user: clientUser || toClientUser(db.getUser(userId)) });
+}
+
+app.put('/api/user/matchmaking-status', ownBody(), handleUpdateMatchmakingStatus);
+app.post('/api/user/matchmaking-status', ownBody(), handleUpdateMatchmakingStatus);
 
 // Autenticación administrativa para SuperAdmin
 app.post('/api/auth/admin-login', authRateLimiter, (req, res) => {

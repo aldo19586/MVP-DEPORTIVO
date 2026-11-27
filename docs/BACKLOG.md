@@ -401,6 +401,39 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Mobile iOS (`npm run build:mobile`): exportación Hermes aprobada sin errores.
   - Mobile Android (`npm run build:mobile:android`): exportación Hermes aprobada sin errores.
 
+### Evidencia Sistema de Disponibilidad Persistente / Buscando Partida en Base de Datos — Fase 1 — 26 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Persistencia durable en SQLite del estado de búsqueda de partida del jugador en la tabla `users`, con expiración automática por TTL y sincronización atómica con las salas de convocatoria (`competitions`).
+- **Cambios realizados:**
+  1. `server/database.js`: migración segura en `users` para las columnas `matchmaking_status` (`'IDLE' | 'SEARCHING' | 'IN_ROOM'`), `searching_format` (`'7v7'`), `searching_district`, `searching_radius_km` (`8`), `searching_since`, `searching_expires_at` y `active_competition_id`, actualizando `sqlInsertUser`, `sqlUpdateUser` y `rowToUser` en camelCase.
+  2. `server/userDto.js`: exposición de `matchmakingStatus`, `searchingFormat`, `searchingDistrict`, `searchingRadiusKm`, `searchingSince`, `searchingExpiresAt` y `activeCompetitionId` en `CLIENT_FIELDS` (`toClientUser`).
+  3. `server/db.js`, `server/server.js` y `server/realtime.js`: implementación de `db.updateUserMatchmakingStatus(...)` con validación obligatoria de `hasCompletedProfile` y `hasCompletedTest` para `'SEARCHING'`, cálculo de `searchingExpiresAt` (+4 horas por defecto) y limpieza automática a `'IDLE'` al vencer el TTL; creación del endpoint autenticado `PUT/POST /api/user/matchmaking-status` con emisión de socket `matchmakingStatusUpdated`.
+  4. `server/competitions.js`: transición automática a `matchmakingStatus = 'IN_ROOM'` y `activeCompetitionId = value.id` en `create` y `join`, y retorno automático a `'IDLE'` con `activeCompetitionId = null` en `leave`, `cancel`, `confirmScore`, coincidencia de `reportScore` y `resolveDispute`.
+  5. `server/tests/matchmaking-status.test.js`: 4 nuevos casos de prueba automatizados verificando rechazo sin onboarding/test completo, persistencia de `'SEARCHING'` en SQLite tras reinicio, expiración por TTL y sincronización completa con salas de convocatoria.
+- **Pruebas ejecutadas:**
+  - Suite de servidor (`npm run test:server`): 109 de 109 pruebas aprobadas al 100% (0 fallos).
+  - Admin Web (`npm run build:admin`) y Mobile iOS (`npm run build:mobile`): compilación y exportación aprobadas sin errores.
+
+### Evidencia Sistema de Disponibilidad Persistente / Buscando Partida en Base de Datos — Fase 2 (Auto-Matchmaking y Derivación a Sala) — 26 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Motor transaccional `runPersistentMatchmaking()` que empareja automáticamente a los jugadores en estado `'SEARCHING'` en la base de datos SQLite, los asigna a una sala de convocatoria (`competition`), emite el evento Socket `'matchmakingRoomAssigned'` en tiempo real y despacha la notificación Push de derivación.
+- **Cambios realizados:**
+  1. `server/competitions.js` y `server/server.js`:
+     - Implementación de `runPersistentMatchmaking()` ejecutado transaccionalmente cada vez que un jugador cambia su estado a `'SEARCHING'` en `PUT/POST /api/user/matchmaking-status` y cada vez que se crea o queda abierta (`'OPEN'`) una convocatoria en `competitionCommand`.
+     - **Caso A (Unir a convocatoria `OPEN` existente):** asigna automáticamente al jugador `'SEARCHING'` compatible en `formatId`, `district` y horario futuro al equipo con menos jugadores (`teamA` o `teamB`), asigna capitán si el equipo no tenía, incrementa `revision`, persiste la convocatoria en SQLite y transiciona al jugador a `'IN_ROOM'` con `activeCompetitionId = competition.id`.
+     - **Caso B (Bolsa de jugadores `'SEARCHING'` en la misma zona y modalidad):** al juntarse suficientes jugadores `'SEARCHING'` compatibles (umbral configurable por formato o global), crea automáticamente una sala de convocatoria (`competition`) balanceando `teamA` y `teamB` por su Rating Glicko-2 (`ratingOverall`), asigna capitanes y anfitrión, y pasa a todos los miembros a `'IN_ROOM'` con `activeCompetitionId = competition.id`.
+  2. `server/realtime.js` y `server/pushService.js`:
+     - Registro de `'matchmakingRoomAssigned'` en `personalEvents` / `SERVER_EVENTS`.
+     - Implementación de `pushService.notifyMatchmakingRoomAssigned({ userIds, competition })` con título `"¡Partido encontrado en tu zona! ⚽"`, cuerpo indicando modalidad y distrito, y `data: { type: 'MATCHMAKING_ROOM_ASSIGNED', competitionId: competition.id, code: competition.code }`.
+     - Suscripción reactiva en `realtime.js` que emite `'matchmakingRoomAssigned'`, `'matchmakingStatusUpdated'` y `'competitionUpdated'` a los sockets activos y dispara el aviso push.
+  3. `server/tests/persistent-matchmaking.test.js`:
+     - 4 nuevos casos de prueba automatizados verificando el Caso A al activar `'SEARCHING'`, el Caso A al crearse una convocatoria `'OPEN'`, el Caso B de creación automática de sala con balanceo Glicko-2 y capitanes, y el despacho Push `notifyMatchmakingRoomAssigned`.
+- **Pruebas ejecutadas:**
+  - Suite de servidor (`npm run test:server`): 113 de 113 pruebas aprobadas al 100% (0 fallos).
+  - Validación completa (`npm run validate`): suite de servidor, build de `apps/admin-web` y exportación nativa iOS de `apps/mobile` aprobadas sin errores.
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.

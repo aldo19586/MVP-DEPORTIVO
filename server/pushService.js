@@ -147,6 +147,22 @@ export function createPushService({
         body: `Todos los jugadores están listos en la convocatoria #${code || room.code}.`,
         data: { type: 'COMPETITION_MATCH', competitionId, matchId, code: code || room.code }
       });
+    },
+
+    notifyMatchmakingRoomAssigned({ userIds, competition }) {
+      const room = competition || (competition?.id ? database.competitions?.get(competition.id) : null);
+      if (!room) return Promise.resolve({ sentCount: 0, recipientIds: [] });
+      const ids = (Array.isArray(userIds) ? userIds : [userIds]).filter(Boolean);
+      if (ids.length === 0) return Promise.resolve({ sentCount: 0, recipientIds: [] });
+
+      const formatLabel = room.formatId || '7v7';
+      const districtLabel = room.district || 'tu distrito';
+
+      return sendToUsers(ids, {
+        title: '¡Partido encontrado en tu zona! ⚽',
+        body: `Partida ${formatLabel} encontrada en ${districtLabel} (Sala #${room.code}). ¡Entra a coordinar con tu equipo!`,
+        data: { type: 'MATCHMAKING_ROOM_ASSIGNED', competitionId: room.id, code: room.code }
+      });
     }
   };
 }

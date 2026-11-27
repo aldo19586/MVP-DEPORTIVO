@@ -466,7 +466,11 @@ class Database {
 
     // Limpieza periódica de vestuarios y salas obsoletas (Garbage Collector automático)
     this.purgeOldLobbies(6);
-    this._purgeInterval = setInterval(() => this.purgeOldLobbies(6), 30 * 60 * 1000);
+    this.purgeExpiredMatchmakingStatuses();
+    this._purgeInterval = setInterval(() => {
+      this.purgeOldLobbies(6);
+      this.purgeExpiredMatchmakingStatuses();
+    }, 30 * 60 * 1000);
     if (this._purgeInterval.unref) this._purgeInterval.unref();
   }
 
@@ -773,7 +777,107 @@ class Database {
   }
 
   getUser(userId) {
-    return this.users.get(userId) || null;
+    const u = this.users.get(userId) || null;
+    if (u && u.matchmakingStatus === 'SEARCHING' && u.searchingExpiresAt) {
+      const expiresAtMs = Date.parse(u.searchingExpiresAt);
+      if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+        u.matchmakingStatus = 'IDLE';
+        u.searchingSince = null;
+        u.searchingExpiresAt = null;
+        this._persistUser(u);
+      }
+    }
+    return u;
+  }
+
+  purgeExpiredMatchmakingStatuses(now = Date.now()) {
+    let cleanedCount = 0;
+    for (const u of this.users.values()) {
+      if (u.matchmakingStatus === 'SEARCHING' && u.searchingExpiresAt) {
+        const expiresAtMs = Date.parse(u.searchingExpiresAt);
+        if (Number.isFinite(expiresAtMs) && expiresAtMs <= now) {
+          u.matchmakingStatus = 'IDLE';
+          u.searchingSince = null;
+          u.searchingExpiresAt = null;
+          this._persistUser(u);
+          cleanedCount++;
+        }
+      }
+    }
+    return cleanedCount;
+  }
+
+  updateUserMatchmakingStatus(userId, { status, formatId, district, radiusKm, ttlHours = 4, activeCompetitionId = null, skipOnboardingCheck = false } = {}) {
+    this.purgeExpiredMatchmakingStatuses();
+    const user = this.getUser(userId);
+    if (!user) return { error: 'Usuario no encontrado', code: 'NOT_FOUND', status: 404 };
+
+    const validStatuses = ['IDLE', 'SEARCHING', 'IN_ROOM'];
+    const nextStatus = status ? String(status).trim().toUpperCase() : (user.matchmakingStatus || 'IDLE');
+    if (!validStatuses.includes(nextStatus)) {
+      return { error: 'Estado de búsqueda inválido (debe ser IDLE, SEARCHING o IN_ROOM)', code: 'INVALID_STATUS', status: 400 };
+    }
+
+    if (!skipOnboardingCheck && nextStatus === 'SEARCHING') {
+      if (!user.hasCompletedProfile) {
+        return { error: 'Debes completar tu perfil deportivo antes de activar la búsqueda de partida', code: 'INCOMPLETE_PROFILE', status: 400 };
+      }
+      if (!user.hasCompletedTest) {
+        return { error: 'Debes completar el test de nivel antes de activar la búsqueda de partida', code: 'INCOMPLETE_TEST', status: 400 };
+      }
+    }
+
+    if (formatId !== undefined && formatId !== null && String(formatId).trim() !== '') {
+      user.searchingFormat = String(formatId).trim();
+    } else if (!user.searchingFormat) {
+      user.searchingFormat = '7v7';
+    }
+
+    if (district !== undefined && district !== null && String(district).trim() !== '') {
+      user.searchingDistrict = String(district).trim();
+    } else if (!user.searchingDistrict) {
+      user.searchingDistrict = user.district || null;
+    }
+
+    if (radiusKm !== undefined && radiusKm !== null) {
+      const numRadius = Number(radiusKm);
+      if (!Number.isFinite(numRadius) || numRadius < 1 || numRadius > 100) {
+        return { error: 'Radio de búsqueda inválido (debe estar entre 1 y 100 km)', code: 'INVALID_RADIUS', status: 400 };
+      }
+      user.searchingRadiusKm = Math.round(numRadius);
+    } else if (user.searchingRadiusKm === undefined || user.searchingRadiusKm === null) {
+      user.searchingRadiusKm = 8;
+    }
+
+    const nowMs = Date.now();
+    user.matchmakingStatus = nextStatus;
+
+    if (nextStatus === 'SEARCHING') {
+      const numericTtl = Number(ttlHours);
+      const effectiveTtlHours = Number.isFinite(numericTtl) ? numericTtl : 4;
+      user.searchingSince = new Date(nowMs).toISOString();
+      user.searchingExpiresAt = new Date(nowMs + effectiveTtlHours * 3600 * 1000).toISOString();
+      user.activeCompetitionId = null;
+      // Si el TTL enviado ya venció (por ejemplo <= 0 en tests de expiración), evaluar de inmediato
+      if (Date.parse(user.searchingExpiresAt) <= nowMs) {
+        user.matchmakingStatus = 'IDLE';
+        user.searchingSince = null;
+        user.searchingExpiresAt = null;
+      }
+    } else if (nextStatus === 'IN_ROOM') {
+      user.activeCompetitionId = activeCompetitionId || null;
+      user.searchingSince = null;
+      user.searchingExpiresAt = null;
+    } else {
+      // IDLE
+      user.searchingSince = null;
+      user.searchingExpiresAt = null;
+      user.activeCompetitionId = null;
+    }
+
+    this.users.set(userId, user);
+    this._persistUser(user);
+    return { user };
   }
 
   getUserByEmail(email) {
@@ -925,7 +1029,14 @@ class Database {
       verifiedDni: true,
       likesCount: 0,
       futStats: null,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      matchmakingStatus: 'IDLE',
+      searchingFormat: '7v7',
+      searchingDistrict: district || 'Surco, Lima',
+      searchingRadiusKm: 8,
+      searchingSince: null,
+      searchingExpiresAt: null,
+      activeCompetitionId: null
     };
 
     this.users.set(id, user);
@@ -1196,7 +1307,14 @@ class Database {
       verifiedDni: true,
       likesCount: 0,
       futStats: initialFutStats,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      matchmakingStatus: 'IDLE',
+      searchingFormat: '7v7',
+      searchingDistrict: district || 'Surco, Lima',
+      searchingRadiusKm: 8,
+      searchingSince: null,
+      searchingExpiresAt: null,
+      activeCompetitionId: null
     };
     this.users.set(id, user);
     this._persistUser(user);

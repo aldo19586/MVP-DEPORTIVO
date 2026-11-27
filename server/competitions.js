@@ -1,11 +1,102 @@
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { Router } from 'express';
 import { db } from './db.js';
-import { sqlGetReceipt, sqlInsertReceipt, sqlSaveCompetition } from './database.js';
+import { isInTransaction, sqlGetReceipt, sqlInsertReceipt, sqlSaveCompetition } from './database.js';
 import { validateCompetitionCommand, outcomeFromScore } from '../shared/competitionContract.mjs';
 import districts from './peru_districts.json' with { type: 'json' };
 import { competitionEvents } from './competitionEvents.js';
 import { competitionChatRouter } from './competitionChat.js';
+
+export const persistentMatchmakingConfig = {
+  defaultMinPlayers: null,
+  minPlayersByFormat: {}
+};
+
+export function setPersistentMatchmakingConfig(overrides = {}) {
+  if (overrides.defaultMinPlayers !== undefined) {
+    persistentMatchmakingConfig.defaultMinPlayers = overrides.defaultMinPlayers;
+  }
+  if (overrides.minPlayersByFormat && typeof overrides.minPlayersByFormat === 'object') {
+    persistentMatchmakingConfig.minPlayersByFormat = {
+      ...persistentMatchmakingConfig.minPlayersByFormat,
+      ...overrides.minPlayersByFormat
+    };
+  }
+  return persistentMatchmakingConfig;
+}
+
+function cleanDistrictText(raw) {
+  if (raw === undefined || raw === null) return '';
+  const str = String(raw).trim();
+  if (!str) return '';
+  const byId = districts.find(item => String(item.id) === str);
+  const source = byId ? byId.label : str;
+  return source
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\(.*?\)/g, '')
+    .replace(/\bsantiago de surco\b/g, 'surco')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*,\s*/g, ', ')
+    .trim();
+}
+
+function resolveCatalogDistrict(raw) {
+  if (raw !== undefined && raw !== null) {
+    const str = String(raw).trim();
+    const byId = districts.find(item => String(item.id) === str);
+    if (byId) return byId;
+    const cleaned = cleanDistrictText(str);
+    const baseName = cleaned.split(',')[0].trim();
+    const exactMatch = districts.find(item => cleanDistrictText(item.label) === cleaned);
+    if (exactMatch) return exactMatch;
+    const limaMatch = districts.find(
+      item => cleanDistrictText(item.distrito) === baseName && cleanDistrictText(item.departamento) === 'lima'
+    );
+    if (limaMatch) return limaMatch;
+    const anyMatch = districts.find(item => cleanDistrictText(item.distrito) === baseName);
+    if (anyMatch) return anyMatch;
+  }
+  return districts.find(item => item.id === 950) || districts[0];
+}
+
+export function districtsMatch(userDistrict, room) {
+  if (!userDistrict || !room) return false;
+  const uStr = String(userDistrict).trim();
+  if (room.venue?.districtId && uStr === String(room.venue.districtId).trim()) return true;
+  const uNorm = cleanDistrictText(uStr);
+  const rNorm = cleanDistrictText(room.district || room.venue?.districtId);
+  if (!uNorm || !rNorm) return false;
+  if (uNorm === rNorm) return true;
+  const uParts = uNorm.split(',').map(s => s.trim()).filter(Boolean);
+  const rParts = rNorm.split(',').map(s => s.trim()).filter(Boolean);
+  if (uParts[0] && rParts[0] && uParts[0] === rParts[0]) {
+    if (uParts.length === 1 || rParts.length === 1 || uParts[1] === rParts[1]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getThresholdForFormat(formatId, playersPerTeam, customMinPlayers = null) {
+  const maxPlayers = playersPerTeam * 2;
+  if (Number.isFinite(customMinPlayers) && customMinPlayers >= 2) {
+    return Math.min(maxPlayers, Math.floor(customMinPlayers));
+  }
+  const byFmt = persistentMatchmakingConfig.minPlayersByFormat?.[formatId];
+  if (Number.isFinite(byFmt) && byFmt >= 2) {
+    return Math.min(maxPlayers, Math.floor(byFmt));
+  }
+  if (Number.isFinite(persistentMatchmakingConfig.defaultMinPlayers) && persistentMatchmakingConfig.defaultMinPlayers >= 2) {
+    return Math.min(maxPlayers, Math.floor(persistentMatchmakingConfig.defaultMinPlayers));
+  }
+  const envMin = Number(process.env.MATCHSPORT_MM_MIN_PLAYERS);
+  if (Number.isFinite(envMin) && envMin >= 2) {
+    return Math.min(maxPlayers, Math.floor(envMin));
+  }
+  return Math.max(2, Math.min(4, maxPlayers));
+}
 
 const supported = new Set([
   'create', 'join', 'leave', 'cancel', 'switchTeam', 'transferHost',
@@ -61,6 +152,7 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         status: 'OPEN', hostUserId: actorId, captains: { teamA: actorId, teamB: null },
         teamA: [{ id: actorId, name: actor.name, avatar: actor.avatar || null, ready: false }], teamB: [], createdAt: new Date(now).toISOString() };
       db.competitions.set(value.id, value);
+      db.updateUserMatchmakingStatus(actorId, { status: 'IN_ROOM', activeCompetitionId: value.id, skipOnboardingCheck: true });
     } else {
       value = command === 'join' ? [...db.competitions.values()].find(room => room.code === data.code.trim().toUpperCase()) : db.competitions.get(data.competitionId);
       if (!value) fail('NOT_FOUND', 'Convocatoria no encontrada', 404);
@@ -87,6 +179,7 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         if (value[data.team].length >= value.playersPerTeam) fail('FULL', 'El equipo está completo');
         value[data.team].push({ id: actorId, name: actor.name, avatar: actor.avatar || null, ready: false });
         if (!value.captains[data.team]) value.captains[data.team] = actorId;
+        db.updateUserMatchmakingStatus(actorId, { status: 'IN_ROOM', activeCompetitionId: value.id, skipOnboardingCheck: true });
       } else if (command === 'start') {
         if (value.hostUserId !== actorId) fail('FORBIDDEN', 'Solo el anfitrión puede iniciar', 403);
         if (value.teamA.length !== value.playersPerTeam || value.teamB.length !== value.playersPerTeam) fail('INCOMPLETE_TEAMS', 'Ambos equipos deben estar completos');
@@ -153,6 +246,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
             const fin = db.finalizeCompetitionMatch(match, value.outcome, value.finalScore, actorId, 'coincidence');
             value.ratingUpdates = structuredClone(fin.ratingUpdates);
             value.finishedAt = match.finishedAt;
+            for (const member of members(value)) {
+              db.updateUserMatchmakingStatus(member.id, { status: 'IDLE', activeCompetitionId: null, skipOnboardingCheck: true });
+            }
           } else {
             const disputeId = randomUUID();
             value.status = 'DISPUTED';
@@ -194,6 +290,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         const fin = db.finalizeCompetitionMatch(match, value.outcome, value.finalScore, actorId, 'confirmation');
         value.ratingUpdates = structuredClone(fin.ratingUpdates);
         value.finishedAt = match.finishedAt;
+        for (const member of members(value)) {
+          db.updateUserMatchmakingStatus(member.id, { status: 'IDLE', activeCompetitionId: null, skipOnboardingCheck: true });
+        }
       } else if (command === 'disputeScore') {
         const match = db.competitionMatches.get(value.matchId);
         if (!match) fail('NOT_FOUND', 'Partido no encontrado', 404);
@@ -244,6 +343,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
         value.resolvedAt = match.finishedAt;
         value.ratingUpdates = structuredClone(fin.ratingUpdates);
         value.finishedAt = match.finishedAt;
+        for (const member of members(value)) {
+          db.updateUserMatchmakingStatus(member.id, { status: 'IDLE', activeCompetitionId: null, skipOnboardingCheck: true });
+        }
       } else if (command === 'cancel') {
         if (actor.role === 'admin') {
           value.status = 'CANCELLED';
@@ -264,6 +366,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
           value.status = 'CANCELLED';
           value.cancelledBy = actorId;
           value.cancelReason = data.reason.trim();
+        }
+        for (const member of members(value)) {
+          db.updateUserMatchmakingStatus(member.id, { status: 'IDLE', activeCompetitionId: null, skipOnboardingCheck: true });
         }
       } else if (['transferHost', 'transferCaptain'].includes(command)) {
         const team = value.teamA.some(user => user.id === actorId) ? 'teamA' : 'teamB';
@@ -295,6 +400,9 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
           }
           value[team] = value[team].filter(item => item.id !== actorId);
           if (!value[team].length) value.captains[team] = null;
+          if (command === 'leave') {
+            db.updateUserMatchmakingStatus(actorId, { status: 'IDLE', activeCompetitionId: null, skipOnboardingCheck: true });
+          }
         }
       }
     }
@@ -333,7 +441,253 @@ export function competitionCommand(actorId, command, input, now = Date.now()) {
     } else if (result.data.status === 'DISPUTED' && result.data.dispute) {
       competitionEvents.emit('scoreDisputed', { competitionId: result.competitionId, matchId: result.data.matchId, dispute: result.data.dispute, revision: result.revision });
     }
+    if (result.data.status === 'OPEN') {
+      const mmResult = runPersistentMatchmaking({ now });
+      if (mmResult.assignments.some(item => item.competition.id === result.competitionId)) {
+        const updatedRoom = db.competitions.get(result.competitionId);
+        if (updatedRoom) {
+          result.data = structuredClone(updatedRoom);
+          result.revision = updatedRoom.revision;
+        }
+      }
+    }
   }
+  return result;
+}
+
+export function runPersistentMatchmaking(options = {}) {
+  const now = typeof options === 'number' ? options : (options.now || Date.now());
+  const customMinPlayers = typeof options === 'object' && options !== null ? options.minPlayers : null;
+
+  const execute = () => {
+    db.purgeExpiredMatchmakingStatuses(now);
+
+    const assignments = [];
+    const searchingUsers = [...db.users.values()]
+      .filter(u => {
+        if (!u || u.matchmakingStatus !== 'SEARCHING') return false;
+        if (u.isBanned && u.bannedUntil && u.bannedUntil > now) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const tA = a.searchingSince ? Date.parse(a.searchingSince) : 0;
+        const tB = b.searchingSince ? Date.parse(b.searchingSince) : 0;
+        if (tA !== tB) return tA - tB;
+        return String(a.id).localeCompare(String(b.id));
+      });
+
+    if (searchingUsers.length === 0) {
+      return { assignments };
+    }
+
+    const availablePool = new Map(searchingUsers.map(u => [u.id, u]));
+
+    // Caso A: Unir jugadores SEARCHING a convocatorias OPEN existentes con horario futuro
+    const openRooms = [...db.competitions.values()]
+      .filter(room =>
+        room &&
+        room.status === 'OPEN' &&
+        Date.parse(room.scheduledAt) > now &&
+        members(room).length < room.playersPerTeam * 2
+      )
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+
+    for (const room of openRooms) {
+      if (availablePool.size === 0) break;
+      const assignedToRoom = [];
+
+      for (const [candidateId, candidate] of availablePool.entries()) {
+        if (members(room).length >= room.playersPerTeam * 2) break;
+        const candidateFormat = candidate.searchingFormat || '7v7';
+        const candidateDistrict = candidate.searchingDistrict || candidate.district;
+        if (candidateFormat !== room.formatId) continue;
+        if (!districtsMatch(candidateDistrict, room)) continue;
+        if (participant(room, candidateId)) continue;
+
+        let targetTeam;
+        if (room.teamA.length < room.teamB.length && room.teamA.length < room.playersPerTeam) {
+          targetTeam = 'teamA';
+        } else if (room.teamB.length < room.teamA.length && room.teamB.length < room.playersPerTeam) {
+          targetTeam = 'teamB';
+        } else if (room.teamA.length < room.playersPerTeam) {
+          targetTeam = 'teamA';
+        } else {
+          targetTeam = 'teamB';
+        }
+
+        room[targetTeam].push({
+          id: candidate.id,
+          name: candidate.name,
+          avatar: candidate.avatar || null,
+          ready: false
+        });
+        if (!room.captains[targetTeam]) {
+          room.captains[targetTeam] = candidate.id;
+        }
+
+        db.updateUserMatchmakingStatus(candidate.id, {
+          status: 'IN_ROOM',
+          activeCompetitionId: room.id,
+          skipOnboardingCheck: true
+        });
+        availablePool.delete(candidateId);
+        assignedToRoom.push(candidate.id);
+      }
+
+      if (assignedToRoom.length > 0) {
+        room.status = members(room).length >= room.playersPerTeam * 2 ? 'FULL' : 'OPEN';
+        room.revision++;
+        room.updatedAt = new Date(now).toISOString();
+        sqlSaveCompetition(room);
+        assignments.push({
+          type: 'JOINED_EXISTING',
+          competition: structuredClone(room),
+          assignedUserIds: assignedToRoom
+        });
+      }
+    }
+
+    // Caso B: Bolsa de jugadores SEARCHING en la misma zona y modalidad
+    if (availablePool.size >= 2) {
+      const buckets = new Map();
+      for (const candidate of availablePool.values()) {
+        const formatId = candidate.searchingFormat || '7v7';
+        const rawDistrict = candidate.searchingDistrict || candidate.district || 'Miraflores, Lima';
+        const districtKey = cleanDistrictText(rawDistrict);
+        if (!districtKey) continue;
+        const bucketKey = `${formatId}::${districtKey}`;
+        if (!buckets.has(bucketKey)) {
+          buckets.set(bucketKey, { formatId, rawDistrict, players: [] });
+        }
+        buckets.get(bucketKey).players.push(candidate);
+      }
+
+      const futbolFormats = db.getSports().find(sport => sport.id === 'futbol')?.formats || [];
+
+      for (const bucket of buckets.values()) {
+        const format = futbolFormats.find(item => item.id === bucket.formatId && item.active);
+        if (!format) continue;
+        const playersPerTeam = format.playersPerTeam;
+        const maxPlayers = playersPerTeam * 2;
+        const threshold = getThresholdForFormat(bucket.formatId, playersPerTeam, customMinPlayers);
+
+        while (bucket.players.length >= threshold) {
+          const batch = bucket.players.splice(0, maxPlayers);
+          const getRating = u => {
+            const r = Number(u.ratingOverall);
+            return Number.isFinite(r) && r > 0 ? r : 1500;
+          };
+          const sortedByRating = [...batch].sort((a, b) => {
+            const diff = getRating(b) - getRating(a);
+            if (diff !== 0) return diff;
+            return String(a.id).localeCompare(String(b.id));
+          });
+
+          const teamAUsers = [];
+          const teamBUsers = [];
+          let sumRatingA = 0;
+          let sumRatingB = 0;
+
+          for (const player of sortedByRating) {
+            const rating = getRating(player);
+            if (teamAUsers.length < teamBUsers.length && teamAUsers.length < playersPerTeam) {
+              teamAUsers.push(player);
+              sumRatingA += rating;
+            } else if (teamBUsers.length < teamAUsers.length && teamBUsers.length < playersPerTeam) {
+              teamBUsers.push(player);
+              sumRatingB += rating;
+            } else if (teamAUsers.length < playersPerTeam && (sumRatingA <= sumRatingB || teamBUsers.length >= playersPerTeam)) {
+              teamAUsers.push(player);
+              sumRatingA += rating;
+            } else {
+              teamBUsers.push(player);
+              sumRatingB += rating;
+            }
+          }
+
+          const toMember = u => ({ id: u.id, name: u.name, avatar: u.avatar || null, ready: false });
+          const teamA = teamAUsers.map(toMember);
+          const teamB = teamBUsers.map(toMember);
+          const captainA = teamA[0]?.id || null;
+          const captainB = teamB[0]?.id || null;
+          const hostUserId = captainA || captainB;
+
+          const catalogDistrict = resolveCatalogDistrict(bucket.rawDistrict);
+          let code;
+          do {
+            code = randomBytes(4).toString('hex').toUpperCase();
+          } while ([...db.competitions.values()].some(room => room.code === code));
+
+          const totalAssigned = teamA.length + teamB.length;
+          const newRoom = {
+            id: randomUUID(),
+            code,
+            revision: 1,
+            countryCode: 'PE',
+            sportId: 'futbol',
+            formatId: bucket.formatId,
+            playersPerTeam,
+            scheduledAt: new Date(now + 2 * 3600 * 1000).toISOString(),
+            timeZone: 'America/Lima',
+            venue: {
+              name: `Cancha MatchSport ${catalogDistrict.distrito}`,
+              address: `Zona Deportiva ${catalogDistrict.distrito}`,
+              districtId: String(catalogDistrict.id)
+            },
+            district: bucket.rawDistrict || catalogDistrict.label,
+            department: catalogDistrict.departamento || 'Lima',
+            province: catalogDistrict.provincia || 'Lima',
+            status: totalAssigned >= maxPlayers ? 'FULL' : 'OPEN',
+            hostUserId,
+            captains: { teamA: captainA, teamB: captainB },
+            teamA,
+            teamB,
+            createdAt: new Date(now).toISOString(),
+            updatedAt: new Date(now).toISOString()
+          };
+
+          db.competitions.set(newRoom.id, newRoom);
+          sqlSaveCompetition(newRoom);
+
+          const assignedIds = batch.map(p => p.id);
+          for (const player of batch) {
+            db.updateUserMatchmakingStatus(player.id, {
+              status: 'IN_ROOM',
+              activeCompetitionId: newRoom.id,
+              skipOnboardingCheck: true
+            });
+            availablePool.delete(player.id);
+          }
+
+          assignments.push({
+            type: 'CREATED_FROM_POOL',
+            competition: structuredClone(newRoom),
+            assignedUserIds: assignedIds
+          });
+        }
+      }
+    }
+
+    return { assignments };
+  };
+
+  const result = isInTransaction() ? execute() : db.atomic(execute);
+
+  for (const item of result.assignments) {
+    competitionEvents.emit('changed', {
+      competitionId: item.competition.id,
+      revision: item.competition.revision,
+      competition: item.competition
+    });
+    competitionEvents.emit('matchmakingRoomAssigned', {
+      userIds: item.assignedUserIds,
+      competitionId: item.competition.id,
+      code: item.competition.code,
+      competition: item.competition,
+      revision: item.competition.revision
+    });
+  }
+
   return result;
 }
 
