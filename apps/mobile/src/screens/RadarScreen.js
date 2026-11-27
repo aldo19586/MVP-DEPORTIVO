@@ -47,6 +47,7 @@ const BLIP_POSITIONS = [
 
 export default function RadarScreen({
   user,
+  onUserUpdated,
   onNavigateToLobbies,
   onOpenNotifications,
   onOpenCalibration,
@@ -62,11 +63,12 @@ export default function RadarScreen({
   const [sportsList, setSportsList] = useState(DEFAULT_SPORTS);
   const [formatsBySport, setFormatsBySport] = useState(DEFAULT_FORMATS_BY_SPORT);
   const [selectedSport, setSelectedSport] = useState('futbol');
-  const [selectedFormat, setSelectedFormat] = useState('7v7');
+  const [selectedFormat, setSelectedFormat] = useState(user?.searchingFormat || '7v7');
   const [mode, setMode] = useState('solo'); // 'solo' | 'squad'
 
   // Estado en vivo de cola, telemetría y salas reales del servidor
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState(user?.matchmakingStatus === 'SEARCHING');
+  const [statusLoading, setStatusLoading] = useState(false);
   const [searchSeconds, setSearchSeconds] = useState(0);
   const [onlineCount, setOnlineCount] = useState(1);
   const [gpsActive, setGpsActive] = useState(true);
@@ -186,6 +188,64 @@ export default function RadarScreen({
     }
   }, [selectedSport, formatsBySport]);
 
+  // Sincronizar estado visual del radar con el estado persistente del usuario en BD
+  useEffect(() => {
+    const dbSearching = user?.matchmakingStatus === 'SEARCHING';
+    setIsSearching(dbSearching);
+    if (user?.searchingFormat && user.searchingFormat !== selectedFormat) {
+      setSelectedFormat(user.searchingFormat);
+    }
+  }, [user?.matchmakingStatus, user?.searchingFormat]);
+
+  // Cronómetro basado en searchingSince de la BD cuando está en SEARCHING
+  useEffect(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (user?.matchmakingStatus === 'SEARCHING') {
+      const computeElapsed = () => {
+        if (user?.searchingSince) {
+          const parsed = Date.parse(user.searchingSince);
+          if (Number.isFinite(parsed)) {
+            return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+          }
+        }
+        return 0;
+      };
+      setSearchSeconds(computeElapsed());
+      timerRef.current = setInterval(() => {
+        setSearchSeconds((prev) => (user?.searchingSince ? computeElapsed() : prev + 1));
+      }, 1000);
+    } else {
+      setSearchSeconds(0);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [user?.matchmakingStatus, user?.searchingSince]);
+
+  // Si el usuario cambia de distrito o radio desde las pantallas de configuración mientras está en SEARCHING, sincronizar BD
+  const prevLocationRef = useRef({ districtName, radiusKm });
+  useEffect(() => {
+    const prev = prevLocationRef.current;
+    const changed = prev.districtName !== districtName || Number(prev.radiusKm) !== Number(radiusKm);
+    prevLocationRef.current = { districtName, radiusKm };
+
+    if (changed && user?.matchmakingStatus === 'SEARCHING') {
+      api.updateMatchmakingStatus({
+        status: 'SEARCHING',
+        formatId: selectedFormat,
+        district: districtName,
+        radiusKm: Number(radiusKm) || 8
+      }).then((res) => {
+        if (res?.user && onUserUpdated) {
+          onUserUpdated(res.user);
+        }
+      }).catch(() => {});
+    }
+  }, [districtName, radiusKm]);
+
   useEffect(() => {
     // 1. Sensor GPS con expo-location
     (async () => {
@@ -274,53 +334,94 @@ export default function RadarScreen({
     ]).start();
   };
 
-  const toggleSearch = () => {
+  const handleSelectFormat = async (fmtId) => {
+    try { Haptics.selectionAsync(); } catch (e) {}
+    setSelectedFormat(fmtId);
+
+    if (user?.matchmakingStatus === 'SEARCHING') {
+      setStatusLoading(true);
+      try {
+        const res = await api.updateMatchmakingStatus({
+          status: 'SEARCHING',
+          formatId: fmtId,
+          district: districtName,
+          radiusKm: Number(radiusKm) || 8,
+        });
+        if (res?.user && onUserUpdated) {
+          onUserUpdated(res.user);
+        }
+      } catch (e) {
+        // Conservar formato seleccionado en UI
+      } finally {
+        setStatusLoading(false);
+      }
+    }
+  };
+
+  const handleSetPersistentStatus = async (targetStatus) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     } catch (e) {}
 
-    if (!user?.hasCompletedProfile && !(user?.district && user?.position)) {
-      if (onRequireProfileSetup) onRequireProfileSetup();
-      return;
-    }
-    if (!user?.hasCompletedTest) {
-      Alert.alert(
-        'Test de Calibración Requerido',
-        'Para buscar rivales y entrar al radar competitivo debes realizar tu Test de Nivel oficial de fútbol.',
-        [
-          { text: 'Más tarde', style: 'cancel' },
-          { text: 'Realizar Test Ahora ➔', onPress: () => { if (onStartFootballTest) onStartFootballTest(); } }
-        ]
-      );
-      return;
+    if (targetStatus === 'SEARCHING') {
+      if (!user?.hasCompletedProfile && !(user?.district && user?.position)) {
+        if (onRequireProfileSetup) onRequireProfileSetup();
+        return;
+      }
+      if (!user?.hasCompletedTest) {
+        Alert.alert(
+          'Test de Calibración Requerido',
+          'Para activar la búsqueda automática de partidos debes realizar tu Test de Nivel oficial de fútbol.',
+          [
+            { text: 'Más tarde', style: 'cancel' },
+            { text: 'Realizar Test Ahora ➔', onPress: () => { if (onStartFootballTest) onStartFootballTest(); } }
+          ]
+        );
+        return;
+      }
     }
 
     const socket = socketService.getSocket();
+    setStatusLoading(true);
+    try {
+      const payload = targetStatus === 'SEARCHING'
+        ? {
+            status: 'SEARCHING',
+            formatId: selectedFormat,
+            district: districtName,
+            radiusKm: Number(radiusKm) || 8,
+          }
+        : { status: 'IDLE' };
 
-    if (!isSearching) {
-      setIsSearching(true);
-      setSearchSeconds(0);
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        setSearchSeconds((s) => s + 1);
-      }, 1000);
+      const res = await api.updateMatchmakingStatus(payload);
+      if (targetStatus === 'IDLE' && socket && user?.id) {
+        socket.emit('cancelQueue', { userId: user.id });
+      }
+      if (res?.user) {
+        setIsSearching(res.user.matchmakingStatus === 'SEARCHING');
+        if (onUserUpdated) {
+          onUserUpdated(res.user, { manuallyPaused: targetStatus === 'IDLE' });
+        }
+      }
+    } catch (err) {
+      Alert.alert('Aviso', err.message || 'No se pudo actualizar tu estado de disponibilidad.');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
 
-      if (socket) {
-        socket.emit('startQueue', {
-          userId: user?.id,
-          sportId: selectedSport,
-          formatId: selectedFormat,
-          radiusKm,
-          district: districtName,
-          mode
-        });
-      }
-    } else {
-      setIsSearching(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (socket) {
-        socket.emit('cancelQueue', { userId: user?.id });
-      }
+  const handleGoToAssignedRoom = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {}
+
+    if (user?.activeCompetitionId && onSelectCompetitionTarget) {
+      onSelectCompetitionTarget({
+        competitionId: user.activeCompetitionId,
+        code: null
+      });
+    } else if (onNavigateToLobbies) {
+      onNavigateToLobbies();
     }
   };
 
@@ -362,6 +463,24 @@ export default function RadarScreen({
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const getExpiryLabel = () => {
+    if (!user?.searchingExpiresAt) return 'Vigencia activa (4h)';
+    const diffMs = Date.parse(user.searchingExpiresAt) - Date.now();
+    if (!Number.isFinite(diffMs) || diffMs <= 0) return 'Expirando pronto';
+    const totalMins = Math.ceil(diffMs / 60000);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hours > 0) {
+      return `Vigente por ${hours}h ${mins}m`;
+    }
+    return `Vigente por ${mins} min`;
+  };
+
+  const currentMatchmakingStatus = user?.matchmakingStatus || (isSearching ? 'SEARCHING' : 'IDLE');
+  const activeSearchingFormat = (user?.searchingFormat || selectedFormat || '7v7').toUpperCase();
+  const activeSearchingDistrict = user?.searchingDistrict || districtName;
+  const activeSearchingRadius = user?.searchingRadiusKm || radiusKm;
 
   // Cálculos reales del jugador y convocatorias
   const userOvr = user?.futStats?.ovr || (user?.ratingOverall ? Math.min(99, Math.max(60, Math.round(user.ratingOverall / 20))) : 75);
@@ -485,10 +604,7 @@ export default function RadarScreen({
               <TouchableOpacity
                 key={fmt.id}
                 style={[styles.sportFormatPill, isActive && styles.sportFormatPillActive]}
-                onPress={() => {
-                  try { Haptics.selectionAsync(); } catch (e) {}
-                  setSelectedFormat(fmt.id);
-                }}
+                onPress={() => handleSelectFormat(fmt.id)}
                 activeOpacity={0.85}
               >
                 <Text style={[styles.sportFormatIcon, isActive && styles.sportFormatIconActive]}>
@@ -625,13 +741,17 @@ export default function RadarScreen({
 
           {/* Pastilla de estado en vivo debajo del radar */}
           <View style={styles.radarLiveStatusPill}>
-            <View style={[styles.radarLiveDot, isSearching && styles.radarLiveDotSearching]} />
+            <View style={[
+              styles.radarLiveDot,
+              currentMatchmakingStatus === 'SEARCHING' && styles.radarLiveDotSearching,
+              currentMatchmakingStatus === 'IN_ROOM' && styles.radarLiveDotInRoom
+            ]} />
             <Text style={styles.radarLiveStatusText}>
-              {isSearching
-                ? `BUSCANDO ${selectedFormat.toUpperCase()} EN ${districtName.split(',')[0]} (${formatTimer(searchSeconds)})`
-                : radarBlips.length > 0
-                ? `${radarBlips.length} SALAS DETECTADAS EN TU RADIO DE ${radiusKm} KM`
-                : 'RADAR CALIBRADO EN ESPERA DE CONVOCATORIAS'}
+              {currentMatchmakingStatus === 'IN_ROOM'
+                ? '🏟️ EN SALA ASIGNADA · LISTO PARA COORDINAR'
+                : currentMatchmakingStatus === 'SEARCHING'
+                ? `🟢 BUSCANDO ${activeSearchingFormat} EN ${activeSearchingDistrict.split(',')[0].toUpperCase()} (${formatTimer(searchSeconds)})`
+                : '⚪ DISPONIBILIDAD EN PAUSA · ACTÍVALA CON 1 TOQUE'}
             </Text>
           </View>
 
@@ -761,12 +881,30 @@ export default function RadarScreen({
           </Animated.View>
         </View>
 
-        {/* 7. AUTOMATED MATCHMAKING VAR-LITE FLOATING HERO CARD */}
-        <View style={styles.heroMatchCard}>
+        {/* 7. BARRA / TARJETA DE ESTADO PERSISTENTE EN BASE DE DATOS (FASE 3) */}
+        <View style={[
+          styles.heroMatchCard,
+          currentMatchmakingStatus === 'IDLE' && styles.heroMatchCardPaused,
+          currentMatchmakingStatus === 'IN_ROOM' && styles.heroMatchCardInRoom
+        ]}>
           <View style={styles.heroCardHeader}>
             <View style={styles.heroHeaderLeft}>
-              <View style={styles.heroPulseDot} />
-              <Text style={styles.heroBadgeText}>MATCH RÁPIDO SMART</Text>
+              <View style={[
+                styles.heroPulseDot,
+                currentMatchmakingStatus === 'IDLE' && styles.heroPulseDotPaused,
+                currentMatchmakingStatus === 'IN_ROOM' && styles.heroPulseDotInRoom
+              ]} />
+              <Text style={[
+                styles.heroBadgeText,
+                currentMatchmakingStatus === 'IDLE' && styles.heroBadgeTextPaused,
+                currentMatchmakingStatus === 'IN_ROOM' && styles.heroBadgeTextInRoom
+              ]}>
+                {currentMatchmakingStatus === 'IN_ROOM'
+                  ? '🏟️ EN SALA ASIGNADA'
+                  : currentMatchmakingStatus === 'SEARCHING'
+                  ? '🟢 BUSCANDO PARTIDA AUTOMÁTICAMENTE'
+                  : '⚪ DISPONIBILIDAD EN PAUSA'}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.heroFilterTag}
@@ -774,17 +912,61 @@ export default function RadarScreen({
               activeOpacity={0.8}
             >
               <Text style={styles.heroFilterTagText}>
-                Filtro: {userPosition} • {radarPrefs?.eloMode === 'hardcore' ? '+100 ELO' : radarPrefs?.eloMode === 'fast' ? 'Libre' : '±50 ELO'}
+                {userPosition} • {userElo} ELO
               </Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.heroTitle}>Auto-Emparejamiento Inmediato</Text>
-          <Text style={styles.heroSubtitle}>
-            El motor Glicko-2 busca rivales compatibles en {districtName.split(',')[0]} para modalidad {currentFormatObj?.label} ({currentFormatObj?.playersPerTeam}v{currentFormatObj?.playersPerTeam}).
-          </Text>
+          {currentMatchmakingStatus === 'IN_ROOM' ? (
+            <>
+              <Text style={styles.heroTitle}>¡Ya tienes una sala de partido activa!</Text>
+              <Text style={styles.heroSubtitle}>
+                Tu estado en base de datos es EN SALA ASIGNADA. Entra ahora para confirmar asistencia, ver tu equipo y coordinar en el chat con tus compañeros.
+              </Text>
+            </>
+          ) : currentMatchmakingStatus === 'SEARCHING' ? (
+            <>
+              <Text style={styles.heroTitle}>
+                Disponibilidad Activa · {activeSearchingFormat}
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Buscando automáticamente en {activeSearchingDistrict} (radio {activeSearchingRadius} km) • {getExpiryLabel()}. Apenas se complete o libere una sala compatible entrarás directo.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.heroTitle}>Búsqueda Automática Pausada</Text>
+              <Text style={styles.heroSubtitle}>
+                Activa tu disponibilidad para que el motor te asigne automáticamente a una sala de {currentFormatObj?.label} ({selectedFormat}) en {districtName.split(',')[0]} incluso si cierras la app.
+              </Text>
+            </>
+          )}
 
-          {/* Selector rápido: Buscar Solo vs Crear Equipo */}
+          {/* Metadatos de estado persistente en BD */}
+          <View style={styles.persistentMetaRow}>
+            <View style={styles.persistentMetaChip}>
+              <Text style={styles.persistentMetaLabel}>FORMATO</Text>
+              <Text style={styles.persistentMetaValue}>{activeSearchingFormat}</Text>
+            </View>
+            <View style={styles.persistentMetaChip}>
+              <Text style={styles.persistentMetaLabel}>ZONA</Text>
+              <Text style={styles.persistentMetaValue} numberOfLines={1}>
+                {activeSearchingDistrict.split(',')[0]} ({activeSearchingRadius} km)
+              </Text>
+            </View>
+            <View style={styles.persistentMetaChip}>
+              <Text style={styles.persistentMetaLabel}>VIGENCIA BD</Text>
+              <Text style={styles.persistentMetaValue} numberOfLines={1}>
+                {currentMatchmakingStatus === 'SEARCHING'
+                  ? getExpiryLabel()
+                  : currentMatchmakingStatus === 'IN_ROOM'
+                  ? 'En Convocatoria'
+                  : 'En Pausa'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Selector rápido: Disponibilidad Individual vs Crear Sala de Equipo */}
           <View style={styles.modeSegmentContainer}>
             <TouchableOpacity
               style={[styles.modeSegmentBtn, mode === 'solo' && styles.modeSegmentBtnActive]}
@@ -795,7 +977,7 @@ export default function RadarScreen({
               activeOpacity={0.85}
             >
               <Text style={[styles.modeSegmentText, mode === 'solo' && styles.modeSegmentTextActive]}>
-                👤 Buscar Solo
+                ⚡ Disponibilidad Auto
               </Text>
             </TouchableOpacity>
 
@@ -816,20 +998,24 @@ export default function RadarScreen({
           {/* Estado de Calibración / Aviso de Test Pendiente */}
           <View style={styles.heroSpotNotice}>
             <Text style={styles.heroSpotIcon}>
-              {!user?.hasCompletedTest ? '⚠️' : '⚡'}
+              {!user?.hasCompletedTest ? '⚠️' : currentMatchmakingStatus === 'IN_ROOM' ? '🏟️' : currentMatchmakingStatus === 'SEARCHING' ? '🟢' : '⚪'}
             </Text>
             <View style={styles.heroSpotTextCol}>
               <Text style={styles.heroSpotTitle} numberOfLines={1}>
                 {!user?.hasCompletedTest
                   ? 'Test Táctico de 14 Preguntas Pendiente'
-                  : `${currentFormatObj?.label} · Zona ${districtName}`}
+                  : currentMatchmakingStatus === 'IN_ROOM'
+                  ? `Convocatoria asignada (#${user?.activeCompetitionId?.slice(0, 8) || 'SALA'})`
+                  : currentMatchmakingStatus === 'SEARCHING'
+                  ? `Sincronizado en BD: ${activeSearchingFormat} · ${activeSearchingDistrict}`
+                  : `Listo para buscar ${selectedFormat.toUpperCase()} en ${districtName}`}
               </Text>
               <Text style={styles.heroSpotSub} numberOfLines={1}>
                 {!user?.hasCompletedTest
-                  ? 'Completa tu calibración inicial para habilitar la cola competitiva'
-                  : (user?.matchesPlayed || 0) >= 3
-                  ? `Rating Oficial Calibrado: ${userElo} ELO • OVR ${userOvr}`
-                  : `Fase de Calibración: ${user?.matchesPlayed || 0}/3 partidos oficiales disputados`}
+                  ? 'Completa tu calibración inicial para activar la búsqueda automática'
+                  : currentMatchmakingStatus === 'SEARCHING'
+                  ? `Tiempo activo: ${formatTimer(searchSeconds)} • Cambia de formato arriba con 1 toque`
+                  : `Rating Oficial: ${userElo} ELO • OVR ${userOvr}`}
               </Text>
             </View>
             {!user?.hasCompletedTest && (
@@ -843,24 +1029,48 @@ export default function RadarScreen({
             )}
           </View>
 
-          {/* Big Athletic Pulsing CTA Button */}
+          {/* Acción Primaria según estado persistente en BD */}
           {mode === 'solo' ? (
-            <TouchableOpacity
-              style={[styles.heroCtaButton, isSearching && styles.heroCtaButtonCancel]}
-              onPress={toggleSearch}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={isSearching ? 'Cancelar búsqueda de partido' : 'Unirse al partido automático'}
-            >
-              <Text style={[styles.heroCtaIcon, isSearching && styles.heroCtaTextCancel]}>
-                {isSearching ? '✕' : '⚡'}
-              </Text>
-              <Text style={[styles.heroCtaText, isSearching && styles.heroCtaTextCancel]}>
-                {isSearching
-                  ? `CANCELAR BÚSQUEDA (${formatTimer(searchSeconds)})`
-                  : 'UNIRSE AL PARTIDO AUTOMÁTICO'}
-              </Text>
-            </TouchableOpacity>
+            currentMatchmakingStatus === 'IN_ROOM' ? (
+              <TouchableOpacity
+                style={[styles.heroCtaButton, styles.heroCtaButtonInRoom]}
+                onPress={handleGoToAssignedRoom}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Ir a mi sala ahora"
+              >
+                <Text style={styles.heroCtaIcon}>🏟️</Text>
+                <Text style={styles.heroCtaText}>IR A MI SALA AHORA ➔</Text>
+              </TouchableOpacity>
+            ) : currentMatchmakingStatus === 'SEARCHING' ? (
+              <TouchableOpacity
+                style={[styles.heroCtaButton, styles.heroCtaButtonCancel]}
+                onPress={() => handleSetPersistentStatus('IDLE')}
+                disabled={statusLoading}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Pausar disponibilidad"
+              >
+                <Text style={[styles.heroCtaIcon, styles.heroCtaTextCancel]}>⏸</Text>
+                <Text style={[styles.heroCtaText, styles.heroCtaTextCancel]}>
+                  {statusLoading ? 'ACTUALIZANDO ESTADO...' : 'PAUSAR DISPONIBILIDAD'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.heroCtaButton}
+                onPress={() => handleSetPersistentStatus('SEARCHING')}
+                disabled={statusLoading}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Activar búsqueda automática"
+              >
+                <Text style={styles.heroCtaIcon}>🟢</Text>
+                <Text style={styles.heroCtaText}>
+                  {statusLoading ? 'ACTIVANDO EN BASE DE DATOS...' : 'ACTIVAR BÚSQUEDA AUTOMÁTICA'}
+                </Text>
+              </TouchableOpacity>
+            )
           ) : (
             <TouchableOpacity
               style={styles.heroCtaButton}
@@ -1499,6 +1709,9 @@ const styles = StyleSheet.create({
   radarLiveDotSearching: {
     backgroundColor: THEME.colors.neonPitch,
   },
+  radarLiveDotInRoom: {
+    backgroundColor: THEME.colors.gold,
+  },
   radarLiveStatusText: {
     color: THEME.colors.onSurface,
     fontSize: 10,
@@ -1691,13 +1904,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 135, 0.2)',
+    borderColor: 'rgba(0, 255, 135, 0.25)',
     gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 6,
+  },
+  heroMatchCardPaused: {
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  heroMatchCardInRoom: {
+    borderColor: 'rgba(245, 158, 11, 0.45)',
   },
   heroCardHeader: {
     flexDirection: 'row',
@@ -1708,6 +1927,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
+    marginRight: 8,
   },
   heroPulseDot: {
     width: 8,
@@ -1715,11 +1936,55 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: THEME.colors.neonPitch,
   },
+  heroPulseDotPaused: {
+    backgroundColor: THEME.colors.outline,
+  },
+  heroPulseDotInRoom: {
+    backgroundColor: THEME.colors.gold,
+  },
   heroBadgeText: {
     color: THEME.colors.neonPitch,
     fontSize: 10.5,
     fontWeight: '900',
-    letterSpacing: 1.1,
+    letterSpacing: 0.8,
+    flexShrink: 1,
+  },
+  heroBadgeTextPaused: {
+    color: THEME.colors.onSurfaceVariant,
+  },
+  heroBadgeTextInRoom: {
+    color: THEME.colors.gold,
+  },
+  persistentMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  persistentMetaChip: {
+    flex: 1,
+    backgroundColor: THEME.colors.surfaceLowest,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  persistentMetaLabel: {
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  persistentMetaValue: {
+    color: THEME.colors.onSurface,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  heroCtaButtonInRoom: {
+    backgroundColor: THEME.colors.gold,
+    shadowColor: THEME.colors.gold,
   },
   heroFilterTag: {
     backgroundColor: THEME.colors.surfaceLowest,

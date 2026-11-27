@@ -17,6 +17,7 @@ const request = createHttpClient({
   invalidate: invalidateSession,
 });
 const post = (path, body, publicAccess = false) => request(path, { method: 'POST', body, publicAccess });
+const put = (path, body, publicAccess = false) => request(path, { method: 'PUT', body, publicAccess });
 const id = encodeURIComponent;
 function query(values) {
   const params = new URLSearchParams();
@@ -54,5 +55,6 @@ export const api = {
   completeProfile: data => post('/user/complete-profile', data),
   submitFootballTest: data => post('/user/submit-football-test', data),
   getOnboardingStatus: () => request('/user/onboarding-status'),
+  updateMatchmakingStatus: payload => put('/user/matchmaking-status', payload),
   registerPushToken: (userId, pushToken) => post('/user/push-token', { userId, pushToken }),
 };

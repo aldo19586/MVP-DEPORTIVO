@@ -434,6 +434,28 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Suite de servidor (`npm run test:server`): 113 de 113 pruebas aprobadas al 100% (0 fallos).
   - Validación completa (`npm run validate`): suite de servidor, build de `apps/admin-web` y exportación nativa iOS de `apps/mobile` aprobadas sin errores.
 
+### Evidencia Sistema de Disponibilidad Persistente / Buscando Partida en Base de Datos — Fase 3 (App Móvil: Auto-Activación, Derivación y Tarjeta Persistente en Radar) — 26 de noviembre de 2026
+
+- **Objetivo cumplido:**
+  - Integración completa en `apps/mobile` del sistema de disponibilidad persistente en base de datos: auto-activación al ingresar si el jugador completó su perfil y Test de Nivel, derivación automática inmediata a la sala asignada (`'IN_ROOM'` / `'matchmakingRoomAssigned'` / Push Notification) y tarjeta de estado persistente en `RadarScreen`.
+- **Cambios realizados:**
+  1. `apps/mobile/src/services/api.js`:
+     - Adición del helper HTTP `put` y del método `updateMatchmakingStatus(payload)` conectado a `PUT /api/user/matchmaking-status`.
+  2. `apps/mobile/App.js`:
+     - Implementación de `syncMatchmakingEntryFlow(user)` ejecutado al restaurar sesión (`api.me()`), al iniciar sesión (`handleLoginSuccess`) y al finalizar el Test de Nivel (`FootballLevelTestScreen`).
+     - Si el jugador tiene `matchmakingStatus === 'IN_ROOM'` y `activeCompetitionId`, se deriva automáticamente a su sala (`setTargetCompetitionId(user.activeCompetitionId)` y pestaña `'SALAS'`).
+     - Si el jugador tiene `hasCompletedProfile && hasCompletedTest` y no está en una sala activa (ni pausó manualmente su disponibilidad en la sesión), sincroniza automáticamente `'SEARCHING'` en la base de datos con su modalidad, distrito y radio actual.
+     - En `initSocketSession`, suscripción a `'matchmakingStatusUpdated'` y `'matchmakingRoomAssigned'`: al recibir `{ competitionId, code }`, actualiza el usuario a `'IN_ROOM'`, dispara feedback háptico de éxito, registra el aviso en el centro de notificaciones / notificación local y deriva inmediatamente a la sala mediante `handleNotificationIntent({ competitionId, code })`.
+  3. `apps/mobile/src/screens/RadarScreen.js`:
+     - Reemplazo del botón manual de cola efímera por la **Tarjeta de Estado Persistente en Base de Datos** con 3 estados sincronizados en vivo:
+       - 🟢 **BUSCANDO PARTIDA AUTOMÁTICAMENTE** (formato activo, distrito, radio en km, vigencia de TTL y cronómetro desde `searchingSince`) + botón rápido **"Pausar disponibilidad"**.
+       - ⚪ **DISPONIBILIDAD EN PAUSA** + botón de 1 toque **"Activar búsqueda automática"**.
+       - 🏟️ **EN SALA ASIGNADA** + botón primario **"Ir a mi sala ahora ➔"**.
+     - Actualización automática en base de datos mediante `api.updateMatchmakingStatus(...)` cuando el jugador cambia de modalidad (`5v5`, `6v6`, `7v7`, `11v11`, etc.) o de distrito/radio mientras está en `'SEARCHING'`.
+- **Pruebas ejecutadas:**
+  - Validación completa (`npm run validate`): 113 de 113 pruebas de servidor aprobadas al 100%, build de `apps/admin-web` y exportación nativa iOS (`expo export --platform ios`) sin errores.
+  - Exportación nativa Android (`npm run build:mobile:android`): aprobada al 100% sin errores.
+
 ## Trabajo pospuesto
 
 Matchmaking instantáneo como recorrido principal, más deportes, clasificación global prominente, peer review avanzado, temporadas, estadísticas individuales en vivo, B2B, reservas/pagos, microservicios y escalado distribuido. Reconsiderarlos por evidencia de uso y capacidad, no por tener diseños disponibles.

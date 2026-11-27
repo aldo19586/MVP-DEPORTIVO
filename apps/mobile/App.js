@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, SafeAreaView, ActivityIndicator, Text, Pressable, TouchableOpacity } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
 import { api, onSessionExpired } from './src/services/api';
 import { storage } from './src/services/storage';
 import { socketService } from './src/services/socket';
@@ -48,6 +49,13 @@ export default function App() {
   const [currentRadius, setCurrentRadius] = useState(8);
   const [currentDistrict, setCurrentDistrict] = useState('SURCO, LIMA');
   const [userDeclaredLevel, setUserDeclaredLevel] = useState('Intermedio');
+  const [manuallyPausedSession, setManuallyPausedSession] = useState(false);
+  const manuallyPausedRef = useRef(false);
+  const currentUserRef = useRef(null);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   // Pantallas Nativas de Flujo (Pushed Screens)
   const [selectedLobby, setSelectedLobby] = useState(null);
@@ -82,18 +90,28 @@ export default function App() {
     };
   }, [queueState.isSearching]);
 
-  const handleCancelGlobalQueue = () => {
+  const handleCancelGlobalQueue = async () => {
+    manuallyPausedRef.current = true;
+    setManuallyPausedSession(true);
     const socket = socketService.getSocket();
-    if (socket && currentUser) {
-      socket.emit('cancelQueue', { userId: currentUser.id });
+    if (socket && currentUserRef.current) {
+      socket.emit('cancelQueue', { userId: currentUserRef.current.id });
     }
     setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
     notificationService.dismissOngoingSearchNotification();
+    try {
+      const res = await api.updateMatchmakingStatus({ status: 'IDLE' });
+      if (res?.user) {
+        setCurrentUser(res.user);
+        await storage.saveUserSession(res.user);
+      }
+    } catch (e) {}
   };
 
-  const handleNotificationIntent = (data) => {
+  const handleNotificationIntent = (data, explicitUser = null) => {
     if (!data) return;
-    if (!currentUser) {
+    const activeUser = explicitUser || currentUserRef.current || currentUser;
+    if (!activeUser) {
       storage.savePendingNotificationIntent(data);
       return;
     }
@@ -103,11 +121,79 @@ export default function App() {
       setActiveSubScreen(null);
       setSelectedLobby(null);
       setActiveMatch(null);
-      setActiveTab('JUGAR');
+      setActiveTab('SALAS');
     } else if (data.lobbyCode) {
       setActiveSubScreen(null);
       setSelectedLobby({ code: data.lobbyCode });
     }
+  };
+
+  const syncMatchmakingEntryFlow = async (user, { forceActivate = false } = {}) => {
+    if (!user) return user;
+    if (user.district) {
+      setCurrentDistrict(user.searchingDistrict || user.district);
+    }
+    if (user.searchingRadiusKm) {
+      setCurrentRadius(Number(user.searchingRadiusKm) || 8);
+    }
+
+    // 1. Si el jugador ya está en una sala activa ('IN_ROOM' + activeCompetitionId), derivarlo directo a su sala
+    if (user.matchmakingStatus === 'IN_ROOM' && user.activeCompetitionId) {
+      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+      setTargetCompetitionId(user.activeCompetitionId);
+      setTargetCompetitionCode(null);
+      setActiveSubScreen(null);
+      setSelectedLobby(null);
+      setActiveMatch(null);
+      setActiveTab('SALAS');
+      return user;
+    }
+
+    // 2. Si tiene perfil y test completos y no pausó manualmente en la sesión, activar/sincronizar 'SEARCHING' en BD
+    const profileReady = Boolean(user.hasCompletedProfile && user.district && user.position);
+    const testReady = Boolean(user.hasCompletedTest);
+    if (profileReady && testReady && (!manuallyPausedRef.current || forceActivate)) {
+      if (forceActivate) {
+        manuallyPausedRef.current = false;
+        setManuallyPausedSession(false);
+      }
+      try {
+        const formatToUse = user.searchingFormat || '7v7';
+        const districtToUse = user.searchingDistrict || user.district || currentDistrict;
+        const radiusToUse = Number(user.searchingRadiusKm || currentRadius || 8);
+        const res = await api.updateMatchmakingStatus({
+          status: 'SEARCHING',
+          formatId: formatToUse,
+          district: districtToUse,
+          radiusKm: radiusToUse,
+        });
+        const syncedUser = res?.user || user;
+        setCurrentUser(syncedUser);
+        await storage.saveUserSession(syncedUser);
+
+        if (syncedUser.matchmakingStatus === 'IN_ROOM' && syncedUser.activeCompetitionId) {
+          setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+          setTargetCompetitionId(syncedUser.activeCompetitionId);
+          setTargetCompetitionCode(null);
+          setActiveSubScreen(null);
+          setSelectedLobby(null);
+          setActiveMatch(null);
+          setActiveTab('SALAS');
+        } else if (syncedUser.matchmakingStatus === 'SEARCHING') {
+          setQueueState({
+            isSearching: true,
+            sportId: 'futbol',
+            formatId: syncedUser.searchingFormat || formatToUse,
+            district: syncedUser.searchingDistrict || districtToUse,
+            seconds: 0,
+          });
+        }
+        return syncedUser;
+      } catch (err) {
+        console.warn('[MATCHMAKING] No se pudo sincronizar disponibilidad inicial:', err.message);
+      }
+    }
+    return user;
   };
 
   useEffect(() => {
@@ -155,6 +241,7 @@ export default function App() {
         await storage.saveUserSession(user);
         if (!mounted) return;
         setCurrentUser(user);
+        currentUserRef.current = user;
         initSocketSession(user);
 
         // Registrar token push en el backend de forma segura
@@ -163,11 +250,14 @@ export default function App() {
           await api.registerPushToken(user.id, pushToken).catch(() => {});
         }
 
+        // Auto-activación en BD o derivación inmediata si ya tiene sala asignada
+        const syncedUser = await syncMatchmakingEntryFlow(user);
+
         // Si existía una intención de notificación previa al login, resolverla
         const pendingIntent = await storage.getPendingNotificationIntent();
         if (pendingIntent) {
           await storage.clearPendingNotificationIntent();
-          handleNotificationIntent(pendingIntent);
+          handleNotificationIntent(pendingIntent, syncedUser || user);
         }
       } catch (error) {
         if (mounted && error.status !== 401) setSessionError('No pudimos verificar tu sesión. Revisa tu conexión y vuelve a intentar.');
@@ -317,10 +407,97 @@ export default function App() {
         data: { competitionId: data?.competitionId, matchId: data?.matchId, code: data?.code }
       });
     });
+
+    // Sincronización en tiempo real del estado persistente de matchmaking en BD
+    socket.on('matchmakingStatusUpdated', (data) => {
+      if (data?.user) {
+        setCurrentUser(data.user);
+        currentUserRef.current = data.user;
+        storage.saveUserSession(data.user).catch(() => {});
+      } else if (data?.matchmakingStatus) {
+        setCurrentUser((prev) => {
+          if (!prev) return prev;
+          const next = {
+            ...prev,
+            matchmakingStatus: data.matchmakingStatus,
+            searchingFormat: data.searchingFormat !== undefined ? data.searchingFormat : prev.searchingFormat,
+            searchingDistrict: data.searchingDistrict !== undefined ? data.searchingDistrict : prev.searchingDistrict,
+            searchingRadiusKm: data.searchingRadiusKm !== undefined ? data.searchingRadiusKm : prev.searchingRadiusKm,
+            searchingSince: data.searchingSince !== undefined ? data.searchingSince : prev.searchingSince,
+            searchingExpiresAt: data.searchingExpiresAt !== undefined ? data.searchingExpiresAt : prev.searchingExpiresAt,
+            activeCompetitionId: data.activeCompetitionId !== undefined ? data.activeCompetitionId : prev.activeCompetitionId,
+          };
+          currentUserRef.current = next;
+          storage.saveUserSession(next).catch(() => {});
+          return next;
+        });
+      }
+
+      if (data?.matchmakingStatus === 'SEARCHING') {
+        setQueueState((prev) => ({
+          ...prev,
+          isSearching: true,
+          formatId: data.searchingFormat || prev.formatId || '7v7',
+          district: data.searchingDistrict || prev.district || currentDistrict,
+        }));
+      } else if (data?.matchmakingStatus === 'IDLE' || data?.matchmakingStatus === 'IN_ROOM') {
+        setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+        notificationService.dismissOngoingSearchNotification();
+      }
+    });
+
+    // Asignación automática de sala por el motor de disponibilidad persistente (Fase 2 & 3)
+    socket.on('matchmakingRoomAssigned', async (data) => {
+      const compId = data?.competitionId || data?.competition?.id || null;
+      const compCode = data?.code || data?.competition?.code || null;
+      if (!compId && !compCode) return;
+
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (e) {}
+
+      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+      notificationService.dismissOngoingSearchNotification();
+
+      setCurrentUser((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          matchmakingStatus: 'IN_ROOM',
+          activeCompetitionId: compId || prev.activeCompetitionId,
+          searchingSince: null,
+          searchingExpiresAt: null,
+        };
+        currentUserRef.current = next;
+        storage.saveUserSession(next).catch(() => {});
+        return next;
+      });
+
+      const formatLabel = data?.competition?.formatId || 'Fútbol';
+      const districtLabel = data?.competition?.district || currentDistrict;
+
+      storage.addNotification({
+        type: 'MATCHMAKING_ROOM_ASSIGNED',
+        title: '¡Partido encontrado en tu zona! ⚽',
+        body: `Te asignamos automáticamente a la sala #${compCode || compId} (${formatLabel} en ${districtLabel}).`,
+        data: { competitionId: compId, code: compCode }
+      }).catch(() => {});
+
+      notificationService.scheduleLocalNotification({
+        title: '¡Partido encontrado en tu zona! ⚽',
+        body: `Sala #${compCode || ''} lista en ${districtLabel}. Entrando a la convocatoria...`,
+        data: { competitionId: compId, code: compCode }
+      }).catch(() => {});
+
+      handleNotificationIntent({ competitionId: compId, code: compCode }, currentUserRef.current);
+    });
   };
 
   const handleLoginSuccess = async (user) => {
+    manuallyPausedRef.current = false;
+    setManuallyPausedSession(false);
     setCurrentUser(user);
+    currentUserRef.current = user;
     initSocketSession(user);
     setActiveTab('JUGAR');
 
@@ -330,11 +507,14 @@ export default function App() {
       await api.registerPushToken(user.id, pushToken).catch(() => {});
     }
 
+    // Auto-activar disponibilidad persistente o derivar a sala activa
+    const syncedUser = await syncMatchmakingEntryFlow(user);
+
     // Resolver intención de notificación pendiente si existía
     const pendingIntent = await storage.getPendingNotificationIntent();
     if (pendingIntent) {
       await storage.clearPendingNotificationIntent();
-      handleNotificationIntent(pendingIntent);
+      handleNotificationIntent(pendingIntent, syncedUser || user);
     }
   };
 
@@ -443,24 +623,29 @@ export default function App() {
         onCancel={() => setSkippedTest(true)}
         onFinishTest={async () => {
           const updatedUser = await storage.getUserSession();
-          if (updatedUser) setCurrentUser(updatedUser);
+          const finalUser = updatedUser || currentUser;
+          if (updatedUser) {
+            setCurrentUser(updatedUser);
+            currentUserRef.current = updatedUser;
+          }
           // Si existía una invitación pendiente, unirse automáticamente a la convocatoria (V-06)
           const pendingCode = await storage.getPendingInviteCode();
           if (pendingCode) {
             await storage.clearPendingInviteCode();
             const socket = socketService.getSocket();
-            if (socket && (updatedUser || currentUser)) {
-              socket.emit('joinLobby', { code: pendingCode, user: updatedUser || currentUser });
+            if (socket && finalUser) {
+              socket.emit('joinLobby', { code: pendingCode, user: finalUser });
             }
           }
+          setActiveSubScreen(null);
+          setActiveTab('JUGAR');
+          const syncedUser = await syncMatchmakingEntryFlow(finalUser, { forceActivate: true });
           // Si existía una intención de notificación pendiente, resolverla (V-18)
           const pendingIntent = await storage.getPendingNotificationIntent();
           if (pendingIntent) {
             await storage.clearPendingNotificationIntent();
-            handleNotificationIntent(pendingIntent);
+            handleNotificationIntent(pendingIntent, syncedUser || finalUser);
           }
-          setActiveSubScreen(null);
-          setActiveTab('JUGAR');
         }}
       />
     );
@@ -568,7 +753,7 @@ export default function App() {
           setActiveSubScreen(null);
           setTargetCompetitionId(competitionId || null);
           setTargetCompetitionCode(code || null);
-          setActiveTab('JUGAR');
+          setActiveTab('SALAS');
         }}
         onEnterLobby={(lobby) => {
           setActiveSubScreen(null);
@@ -594,7 +779,23 @@ export default function App() {
         currentRadius={currentRadius}
         currentDistrict={currentDistrict}
         onSavePreferences={(prefs) => {
-          if (prefs?.radiusKm) setCurrentRadius(prefs.radiusKm);
+          if (prefs?.radiusKm) {
+            setCurrentRadius(prefs.radiusKm);
+            if (currentUser?.matchmakingStatus === 'SEARCHING') {
+              api.updateMatchmakingStatus({
+                status: 'SEARCHING',
+                formatId: currentUser.searchingFormat || '7v7',
+                district: currentDistrict,
+                radiusKm: Number(prefs.radiusKm) || 8,
+              }).then((res) => {
+                if (res?.user) {
+                  setCurrentUser(res.user);
+                  currentUserRef.current = res.user;
+                  storage.saveUserSession(res.user).catch(() => {});
+                }
+              }).catch(() => {});
+            }
+          }
         }}
         onBack={() => setActiveSubScreen(null)}
       />
@@ -609,6 +810,20 @@ export default function App() {
         onSave={({ radiusKm, district }) => {
           setCurrentRadius(radiusKm);
           setCurrentDistrict(district);
+          if (currentUser?.matchmakingStatus === 'SEARCHING') {
+            api.updateMatchmakingStatus({
+              status: 'SEARCHING',
+              formatId: currentUser.searchingFormat || '7v7',
+              district,
+              radiusKm: Number(radiusKm) || 8,
+            }).then((res) => {
+              if (res?.user) {
+                setCurrentUser(res.user);
+                currentUserRef.current = res.user;
+                storage.saveUserSession(res.user).catch(() => {});
+              }
+            }).catch(() => {});
+          }
         }}
         onBack={() => setActiveSubScreen(null)}
       />
@@ -647,13 +862,16 @@ export default function App() {
     return (
       <FootballLevelTestScreen
         user={currentUser}
-        onFinishTest={() => {
-          // Recargar el usuario con el test completado
-          storage.getUserSession().then((u) => {
-            if (u) setCurrentUser(u);
-          });
+        onFinishTest={async () => {
+          const u = await storage.getUserSession();
+          const finalUser = u || currentUser;
+          if (u) {
+            setCurrentUser(u);
+            currentUserRef.current = u;
+          }
           setActiveSubScreen(null);
           setActiveTab('JUGAR');
+          await syncMatchmakingEntryFlow(finalUser, { forceActivate: true });
         }}
         onCancel={() => setActiveSubScreen(null)}
       />
@@ -706,6 +924,32 @@ export default function App() {
             radiusKm={currentRadius}
             districtName={currentDistrict}
             userLevel={userDeclaredLevel}
+            onUserUpdated={(updatedUser, options = {}) => {
+              if (options.manuallyPaused !== undefined) {
+                manuallyPausedRef.current = Boolean(options.manuallyPaused);
+                setManuallyPausedSession(Boolean(options.manuallyPaused));
+              }
+              if (updatedUser) {
+                setCurrentUser(updatedUser);
+                currentUserRef.current = updatedUser;
+                storage.saveUserSession(updatedUser).catch(() => {});
+                if (updatedUser.matchmakingStatus === 'IN_ROOM' && updatedUser.activeCompetitionId) {
+                  setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+                  setTargetCompetitionId(updatedUser.activeCompetitionId);
+                  setTargetCompetitionCode(null);
+                  setActiveTab('SALAS');
+                } else if (updatedUser.matchmakingStatus === 'SEARCHING') {
+                  setQueueState((prev) => ({
+                    ...prev,
+                    isSearching: true,
+                    formatId: updatedUser.searchingFormat || prev.formatId || '7v7',
+                    district: updatedUser.searchingDistrict || prev.district || currentDistrict,
+                  }));
+                } else if (updatedUser.matchmakingStatus === 'IDLE') {
+                  setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
+                }
+              }
+            }}
             onNavigateToLobbies={() => setActiveTab('SALAS')}
             onSelectCompetitionTarget={({ competitionId, code }) => {
               setTargetCompetitionId(competitionId || null);
