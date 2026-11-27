@@ -12,7 +12,6 @@ import { THEME } from './src/theme';
 // Pantallas
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import RadarScreen from './src/screens/RadarScreen';
 import CompetitionScreen from './src/screens/CompetitionScreen';
 import LobbyRoomScreen from './src/screens/LobbyRoomScreen';
 import MatchAcceptanceScreen from './src/screens/MatchAcceptanceScreen';
@@ -41,15 +40,13 @@ export default function App() {
   // Flujo Auth
   const [authScreen, setAuthScreen] = useState('SPLASH'); // 'SPLASH' | 'LOGIN' | 'REGISTER'
   
-  // Pestañas Principales (4 Destinos: Jugar · Salas · Ranking · Perfil)
-  const [activeTab, setActiveTab] = useState('JUGAR'); // 'JUGAR' | 'SALAS' | 'RANKING' | 'PERFIL'
+  // Pestañas Principales (3 Destinos: Salas · Ranking · Perfil)
+  const [activeTab, setActiveTab] = useState('SALAS'); // 'SALAS' | 'RANKING' | 'PERFIL'
   
   // Sub-pantallas Nativas (Navegación Stack sin modales, con accesos secundarios)
   const [activeSubScreen, setActiveSubScreen] = useState(null); // 'NOTIFICATIONS' | 'LEADERBOARD' | 'CALIBRATION' | 'LOCATION_SETTINGS' | 'JOIN_CODE' | 'BIOMETRICS' | 'FOOTBALL_TEST'
   const [currentRadius, setCurrentRadius] = useState(8);
   const [currentDistrict, setCurrentDistrict] = useState('SURCO, LIMA');
-  const [userDeclaredLevel, setUserDeclaredLevel] = useState('Intermedio');
-  const [manuallyPausedSession, setManuallyPausedSession] = useState(false);
   const manuallyPausedRef = useRef(false);
   const currentUserRef = useRef(null);
 
@@ -68,45 +65,6 @@ export default function App() {
   const [targetCompetitionId, setTargetCompetitionId] = useState(null);
   const [targetCompetitionCode, setTargetCompetitionCode] = useState(null);
   const [pushPermissionStatus, setPushPermissionStatus] = useState('undetermined');
-
-  // Estado Global de Búsqueda de Partida (Situación en Cola Glicko-2)
-  const [queueState, setQueueState] = useState({
-    isSearching: false,
-    sportId: 'futbol',
-    formatId: '5v5',
-    district: 'SURCO, LIMA',
-    seconds: 0,
-  });
-
-  useEffect(() => {
-    let interval = null;
-    if (queueState.isSearching) {
-      interval = setInterval(() => {
-        setQueueState((prev) => (prev.isSearching ? { ...prev, seconds: prev.seconds + 1 } : prev));
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [queueState.isSearching]);
-
-  const handleCancelGlobalQueue = async () => {
-    manuallyPausedRef.current = true;
-    setManuallyPausedSession(true);
-    const socket = socketService.getSocket();
-    if (socket && currentUserRef.current) {
-      socket.emit('cancelQueue', { userId: currentUserRef.current.id });
-    }
-    setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
-    notificationService.dismissOngoingSearchNotification();
-    try {
-      const res = await api.updateMatchmakingStatus({ status: 'IDLE' });
-      if (res?.user) {
-        setCurrentUser(res.user);
-        await storage.saveUserSession(res.user);
-      }
-    } catch (e) {}
-  };
 
   const handleNotificationIntent = (data, explicitUser = null) => {
     if (!data) return;
@@ -139,7 +97,6 @@ export default function App() {
 
     // 1. Si el jugador ya está en una sala activa ('IN_ROOM' + activeCompetitionId), derivarlo directo a su sala
     if (user.matchmakingStatus === 'IN_ROOM' && user.activeCompetitionId) {
-      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
       setTargetCompetitionId(user.activeCompetitionId);
       setTargetCompetitionCode(null);
       setActiveSubScreen(null);
@@ -149,13 +106,12 @@ export default function App() {
       return user;
     }
 
-    // 2. Si tiene perfil y test completos y no pausó manualmente en la sesión, activar/sincronizar 'SEARCHING' en BD
+    // 2. Si tiene perfil y test completos y no apagó manualmente en la sesión, encender estado 'SEARCHING' en BD
     const profileReady = Boolean(user.hasCompletedProfile && user.district && user.position);
     const testReady = Boolean(user.hasCompletedTest);
     if (profileReady && testReady && (!manuallyPausedRef.current || forceActivate)) {
       if (forceActivate) {
         manuallyPausedRef.current = false;
-        setManuallyPausedSession(false);
       }
       try {
         const formatToUse = user.searchingFormat || '7v7';
@@ -172,21 +128,12 @@ export default function App() {
         await storage.saveUserSession(syncedUser);
 
         if (syncedUser.matchmakingStatus === 'IN_ROOM' && syncedUser.activeCompetitionId) {
-          setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
           setTargetCompetitionId(syncedUser.activeCompetitionId);
           setTargetCompetitionCode(null);
           setActiveSubScreen(null);
           setSelectedLobby(null);
           setActiveMatch(null);
           setActiveTab('SALAS');
-        } else if (syncedUser.matchmakingStatus === 'SEARCHING') {
-          setQueueState({
-            isSearching: true,
-            sportId: 'futbol',
-            formatId: syncedUser.searchingFormat || formatToUse,
-            district: syncedUser.searchingDistrict || districtToUse,
-            seconds: 0,
-          });
         }
         return syncedUser;
       } catch (err) {
@@ -274,31 +221,9 @@ export default function App() {
   const initSocketSession = (user) => {
     const socket = socketService.connect(user.id, user);
 
-    // Eventos de cola y emparejamiento (Situación en Vivo)
-    socket.on('queueStarted', (data) => {
-      setQueueState({
-        isSearching: true,
-        sportId: data?.challenge?.sportId || 'futbol',
-        formatId: data?.challenge?.formatId || '5v5',
-        district: data?.challenge?.district || currentDistrict,
-        seconds: 0,
-      });
-      notificationService.startOngoingSearchNotification({
-        format: data?.challenge?.formatId || '5v5',
-        district: data?.challenge?.district || currentDistrict,
-      });
-    });
-
-    socket.on('queueCancelled', () => {
-      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
-      notificationService.dismissOngoingSearchNotification();
-    });
-
     // Pantalla de confirmación de 20s estilo MOBA
     socket.on('matchPromptAcceptance', async (data) => {
       console.log('[APP] ⚡ Desafío encontrado - Abriendo pantalla de 20s:', data);
-      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
-      notificationService.dismissOngoingSearchNotification();
       setAcceptanceData(data);
 
       await notificationService.scheduleLocalNotification({
@@ -311,8 +236,6 @@ export default function App() {
     // Partido oficial iniciado
     socket.on('matchFound', (data) => {
       console.log('[APP] 🏟️ Partido iniciado oficial:', data.matchId);
-      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
-      notificationService.dismissOngoingSearchNotification();
       setAcceptanceData(null);
       setSelectedLobby(null);
       setActiveMatch(data.match);
@@ -353,7 +276,7 @@ export default function App() {
     socket.on('matchCancelled', () => {
       setAcceptanceData(null);
       setActiveMatch(null);
-      setActiveTab('JUGAR');
+      setActiveTab('SALAS');
     });
 
     // Notificación en vivo de Peer Review asignado
@@ -432,18 +355,6 @@ export default function App() {
           return next;
         });
       }
-
-      if (data?.matchmakingStatus === 'SEARCHING') {
-        setQueueState((prev) => ({
-          ...prev,
-          isSearching: true,
-          formatId: data.searchingFormat || prev.formatId || '7v7',
-          district: data.searchingDistrict || prev.district || currentDistrict,
-        }));
-      } else if (data?.matchmakingStatus === 'IDLE' || data?.matchmakingStatus === 'IN_ROOM') {
-        setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
-        notificationService.dismissOngoingSearchNotification();
-      }
     });
 
     // Asignación automática de sala por el motor de disponibilidad persistente (Fase 2 & 3)
@@ -455,9 +366,6 @@ export default function App() {
       try {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (e) {}
-
-      setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
-      notificationService.dismissOngoingSearchNotification();
 
       setCurrentUser((prev) => {
         if (!prev) return prev;
@@ -495,11 +403,10 @@ export default function App() {
 
   const handleLoginSuccess = async (user) => {
     manuallyPausedRef.current = false;
-    setManuallyPausedSession(false);
     setCurrentUser(user);
     currentUserRef.current = user;
     initSocketSession(user);
-    setActiveTab('JUGAR');
+    setActiveTab('SALAS');
 
     // Registrar token push tras login
     const pushToken = await notificationService.getPushToken();
@@ -638,7 +545,7 @@ export default function App() {
             }
           }
           setActiveSubScreen(null);
-          setActiveTab('JUGAR');
+          setActiveTab('SALAS');
           const syncedUser = await syncMatchmakingEntryFlow(finalUser, { forceActivate: true });
           // Si existía una intención de notificación pendiente, resolverla (V-18)
           const pendingIntent = await storage.getPendingNotificationIntent();
@@ -697,7 +604,7 @@ export default function App() {
         onBackToRadar={() => {
           setSummaryData(null);
           setActiveMatch(null);
-          setActiveTab('JUGAR');
+          setActiveTab('SALAS');
         }}
       />
     );
@@ -728,7 +635,7 @@ export default function App() {
         onBack={() => setSelectedLobby(null)}
         onStartSquadRadar={(code) => {
           setSelectedLobby(null);
-          setActiveTab('JUGAR');
+          setActiveTab('SALAS');
         }}
       />
     );
@@ -870,7 +777,7 @@ export default function App() {
             currentUserRef.current = u;
           }
           setActiveSubScreen(null);
-          setActiveTab('JUGAR');
+          setActiveTab('SALAS');
           await syncMatchmakingEntryFlow(finalUser, { forceActivate: true });
         }}
         onCancel={() => setActiveSubScreen(null)}
@@ -879,8 +786,7 @@ export default function App() {
   }
 
   // ==========================================
-  // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (3 TABS: JUGAR · MIS PARTIDOS · PERFIL)
-  // Accesos secundarios a Ranking y Notificaciones en Barra Superior (MS-11)
+  // VISTA PRINCIPAL CON BOTTOM NAVIGATION BAR (3 TABS: SALAS · RANKING · PERFIL)
   // ==========================================
   return (
     <SafeAreaView style={styles.container}>
@@ -918,65 +824,31 @@ export default function App() {
       </View>
 
       <View style={styles.tabContent}>
-        {activeTab === 'JUGAR' && (
-          <RadarScreen
+        {(activeTab === 'SALAS' || activeTab === 'MIS_PARTIDOS') && (
+          <CompetitionScreen
+            key="SALAS"
             user={currentUser}
-            radiusKm={currentRadius}
-            districtName={currentDistrict}
-            userLevel={userDeclaredLevel}
+            mine={false}
             onUserUpdated={(updatedUser, options = {}) => {
               if (options.manuallyPaused !== undefined) {
                 manuallyPausedRef.current = Boolean(options.manuallyPaused);
-                setManuallyPausedSession(Boolean(options.manuallyPaused));
               }
               if (updatedUser) {
                 setCurrentUser(updatedUser);
                 currentUserRef.current = updatedUser;
                 storage.saveUserSession(updatedUser).catch(() => {});
                 if (updatedUser.matchmakingStatus === 'IN_ROOM' && updatedUser.activeCompetitionId) {
-                  setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
                   setTargetCompetitionId(updatedUser.activeCompetitionId);
                   setTargetCompetitionCode(null);
-                  setActiveTab('SALAS');
-                } else if (updatedUser.matchmakingStatus === 'SEARCHING') {
-                  setQueueState((prev) => ({
-                    ...prev,
-                    isSearching: true,
-                    formatId: updatedUser.searchingFormat || prev.formatId || '7v7',
-                    district: updatedUser.searchingDistrict || prev.district || currentDistrict,
-                  }));
-                } else if (updatedUser.matchmakingStatus === 'IDLE') {
-                  setQueueState((prev) => ({ ...prev, isSearching: false, seconds: 0 }));
                 }
               }
             }}
-            onNavigateToLobbies={() => setActiveTab('SALAS')}
-            onSelectCompetitionTarget={({ competitionId, code }) => {
-              setTargetCompetitionId(competitionId || null);
-              setTargetCompetitionCode(code || null);
-              setActiveTab('SALAS');
-            }}
-            onOpenNotifications={() => setActiveSubScreen('NOTIFICATIONS')}
-            onOpenCalibration={() => setActiveSubScreen('CALIBRATION')}
-            onOpenLocationSettings={() => setActiveSubScreen('LOCATION_SETTINGS')}
-            onOpenJoinCode={() => setActiveSubScreen('JOIN_CODE')}
-            onStartFootballTest={() => setActiveSubScreen('FOOTBALL_TEST')}
-            onRequireProfileSetup={() => setActiveSubScreen('BIOMETRICS')}
-          />
-        )}
-
-        {(activeTab === 'SALAS' || activeTab === 'MIS_PARTIDOS') && (
-          <CompetitionScreen
-            key="SALAS"
-            user={currentUser}
-            mine={false}
             initialCompetitionId={targetCompetitionId}
             initialCode={targetCompetitionCode}
             onClearInitialTarget={() => {
               setTargetCompetitionId(null);
               setTargetCompetitionCode(null);
             }}
-            onNavigateToPlay={() => setActiveTab('JUGAR')}
             onStartFootballTest={() => setActiveSubScreen('FOOTBALL_TEST')}
           />
         )}
@@ -996,40 +868,12 @@ export default function App() {
               setActiveSubScreen(null);
               setActiveTab('RANKING');
             }}
-            onNavigateToPlay={() => setActiveTab('JUGAR')}
+            onNavigateToPlay={() => setActiveTab('SALAS')}
           />
         )}
       </View>
 
-      {/* Barra de Situación Global Flotante (Sticky Queue Bar) */}
-      {queueState.isSearching && (
-        <View style={styles.stickyQueueBar}>
-          <TouchableOpacity
-            style={styles.stickyQueueContent}
-            onPress={() => {
-              setActiveSubScreen(null);
-              setActiveTab('JUGAR');
-            }}
-            activeOpacity={0.85}
-          >
-            <View style={styles.stickyQueueDot} />
-            <Text style={styles.stickyQueueText} numberOfLines={1}>
-              BUSCANDO {queueState.formatId?.toUpperCase()} EN {queueState.district?.split(',')[0]?.toUpperCase()} ({Math.floor(queueState.seconds / 60).toString().padStart(2, '0')}:{(queueState.seconds % 60).toString().padStart(2, '0')})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.stickyQueueCancelBtn}
-            onPress={handleCancelGlobalQueue}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Cancelar búsqueda"
-          >
-            <Text style={styles.stickyQueueCancelText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Persistent Bottom Bar (4 Destinos: Jugar · Salas · Ranking · Perfil) */}
+      {/* Persistent Bottom Bar (3 Destinos: Salas · Ranking · Perfil) */}
       <BottomNavBar
         activeTab={activeTab}
         onSelectTab={(tab) => {

@@ -434,24 +434,21 @@ MS-01 a MS-05, MS-07 y MS-08 implementados. MS-06 mantiene pendiente el almacena
   - Suite de servidor (`npm run test:server`): 113 de 113 pruebas aprobadas al 100% (0 fallos).
   - Validación completa (`npm run validate`): suite de servidor, build de `apps/admin-web` y exportación nativa iOS de `apps/mobile` aprobadas sin errores.
 
-### Evidencia Sistema de Disponibilidad Persistente / Buscando Partida en Base de Datos — Fase 3 (App Móvil: Auto-Activación, Derivación y Tarjeta Persistente en Radar) — 26 de noviembre de 2026
+### Evidencia Sistema de Disponibilidad Persistente / Buscando Partida en Base de Datos — Fase 3 (App Móvil: Interruptor de Estado Encendido/Apagado en Salas y Eliminación de Pestaña Jugar) — 26 de noviembre de 2026
 
 - **Objetivo cumplido:**
-  - Integración completa en `apps/mobile` del sistema de disponibilidad persistente en base de datos: auto-activación al ingresar si el jugador completó su perfil y Test de Nivel, derivación automática inmediata a la sala asignada (`'IN_ROOM'` / `'matchmakingRoomAssigned'` / Push Notification) y tarjeta de estado persistente en `RadarScreen`.
+  - Simplificación del flujo móvil de disponibilidad persistente en base de datos: eliminación de la sección/pestaña `JUGAR` (`RadarScreen`), eliminación de cronómetros, barras de tiempo y avisos de vigencia, e integración directa de un **interruptor/botón de Encendido y Apagado (`ON` / `OFF`)** de disponibilidad en la pantalla principal **`SALAS` (`CompetitionScreen`)**.
 - **Cambios realizados:**
   1. `apps/mobile/src/services/api.js`:
      - Adición del helper HTTP `put` y del método `updateMatchmakingStatus(payload)` conectado a `PUT /api/user/matchmaking-status`.
-  2. `apps/mobile/App.js`:
-     - Implementación de `syncMatchmakingEntryFlow(user)` ejecutado al restaurar sesión (`api.me()`), al iniciar sesión (`handleLoginSuccess`) y al finalizar el Test de Nivel (`FootballLevelTestScreen`).
-     - Si el jugador tiene `matchmakingStatus === 'IN_ROOM'` y `activeCompetitionId`, se deriva automáticamente a su sala (`setTargetCompetitionId(user.activeCompetitionId)` y pestaña `'SALAS'`).
-     - Si el jugador tiene `hasCompletedProfile && hasCompletedTest` y no está en una sala activa (ni pausó manualmente su disponibilidad en la sesión), sincroniza automáticamente `'SEARCHING'` en la base de datos con su modalidad, distrito y radio actual.
-     - En `initSocketSession`, suscripción a `'matchmakingStatusUpdated'` y `'matchmakingRoomAssigned'`: al recibir `{ competitionId, code }`, actualiza el usuario a `'IN_ROOM'`, dispara feedback háptico de éxito, registra el aviso en el centro de notificaciones / notificación local y deriva inmediatamente a la sala mediante `handleNotificationIntent({ competitionId, code })`.
-  3. `apps/mobile/src/screens/RadarScreen.js`:
-     - Reemplazo del botón manual de cola efímera por la **Tarjeta de Estado Persistente en Base de Datos** con 3 estados sincronizados en vivo:
-       - 🟢 **BUSCANDO PARTIDA AUTOMÁTICAMENTE** (formato activo, distrito, radio en km, vigencia de TTL y cronómetro desde `searchingSince`) + botón rápido **"Pausar disponibilidad"**.
-       - ⚪ **DISPONIBILIDAD EN PAUSA** + botón de 1 toque **"Activar búsqueda automática"**.
-       - 🏟️ **EN SALA ASIGNADA** + botón primario **"Ir a mi sala ahora ➔"**.
-     - Actualización automática en base de datos mediante `api.updateMatchmakingStatus(...)` cuando el jugador cambia de modalidad (`5v5`, `6v6`, `7v7`, `11v11`, etc.) o de distrito/radio mientras está en `'SEARCHING'`.
+  2. `apps/mobile/src/components/BottomNavBar.js` y `apps/mobile/App.js`:
+     - Eliminada la pestaña `JUGAR` de la barra de navegación inferior (quedando 3 destinos directos: **SALAS · RANKING · PERFIL** con `SALAS` como vista principal al ingresar).
+     - Eliminados los contadores de tiempo, la barra flotante `stickyQueueBar` con cronómetro y las notificaciones persistentes de tiempo en cola.
+     - Implementado `syncMatchmakingEntryFlow(user)` al restaurar sesión (`api.me()`), iniciar sesión (`handleLoginSuccess`) y finalizar el Test de Nivel (`FootballLevelTestScreen`): si el usuario está en `'IN_ROOM'` con `activeCompetitionId` lo deriva directo a su sala en `'SALAS'`; si tiene perfil y test completos, enciende su estado `'SEARCHING'` en base de datos sin mostrar temporizadores.
+     - Suscripción a `'matchmakingStatusUpdated'` y `'matchmakingRoomAssigned'` para derivar automáticamente a la sala asignada cuando el motor encuentra partido.
+  3. `apps/mobile/src/screens/CompetitionScreen.js`:
+     - Integrado el botón interruptor **`DISPONIBLE PARA JUGAR: ENCENDIDO (ON) / APAGADO (OFF)`** en la cabecera de **`SALAS`**, que cambia el estado en base de datos (`'SEARCHING'` ⇄ `'IDLE'`) con un toque o lleva directo a la sala activa cuando el estado es `'IN_ROOM'`, sin avisos de tiempo ni cronómetros.
+     - Eliminado el widget inferior de redirección al radar de `JUGAR`.
 - **Pruebas ejecutadas:**
   - Validación completa (`npm run validate`): 113 de 113 pruebas de servidor aprobadas al 100%, build de `apps/admin-web` y exportación nativa iOS (`expo export --platform ios`) sin errores.
   - Exportación nativa Android (`npm run build:mobile:android`): aprobada al 100% sin errores.

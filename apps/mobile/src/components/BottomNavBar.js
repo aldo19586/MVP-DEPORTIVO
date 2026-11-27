@@ -16,7 +16,6 @@ export default function BottomNavBar({ activeTab, onSelectTab, openRoomsCount = 
   const normalizedActiveTab = activeTab === 'MIS_PARTIDOS' ? 'SALAS' : activeTab;
 
   const tabs = [
-    { key: 'JUGAR', label: 'JUGAR', icon: '◎' },
     { key: 'SALAS', label: 'SALAS', icon: '⚽', badge: openRoomsCount > 0 ? openRoomsCount : null },
     { key: 'RANKING', label: 'RANKING', icon: '🏆' },
     { key: 'PERFIL', label: 'PERFIL', icon: '🛡️' },
@@ -37,15 +36,9 @@ export default function BottomNavBar({ activeTab, onSelectTab, openRoomsCount = 
             accessibilityLabel={tab.label}
           >
             <View style={styles.iconWrapper}>
-              {tab.key === 'JUGAR' ? (
-                <View style={[styles.targetIconOuter, isActive && styles.targetIconOuterActive]}>
-                  <View style={[styles.targetIconInner, isActive && styles.targetIconInnerActive]} />
-                </View>
-              ) : (
-                <Text style={[styles.tabIcon, isActive && styles.activeTabIcon]}>
-                  {tab.icon}
-                </Text>
-              )}
+              <Text style={[styles.tabIcon, isActive && styles.activeTabIcon]}>
+                {tab.icon}
+              </Text>
               {tab.badge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{tab.badge}</Text>

@@ -75,12 +75,14 @@ function Field({ label, ...props }) {
 export default function CompetitionScreen({
   user,
   mine = false,
-  onNavigateToPlay,
+  onUserUpdated = null,
   initialCompetitionId = null,
   initialCode = null,
   onClearInitialTarget = null,
   onStartFootballTest = null
 }) {
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
   const requireTestAlert = (actionDesc = 'participar en salas de convocatoria') => {
     if (!user?.hasCompletedTest) {
       Alert.alert(
@@ -99,6 +101,63 @@ export default function CompetitionScreen({
       return true;
     }
     return false;
+  };
+
+  const handleToggleAvailability = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {}
+
+    const currentStatus = user?.matchmakingStatus || 'IDLE';
+
+    if (currentStatus === 'IN_ROOM' && user?.activeCompetitionId) {
+      setBusy(true);
+      setError('');
+      try {
+        const res = await api.competition(user.activeCompetitionId);
+        if (res?.competition) {
+          await open(res.competition);
+        }
+      } catch (e) {
+        Alert.alert('Aviso', e.message || 'No se pudo abrir tu sala asignada.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    const targetStatus = currentStatus === 'SEARCHING' ? 'IDLE' : 'SEARCHING';
+    if (targetStatus === 'SEARCHING') {
+      if (requireTestAlert('encender tu estado disponible')) return;
+    }
+
+    setAvailabilityLoading(true);
+    try {
+      const payload =
+        targetStatus === 'SEARCHING'
+          ? {
+              status: 'SEARCHING',
+              formatId: filterFormat !== 'all' ? filterFormat : user?.searchingFormat || '7v7',
+              district: filterDistrict ? filterDistrict.label : user?.searchingDistrict || user?.district || 'SURCO, LIMA',
+              radiusKm: Number(user?.searchingRadiusKm) || 8
+            }
+          : { status: 'IDLE' };
+
+      const res = await api.updateMatchmakingStatus(payload);
+      if (res?.user && onUserUpdated) {
+        onUserUpdated(res.user, { manuallyPaused: targetStatus === 'IDLE' });
+      }
+      if (res?.user?.matchmakingStatus === 'IN_ROOM' && res.user.activeCompetitionId) {
+        const compRes = await api.competition(res.user.activeCompetitionId).catch(() => null);
+        if (compRes?.competition) {
+          await open(compRes.competition);
+        }
+      }
+    } catch (e) {
+      Alert.alert('Aviso', e.message || 'No se pudo cambiar tu estado.');
+    } finally {
+      setAvailabilityLoading(false);
+    }
   };
 
   const [page, setPage] = useState('list'); // 'list' | 'create' | 'details' | 'detail' | 'code' | 'filter' | 'chat'
@@ -545,7 +604,7 @@ export default function CompetitionScreen({
             ======================================================== */}
         {page === 'list' && (
           <>
-            {/* 1. HUD Header & Tactical Region Pill */}
+            {/* 1. HUD Header & Interruptor de Disponibilidad (Encendido / Apagado) */}
             <View style={styles.hudHeaderSection}>
               <View style={styles.hudTitleRow}>
                 <View style={styles.hudTitleLeft}>
@@ -567,6 +626,85 @@ export default function CompetitionScreen({
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Botón / Interruptor de Estado Disponible (Encendido / Apagado) */}
+              {(() => {
+                const mmStatus = user?.matchmakingStatus || 'IDLE';
+                const isOn = mmStatus === 'SEARCHING';
+                const isInRoom = mmStatus === 'IN_ROOM';
+                return (
+                  <TouchableOpacity
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: isOn }}
+                    accessibilityLabel={
+                      isInRoom
+                        ? 'En sala asignada, tocar para ir a mi sala'
+                        : isOn
+                        ? 'Estado disponible encendido, tocar para apagar'
+                        : 'Estado disponible apagado, tocar para encender'
+                    }
+                    style={[
+                      styles.availabilitySwitchCard,
+                      isOn && styles.availabilitySwitchCardOn,
+                      isInRoom && styles.availabilitySwitchCardInRoom
+                    ]}
+                    onPress={handleToggleAvailability}
+                    disabled={availabilityLoading || busy}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.availabilityLeftCol}>
+                      <View style={styles.availabilityTitleRow}>
+                        <View
+                          style={[
+                            styles.availabilityStatusDot,
+                            isOn && styles.availabilityStatusDotOn,
+                            isInRoom && styles.availabilityStatusDotInRoom
+                          ]}
+                        />
+                        <Text style={styles.availabilityTitleText}>
+                          {isInRoom
+                            ? 'EN SALA ASIGNADA'
+                            : isOn
+                            ? 'DISPONIBLE PARA JUGAR: ENCENDIDO'
+                            : 'DISPONIBLE PARA JUGAR: APAGADO'}
+                        </Text>
+                      </View>
+                      <Text style={styles.availabilitySubText} numberOfLines={1}>
+                        {isInRoom
+                          ? 'Tienes una convocatoria activa · Toca para entrar a tu sala'
+                          : isOn
+                          ? `Modalidad ${(user?.searchingFormat || '7v7').toUpperCase()} · ${(user?.searchingDistrict || user?.district || 'Tu zona').split(',')[0]}`
+                          : 'Toca el botón para encender tu estado disponible'}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.powerTogglePill,
+                        isOn && styles.powerTogglePillOn,
+                        isInRoom && styles.powerTogglePillInRoom
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.powerToggleKnob,
+                          isOn && styles.powerToggleKnobOn,
+                          isInRoom && styles.powerToggleKnobInRoom
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.powerToggleText,
+                          isOn && styles.powerToggleTextOn,
+                          isInRoom && styles.powerToggleTextInRoom
+                        ]}
+                      >
+                        {availabilityLoading ? '...' : isInRoom ? 'IR ➔' : isOn ? 'ON' : 'OFF'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })()}
 
               {/* Sub-tabs: Todas las Salas vs Mis Convocatorias */}
               <View style={styles.salasTabRow}>
@@ -1010,28 +1148,6 @@ export default function CompetitionScreen({
                   );
                 })}
               </View>
-            )}
-
-            {/* 5. Radar Telemetry Widget (Acceso rápido a Radar Jugar) */}
-            {onNavigateToPlay && (
-              <TouchableOpacity
-                style={styles.radarWidgetCard}
-                onPress={onNavigateToPlay}
-                activeOpacity={0.85}
-              >
-                <View style={styles.radarWidgetLeft}>
-                  <View style={styles.radarWidgetCircle}>
-                    <Text style={styles.radarWidgetIcon}>◎</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.radarWidgetTitle}>Radar MatchSport Glicko-2</Text>
-                    <Text style={styles.radarWidgetSub}>
-                      ¿Buscas partido inmediato? Activa el radar automático
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.radarWidgetArrow}>➔</Text>
-              </TouchableOpacity>
             )}
           </>
         )}
@@ -1905,6 +2021,101 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.6
+  },
+  availabilitySwitchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.surfaceLow,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    gap: 10
+  },
+  availabilitySwitchCardOn: {
+    backgroundColor: 'rgba(0, 255, 135, 0.08)',
+    borderColor: 'rgba(0, 255, 135, 0.35)'
+  },
+  availabilitySwitchCardInRoom: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.4)'
+  },
+  availabilityLeftCol: {
+    flex: 1,
+    gap: 3
+  },
+  availabilityTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7
+  },
+  availabilityStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: THEME.colors.outline
+  },
+  availabilityStatusDotOn: {
+    backgroundColor: THEME.colors.neonPitch
+  },
+  availabilityStatusDotInRoom: {
+    backgroundColor: '#F59E0B'
+  },
+  availabilityTitleText: {
+    color: THEME.colors.onSurface,
+    fontSize: 11.5,
+    fontWeight: '900',
+    letterSpacing: 0.6
+  },
+  availabilitySubText: {
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 11,
+    fontWeight: '600'
+  },
+  powerTogglePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.surfaceHigh,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
+  },
+  powerTogglePillOn: {
+    backgroundColor: THEME.colors.neonPitch,
+    borderColor: THEME.colors.neonPitch
+  },
+  powerTogglePillInRoom: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#F59E0B'
+  },
+  powerToggleKnob: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: THEME.colors.outline
+  },
+  powerToggleKnobOn: {
+    backgroundColor: THEME.colors.surfaceLowest
+  },
+  powerToggleKnobInRoom: {
+    backgroundColor: THEME.colors.surfaceLowest
+  },
+  powerToggleText: {
+    color: THEME.colors.onSurfaceVariant,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.6
+  },
+  powerToggleTextOn: {
+    color: THEME.colors.surfaceLowest
+  },
+  powerToggleTextInRoom: {
+    color: THEME.colors.surfaceLowest
   },
   salasTabRow: {
     flexDirection: 'row',
